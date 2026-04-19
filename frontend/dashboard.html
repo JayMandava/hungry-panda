@@ -627,12 +627,12 @@
                         </div>
                         
                         <!-- Compact Context Input Bar -->
-                        <div id="contextBar" class="context-bar" style="display: none;">
+                        <div id="contextBar" class="context-bar" style="margin-top: 20px;">
                             <input 
                                 type="text" 
                                 id="contextInput" 
                                 class="context-input" 
-                                placeholder="Add context about your dish..."
+                                placeholder="Add context about your dish (optional)..."
                                 onkeypress="if(event.key==='Enter') uploadWithContext()"
                             >
                             <button id="voiceBtn" class="context-mic" onclick="toggleVoiceRecording()" title="Voice input">
@@ -643,7 +643,7 @@
                             </button>
                         </div>
                         
-                        <div id="voiceStatusBar" class="voice-status-bar" style="display: none;">
+                        <div id="voiceStatusBar" class="voice-status-bar" style="display: none; margin-top: 10px;">
                             <span class="recording-dot"></span>
                             <span id="voiceStatusText">Listening...</span>
                         </div>
