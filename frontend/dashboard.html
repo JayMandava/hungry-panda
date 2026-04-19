@@ -626,47 +626,26 @@
                             </button>
                         </div>
                         
-                        <!-- Context Input with Voice -->
-                        <div class="context-input-container">
-                            <div class="context-header">
-                                <div class="context-title">
-                                    🎤 Tell us about your post
-                                </div>
-                                <div class="context-hint">
-                                    Helps AI create better captions
-                                </div>
-                            </div>
-                            
-                            <textarea 
+                        <!-- Compact Context Input Bar -->
+                        <div id="contextBar" class="context-bar" style="display: none;">
+                            <input 
+                                type="text" 
                                 id="contextInput" 
-                                class="context-textarea" 
-                                placeholder="What's in this photo? Describe the dish, your inspiration, the recipe, or any story behind it. You can also use the voice button to speak!"
-                            ></textarea>
-                            
-                            <div class="voice-controls">
-                                <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceRecording()">
-                                    <span id="voiceIcon">🎙️</span>
-                                    <span id="voiceText">Start Voice</span>
-                                </button>
-                                
-                                <div id="recordingWave" class="recording-wave">
-                                    <span></span><span></span><span></span><span></span><span></span>
-                                </div>
-                                
-                                <div id="voiceStatus" class="voice-status">
-                                    Tap to record your voice
-                                </div>
-                                
-                                <button class="clear-context-btn" onclick="clearContext()">
-                                    Clear
-                                </button>
-                            </div>
-                            
-                            <div id="uploadActions" style="margin-top: 16px; display: none;">
-                                <button class="btn" style="width: 100%;" onclick="uploadWithContext()">
-                                    📤 Upload & Analyze with AI
-                                </button>
-                            </div>
+                                class="context-input" 
+                                placeholder="Add context about your dish..."
+                                onkeypress="if(event.key==='Enter') uploadWithContext()"
+                            >
+                            <button id="voiceBtn" class="context-mic" onclick="toggleVoiceRecording()" title="Voice input">
+                                <span id="voiceIcon">🎤</span>
+                            </button>
+                            <button class="context-send" onclick="uploadWithContext()" title="Upload & Analyze">
+                                <span>⬆️</span>
+                            </button>
+                        </div>
+                        
+                        <div id="voiceStatusBar" class="voice-status-bar" style="display: none;">
+                            <span class="recording-dot"></span>
+                            <span id="voiceStatusText">Listening...</span>
                         </div>
                     </div>
                 </div>
@@ -814,37 +793,43 @@
                 if (finalTranscript) {
                     contextInput.value += (contextInput.value ? ' ' : '') + finalTranscript;
                 }
+                // Show recording status
                 if (interimTranscript) {
-                    document.getElementById('voiceStatus').textContent = 'Listening: ' + interimTranscript;
+                    const statusBar = document.getElementById('voiceStatusBar');
+                    const statusText = document.getElementById('voiceStatusText');
+                    if (statusBar && statusText) {
+                        statusBar.style.display = 'flex';
+                        statusText.textContent = interimTranscript;
+                    }
                 }
             };
             
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 if (event.error === 'not-allowed') {
-                    showToast('❌ Microphone access denied. Please allow microphone access.');
+                    showToast('❌ Microphone access denied');
                 } else {
-                    showToast('❌ Voice recording error: ' + event.error);
+                    showToast('❌ Voice error: ' + event.error);
                 }
                 stopRecording();
             };
             
             recognition.onend = () => {
                 if (isRecording) {
-                    // Auto restart if still recording (unless stopped manually)
                     recognition.start();
                 } else {
                     updateVoiceUI(false);
-                    showToast('✓ Voice recording stopped');
+                    const statusBar = document.getElementById('voiceStatusBar');
+                    if (statusBar) statusBar.style.display = 'none';
                 }
             };
         } else {
-            console.warn('Speech recognition not supported in this browser');
+            console.warn('Speech recognition not supported');
         }
         
         function toggleVoiceRecording() {
             if (!recognition) {
-                showToast('❌ Voice recording not supported in your browser. Try Chrome or Edge.');
+                showToast('❌ Voice not supported. Use keyboard.');
                 return;
             }
             
@@ -859,54 +844,41 @@
             try {
                 recognition.start();
             } catch (err) {
-                console.error('Failed to start recording:', err);
-                showToast('❌ Could not start recording. Please try again.');
+                console.error('Recording failed:', err);
             }
         }
         
         function stopRecording() {
             isRecording = false;
-            if (recognition) {
-                recognition.stop();
-            }
+            if (recognition) recognition.stop();
             updateVoiceUI(false);
+            const statusBar = document.getElementById('voiceStatusBar');
+            if (statusBar) statusBar.style.display = 'none';
         }
         
         function updateVoiceUI(recording) {
             const voiceBtn = document.getElementById('voiceBtn');
             const voiceIcon = document.getElementById('voiceIcon');
-            const voiceText = document.getElementById('voiceText');
-            const voiceStatus = document.getElementById('voiceStatus');
-            const recordingWave = document.getElementById('recordingWave');
+            const statusBar = document.getElementById('voiceStatusBar');
             
             if (recording) {
                 voiceBtn.classList.add('recording');
                 voiceIcon.textContent = '⏹️';
-                voiceText.textContent = 'Stop Recording';
-                voiceStatus.textContent = '🔴 Recording... speak now!';
-                voiceStatus.classList.add('recording');
-                recordingWave.classList.add('active');
+                if (statusBar) statusBar.style.display = 'flex';
             } else {
                 voiceBtn.classList.remove('recording');
-                voiceIcon.textContent = '🎙️';
-                voiceText.textContent = 'Start Voice';
-                voiceStatus.textContent = 'Tap to record your voice';
-                voiceStatus.classList.remove('recording');
-                recordingWave.classList.remove('active');
+                voiceIcon.textContent = '🎤';
+                if (statusBar) statusBar.style.display = 'none';
             }
-        }
-        
-        function clearContext() {
-            document.getElementById('contextInput').value = '';
-            showToast('Context cleared');
         }
         
         // File Input Change Handler
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) {
                 selectedFile = e.target.files[0];
-                document.getElementById('uploadActions').style.display = 'block';
-                showToast('📎 File selected! Add context and click Upload');
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextInput').focus();
+                showToast('📎 File selected! Add context (optional) and send');
             }
         });
         
@@ -917,8 +889,9 @@
             const files = e.dataTransfer.files;
             if (files.length) {
                 selectedFile = files[0];
-                document.getElementById('uploadActions').style.display = 'block';
-                showToast('📎 File dropped! Add context and click Upload');
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextInput').focus();
+                showToast('📎 File dropped! Add context (optional) and send');
             }
         });
         
@@ -951,7 +924,8 @@
                 // Reset
                 selectedFile = null;
                 document.getElementById('contextInput').value = '';
-                document.getElementById('uploadActions').style.display = 'none';
+                document.getElementById('contextBar').style.display = 'none';
+                document.getElementById('voiceStatusBar').style.display = 'none';
                 fileInput.value = '';
                 
                 loadPendingContent();
@@ -970,8 +944,8 @@
             
             // Check for voice support
             if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-                document.getElementById('voiceBtn').disabled = true;
-                document.getElementById('voiceStatus').textContent = 'Voice not supported - use typing';
+                const voiceBtn = document.getElementById('voiceBtn');
+                if (voiceBtn) voiceBtn.style.display = 'none';
             }
         });
         
@@ -989,43 +963,6 @@
         uploadArea.addEventListener('dragleave', () => {
             uploadArea.classList.remove('dragover');
         });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length) uploadFile(files[0]);
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) uploadFile(e.target.files[0]);
-        });
-        
-        async function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('auto_optimize', 'true');
-            
-            showToast('Uploading and analyzing...');
-            
-            try {
-                const res = await fetch('/api/content/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-                
-                if (data.recommendation) {
-                    currentContentId = data.content_id;
-                    showRecommendation(data.recommendation);
-                }
-                
-                loadPendingContent();
-                showToast('Content uploaded successfully!');
-            } catch (err) {
-                showToast('Upload failed. Try again.');
-            }
-        }
         
         function showRecommendation(rec) {
             const modal = document.getElementById('recommendationModal');

@@ -1,206 +1,126 @@
-/* Voice Input Styles - Matching Dashboard Theme */
+/* Compact Context Input Bar - Like ChatGPT/Search */
 
-.context-input-container {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid #2d2d44;
-}
-
-.context-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-}
-
-.context-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
+.context-bar {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.context-hint {
-    font-size: 13px;
-    color: #8b8b9a;
-}
-
-.context-textarea {
-    width: 100%;
-    min-height: 120px;
+    margin-top: 16px;
+    padding: 8px 12px;
     background: #0f0f23;
     border: 1px solid #2d2d44;
-    color: #fff;
-    padding: 16px;
-    border-radius: 12px;
-    font-size: 15px;
-    resize: vertical;
-    font-family: inherit;
-    line-height: 1.5;
+    border-radius: 24px;
     transition: border-color 0.2s;
 }
 
-.context-textarea:focus {
-    outline: none;
+.context-bar:focus-within {
     border-color: #e94560;
 }
 
-.context-textarea::placeholder {
+.context-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 15px;
+    padding: 8px 4px;
+    outline: none;
+}
+
+.context-input::placeholder {
     color: #5a5a7a;
 }
 
-.voice-controls {
+.context-mic {
+    background: transparent;
+    border: none;
+    color: #8b8b9a;
+    font-size: 20px;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s;
     display: flex;
-    gap: 12px;
-    margin-top: 16px;
     align-items: center;
-    flex-wrap: wrap;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
 }
 
-.voice-btn {
+.context-mic:hover {
+    background: #2d2d44;
+    color: #e94560;
+}
+
+.context-mic.recording {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    animation: pulse-mic 1.5s infinite;
+}
+
+@keyframes pulse-mic {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.context-send {
     background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
     border: none;
     color: white;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 18px;
+    padding: 8px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    border-radius: 50%;
     transition: all 0.2s;
-}
-
-.voice-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
-}
-
-.voice-btn.recording {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-.voice-btn:disabled {
-    background: #2d2d44;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.voice-status {
-    font-size: 14px;
-    color: #8b8b9a;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
 }
 
-.voice-status.recording {
+.context-send:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.voice-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px;
     color: #ef4444;
+    font-size: 14px;
 }
 
-.voice-status .recording-indicator {
+.recording-dot {
     width: 8px;
     height: 8px;
     background: #ef4444;
     border-radius: 50%;
-    animation: blink 1s infinite;
+    animation: blink-dot 1s infinite;
 }
 
-@keyframes blink {
+@keyframes blink-dot {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
 }
 
-.clear-context-btn {
-    background: #2d2d44;
-    border: none;
-    color: #8b8b9a;
-    padding: 10px 18px;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-left: auto;
-}
-
-.clear-context-btn:hover {
-    background: #3d3d5c;
-    color: #fff;
-}
-
-/* Recording wave animation */
-.recording-wave {
-    display: none;
-    align-items: center;
-    gap: 3px;
-    height: 24px;
-}
-
-.recording-wave.active {
-    display: flex;
-}
-
-.recording-wave span {
-    width: 4px;
-    background: #ef4444;
-    border-radius: 2px;
-    animation: wave 1s ease-in-out infinite;
-}
-
-.recording-wave span:nth-child(1) { animation-delay: 0s; height: 8px; }
-.recording-wave span:nth-child(2) { animation-delay: 0.1s; height: 16px; }
-.recording-wave span:nth-child(3) { animation-delay: 0.2s; height: 12px; }
-.recording-wave span:nth-child(4) { animation-delay: 0.3s; height: 20px; }
-.recording-wave span:nth-child(5) { animation-delay: 0.4s; height: 14px; }
-
-@keyframes wave {
-    0%, 100% { transform: scaleY(0.5); }
-    50% { transform: scaleY(1); }
-}
-
-/* Upload actions */
-#uploadActions {
-    margin-top: 20px;
-}
-
-#uploadActions .btn {
-    width: 100%;
-    padding: 14px 24px;
-    font-size: 16px;
-}
-
-/* Mobile responsiveness */
+/* Mobile */
 @media (max-width: 600px) {
-    .context-input-container {
-        margin-top: 20px;
-        padding-top: 20px;
+    .context-bar {
+        padding: 6px 10px;
     }
     
-    .voice-controls {
-        flex-direction: column;
-        align-items: stretch;
+    .context-input {
+        font-size: 16px; /* Prevents zoom on iOS */
     }
     
-    .voice-btn {
-        justify-content: center;
-    }
-    
-    .clear-context-btn {
-        margin-left: 0;
-        margin-top: 8px;
-    }
-    
-    .voice-status {
-        justify-content: center;
-        margin-top: 8px;
+    .context-mic,
+    .context-send {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
     }
 }
