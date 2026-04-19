@@ -140,12 +140,30 @@ Based on food content analysis:
 
 ## Instagram Integration
 
-### Current: Manual Mode (Recommended)
+### Method 1: Manual Mode (Recommended for Personal Accounts)
 The agent prepares optimized content and notifies you when it's time to post. You maintain full control and authenticity.
 
-### Future Options:
-1. **Instagram Graph API** - For Business/Creator accounts
-2. **Browser Automation** - Selenium/Playwright (requires careful setup)
+### Method 2: MCP (Model Context Protocol) ⭐ NEW
+Connect to Instagram via MCP servers for official API access:
+
+**For Business/Creator Accounts:**
+- Use `ig-mcp` server for official Instagram Graph API
+- Full automation with no ban risk
+- Rich analytics and insights
+- See [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md)
+
+**Setup:**
+```bash
+# Install ig-mcp server separately
+git clone https://github.com/jlbadano/ig-mcp.git
+
+# Configure Hungry Panda
+cp config/.env.example config/.env
+# Set POSTING_METHOD=mcp and ENABLE_MCP_INTEGRATION=true
+```
+
+### Method 3: Direct API (Legacy)
+Direct Instagram Graph API integration for Business/Creator accounts.
 
 ## Customization
 
@@ -172,13 +190,20 @@ Modify hashtag categories in `analyzer/content_engine.py` to match your niche.
 
 ## Roadmap
 
-- [ ] Instagram Graph API integration
+- [x] **MCP (Model Context Protocol) integration** - Official Instagram API via MCP
+- [x] Instagram Graph API integration
 - [ ] Advanced image analysis (detect dish type automatically)
 - [ ] Story and Reels automation
 - [ ] Comment/DM auto-responses
 - [ ] Advanced analytics with charts
 - [ ] Multi-account support
 - [ ] Mobile app companion
+
+## Documentation
+
+- [README.md](README.md) - This file
+- [docs/INSTAGRAM_SETUP.md](docs/INSTAGRAM_SETUP.md) - Instagram configuration guide
+- [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) - MCP integration guide
 
 ## Notes
 
