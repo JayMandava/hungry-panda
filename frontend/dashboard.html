@@ -873,43 +873,53 @@
         }
         
         async function uploadWithContext() {
+            console.log('Upload clicked, selectedFile:', selectedFile);
+            
             if (!selectedFile) {
-                showToast('❌ Please select a file first');
+                showToast('❌ Please select a file first (tap Select File)');
                 return;
             }
             
             const context = document.getElementById('contextInput').value;
             const formData = new FormData();
-            formData.append('file', selectedFile);
+            formData.append('file', selectedFile, selectedFile.name);
             formData.append('auto_optimize', 'true');
             formData.append('context', context);
             
-            showToast('📤 Uploading with AI context...');
+            showToast('📤 Uploading...');
             
             try {
                 const res = await fetch('/api/content/upload', {
                     method: 'POST',
                     body: formData
                 });
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`HTTP ${res.status}: ${errorText}`);
+                }
+                
                 const data = await res.json();
+                console.log('Upload response:', data);
                 
                 if (data.recommendation) {
                     currentContentId = data.content_id;
                     showRecommendation(data.recommendation);
+                    showToast('✅ Upload complete! Check recommendations');
+                } else {
+                    showToast('✅ File uploaded!');
                 }
                 
                 // Reset
                 selectedFile = null;
                 document.getElementById('contextInput').value = '';
-                document.getElementById('contextBar').style.display = 'none';
                 document.getElementById('voiceStatusBar').style.display = 'none';
                 fileInput.value = '';
                 
                 loadPendingContent();
-                showToast('✅ Content uploaded successfully with AI context!');
             } catch (err) {
                 console.error('Upload error:', err);
-                showToast('❌ Upload failed. Try again.');
+                showToast('❌ Upload failed: ' + err.message);
             }
         }
         
@@ -943,11 +953,14 @@
         
         // File selection handlers
         fileInput.addEventListener('change', (e) => {
+            console.log('File input change event', e.target.files);
             if (e.target.files.length) {
                 selectedFile = e.target.files[0];
+                console.log('File selected:', selectedFile.name);
                 document.getElementById('contextBar').style.display = 'flex';
-                document.getElementById('contextInput').focus();
-                showToast('📎 File selected! Add context and tap ⬆️');
+                document.getElementById('contextBar').style.opacity = '1';
+                document.getElementById('contextInput').placeholder = `Add context for ${selectedFile.name}...`;
+                showToast(`📎 ${selectedFile.name} selected! Tap ⬆️ to upload`);
             }
         });
         
@@ -958,8 +971,9 @@
             if (files.length) {
                 selectedFile = files[0];
                 document.getElementById('contextBar').style.display = 'flex';
-                document.getElementById('contextInput').focus();
-                showToast('📎 File dropped! Add context and tap ⬆️');
+                document.getElementById('contextBar').style.opacity = '1';
+                document.getElementById('contextInput').placeholder = `Add context for ${selectedFile.name}...`;
+                showToast(`📎 ${selectedFile.name} dropped! Tap ⬆️ to upload`);
             }
         });
         

@@ -4,16 +4,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 16px;
-    padding: 8px 12px;
-    background: #0f0f23;
-    border: 1px solid #2d2d44;
-    border-radius: 24px;
-    transition: border-color 0.2s;
+    margin-top: 20px;
+    padding: 10px 14px;
+    background: #1a1a2e;
+    border: 2px solid #3d3d5c;
+    border-radius: 28px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .context-bar:focus-within {
     border-color: #e94560;
+    box-shadow: 0 4px 16px rgba(233, 69, 96, 0.2);
 }
 
 .context-input {
@@ -22,44 +24,45 @@
     border: none;
     color: #fff;
     font-size: 15px;
-    padding: 8px 4px;
+    padding: 10px 8px;
     outline: none;
 }
 
 .context-input::placeholder {
-    color: #5a5a7a;
+    color: #6b6b8a;
 }
 
 .context-mic {
-    background: transparent;
+    background: #2d2d44;
     border: none;
-    color: #8b8b9a;
-    font-size: 20px;
-    padding: 8px;
+    color: #fff;
+    font-size: 18px;
+    padding: 10px;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .context-mic:hover {
-    background: #2d2d44;
-    color: #e94560;
+    background: #e94560;
+    transform: scale(1.05);
 }
 
 .context-mic.recording {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+    background: #ef4444;
+    color: white;
     animation: pulse-mic 1.5s infinite;
 }
 
 @keyframes pulse-mic {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
 }
 
 .context-send {
@@ -67,20 +70,21 @@
     border: none;
     color: white;
     font-size: 18px;
-    padding: 8px;
+    padding: 10px;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
+    box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
 }
 
 .context-send:hover {
     transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+    box-shadow: 0 4px 16px rgba(233, 69, 96, 0.6);
 }
 
 .voice-status-bar {
