@@ -4,314 +4,889 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hungry Panda - Instagram Growth Agent</title>
+    <link rel="stylesheet" href="voice-styles.css">
     <style>
-        * { box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #0f0f23;
             color: #fff;
-            margin: 0;
-            padding: 20px;
+            min-height: 100vh;
         }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 { font-size: 28px; margin-bottom: 5px; }
-        .subtitle { color: #8b8b9a; margin-bottom: 30px; }
         
-        /* Upload Card */
-        .card {
-            background: #1a1a2e;
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 30px 40px;
+            border-bottom: 1px solid #2d2d44;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header p {
+            color: #8b8b9a;
+            margin-top: 8px;
+            font-size: 16px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 40px;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(145deg, #1a1a2e 0%, #1e1e36 100%);
             border-radius: 16px;
             padding: 24px;
-            margin-bottom: 20px;
             border: 1px solid #2d2d44;
+            transition: transform 0.2s, border-color 0.2s;
         }
-        .card h2 { margin-top: 0; font-size: 18px; }
         
-        /* Drop Zone */
-        .drop-zone {
+        .metric-card:hover {
+            transform: translateY(-4px);
+            border-color: #e94560;
+        }
+        
+        .metric-label {
+            color: #8b8b9a;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-value {
+            font-size: 42px;
+            font-weight: 700;
+            margin-top: 8px;
+            background: linear-gradient(135deg, #fff 0%, #e94560 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .metric-change {
+            font-size: 14px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .metric-change.positive { color: #4ade80; }
+        .metric-change.negative { color: #e94560; }
+        
+        /* Main Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1100px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Section Cards */
+        .section-card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            border: 1px solid #2d2d44;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 24px 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .section-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .section-body {
+            padding: 24px;
+        }
+        
+        /* Upload Area */
+        .upload-area {
             border: 2px dashed #3d3d5c;
             border-radius: 12px;
-            padding: 40px 20px;
+            padding: 40px;
             text-align: center;
-            background: #0f0f23;
             transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.05);
+        }
+        
+        .upload-area.dragover {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
             margin-bottom: 16px;
         }
-        .drop-zone.dragover {
-            border-color: #e94560;
-            background: rgba(233, 69, 96, 0.1);
-        }
-        .drop-zone .icon { font-size: 48px; margin-bottom: 10px; }
-        .drop-zone p { color: #8b8b9a; margin: 0 0 15px 0; }
         
-        /* Buttons */
+        .upload-text {
+            color: #8b8b9a;
+            margin-bottom: 20px;
+        }
+        
         .btn {
             background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
-            border: none;
             color: white;
-            padding: 12px 24px;
+            border: none;
+            padding: 12px 28px;
             border-radius: 8px;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s;
         }
-        .btn:hover { transform: translateY(-1px); }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.3);
+        }
+        
         .btn-secondary {
             background: #2d2d44;
         }
         
-        /* Chat Bar */
-        .chat-container {
-            display: none;
-            margin-top: 16px;
+        .btn-secondary:hover {
+            background: #3d3d5c;
+            box-shadow: none;
         }
-        .chat-container.active { display: block; }
-        .chat-bar {
+        
+        /* Content Queue */
+        .content-queue {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #0f0f23;
-            border: 1px solid #3d3d5c;
-            border-radius: 24px;
-            padding: 4px 4px 4px 16px;
+            flex-direction: column;
+            gap: 16px;
         }
-        .chat-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: #fff;
-            font-size: 15px;
-            padding: 8px 0;
-            outline: none;
-        }
-        .chat-input::placeholder { color: #5a5a7a; }
-        .chat-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
+        
+        .queue-item {
             display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .mic-btn { background: #2d2d44; color: #fff; }
-        .mic-btn.recording { background: #ef4444; animation: pulse 1.5s infinite; }
-        .send-btn { background: linear-gradient(135deg, #e94560 0%, #d63852 100%); color: white; }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        
-        .file-name {
-            color: #4ade80;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-        
-        /* Status */
-        .status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 14px;
-            display: none;
-        }
-        .status.show { display: block; }
-        .status.success { background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid #4ade80; }
-        .status.error { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid #ef4444; }
-        .status.loading { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid #3b82f6; }
-        
-        /* Results */
-        .results {
-            display: none;
-            margin-top: 20px;
-            padding: 20px;
+            gap: 16px;
             background: #0f0f23;
+            padding: 16px;
             border-radius: 12px;
             border: 1px solid #2d2d44;
         }
-        .results.show { display: block; }
-        .results h3 { color: #e94560; margin-top: 0; }
-        .result-section { margin-bottom: 15px; }
-        .result-section strong { color: #fff; display: block; margin-bottom: 5px; }
-        .result-section p { color: #b4b4c7; margin: 0; line-height: 1.5; }
-        .hashtags { color: #4ade80; font-size: 14px; }
         
-        /* Queue */
-        .queue-item {
-            display: flex;
-            gap: 12px;
-            padding: 12px;
-            background: #0f0f23;
+        .queue-thumb {
+            width: 80px;
+            height: 80px;
+            background: #2d2d44;
             border-radius: 8px;
-            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            flex-shrink: 0;
         }
-        .queue-thumb { width: 60px; height: 60px; background: #2d2d44; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-        .queue-info { flex: 1; }
-        .queue-title { font-weight: 600; font-size: 14px; }
-        .queue-status { font-size: 12px; color: #8b8b9a; margin-top: 4px; }
+        
+        .queue-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .queue-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .queue-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-pending { background: #f59e0b; color: #000; }
+        .status-scheduled { background: #3b82f6; color: #fff; }
+        .status-posted { background: #4ade80; color: #000; }
+        
+        .queue-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .queue-btn {
+            background: #2d2d44;
+            border: none;
+            color: #8b8b9a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .queue-btn:hover {
+            background: #e94560;
+            color: white;
+        }
+        
+        /* Strategy Panel */
+        .strategy-card {
+            background: linear-gradient(145deg, #1a1a2e 0%, #1e1e36 100%);
+            border: 1px solid #e94560;
+        }
+        
+        .strategy-header {
+            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+            padding: 20px 24px;
+        }
+        
+        .strategy-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .strategy-content {
+            padding: 24px;
+        }
+        
+        .theme-badge {
+            display: inline-block;
+            background: rgba(233, 69, 96, 0.2);
+            color: #e94560;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .insight-list {
+            list-style: none;
+            margin-top: 16px;
+        }
+        
+        .insight-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #2d2d44;
+            color: #b4b4c7;
+            font-size: 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .insight-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .insight-list li::before {
+            content: "→";
+            color: #e94560;
+            font-weight: bold;
+        }
+        
+        /* Recommendations Panel */
+        .recommendation-item {
+            background: #0f0f23;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid #2d2d44;
+        }
+        
+        .recommendation-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .rec-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        
+        .rec-text {
+            color: #8b8b9a;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .rec-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .tag {
+            background: #2d2d44;
+            color: #b4b4c7;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+        }
+        
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #8b8b9a;
+        }
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #2d2d44;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 12px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: #1a1a2e;
+            border-radius: 16px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid #2d2d44;
+        }
+        
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid #2d2d44;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #8b8b9a;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .modal-close:hover {
+            color: #fff;
+        }
+        
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #b4b4c7;
+        }
+        
+        .form-input {
+            width: 100%;
+            background: #0f0f23;
+            border: 1px solid #2d2d44;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        
+        textarea.form-input {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        /* Competitor List */
+        .competitor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .competitor-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0f0f23;
+            padding: 16px;
+            border-radius: 10px;
+        }
+        
+        .competitor-name {
+            font-weight: 600;
+        }
+        
+        .competitor-stats {
+            color: #8b8b9a;
+            font-size: 14px;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #2d2d44;
+            padding-bottom: 16px;
+        }
+        
+        .tab {
+            background: none;
+            border: none;
+            color: #8b8b9a;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            background: #e94560;
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #2d2d44;
+            color: #fff;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #8b8b9a;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a2e;
+            border: 1px solid #4ade80;
+            color: #4ade80;
+            padding: 16px 24px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            z-index: 2000;
+        }
+        
+        .toast.show {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <header class="header">
         <h1>🐼 Hungry Panda</h1>
-        <p class="subtitle">AI-powered Instagram growth for food content</p>
-        
-        <!-- Upload Section -->
-        <div class="card">
-            <h2>📤 Upload Content</h2>
-            
-            <div class="drop-zone" id="dropZone">
-                <div class="icon">🍽️</div>
-                <p>Drop food photos here or tap below</p>
-                <button class="btn" onclick="document.getElementById('fileInput').click()">
-                    Select File
-                </button>
-                <input type="file" id="fileInput" accept="image/*,video/*" hidden>
-            </div>
-            
-            <!-- Chat Bar (shows after file selected) -->
-            <div class="chat-container" id="chatContainer">
-                <div class="file-name" id="fileName"></div>
-                <div class="chat-bar">
-                    <input 
-                        type="text" 
-                        id="contextInput" 
-                        class="chat-input" 
-                        placeholder="Describe your dish (optional)..."
-                    >
-                    <button class="chat-btn mic-btn" id="micBtn" title="Voice input">🎤</button>
-                    <button class="chat-btn send-btn" id="sendBtn" title="Upload">⬆️</button>
+        <p>AI-Powered Instagram Growth Agent for Food & Cooking</p>
+    </header>
+    
+    <div class="container">
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Current Followers</div>
+                <div class="metric-value" id="followers">-</div>
+                <div class="metric-change positive" id="follower-growth">
+                    <span>+0%</span> this month
                 </div>
             </div>
-            
-            <div class="status" id="status"></div>
-            
-            <!-- Results -->
-            <div class="results" id="results">
-                <h3>🤖 AI Recommendations</h3>
-                <div class="result-section">
-                    <strong>Caption:</strong>
-                    <p id="resultCaption"></p>
+            <div class="metric-card">
+                <div class="metric-label">Content Queue</div>
+                <div class="metric-value" id="queue-count">-</div>
+                <div class="metric-change" id="queue-status">
+                    <span>Ready to post</span>
                 </div>
-                <div class="result-section">
-                    <strong>Hashtags:</strong>
-                    <p class="hashtags" id="resultHashtags"></p>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Engagement Rate</div>
+                <div class="metric-value" id="engagement">-</div>
+                <div class="metric-change positive" id="engagement-trend">
+                    <span>Target: 4%+</span>
                 </div>
-                <div class="result-section">
-                    <strong>Best Time:</strong>
-                    <p id="resultTime"></p>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Weekly Growth</div>
+                <div class="metric-value" id="weekly-growth">-</div>
+                <div class="metric-change" id="momentum">
+                    <span>Strategy active</span>
                 </div>
             </div>
         </div>
         
-        <!-- Content Queue -->
-        <div class="card">
-            <h2>📋 Recent Uploads</h2>
-            <div id="queue"></div>
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <div class="left-column">
+                <!-- Content Upload Section -->
+                <div class="section-card" style="margin-bottom: 30px;">
+                    <div class="section-header">
+                        <h2>📤 Upload Content</h2>
+                    </div>
+                    <div class="section-body">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">🍽️</div>
+                            <div class="upload-text">
+                                Drop your food photos or videos here<br>
+                                <small style="color: #5a5a7a;">The AI will analyze and recommend optimal caption, hashtags & posting time</small>
+                            </div>
+                            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
+                            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                                Select File
+                            </button>
+                        </div>
+                        
+                        <!-- Compact Context Input Bar -->
+                        <div id="contextBar" class="context-bar" style="margin-top: 20px;">
+                            <input 
+                                type="text" 
+                                id="contextInput" 
+                                class="context-input" 
+                                placeholder="Add context about your dish (optional)..."
+                                onkeypress="if(event.key==='Enter') uploadWithContext()"
+                            >
+                            <button id="voiceBtn" class="context-mic" onclick="toggleVoiceRecording()" title="Voice input">
+                                <span id="voiceIcon">🎤</span>
+                            </button>
+                            <button class="context-send" onclick="uploadWithContext()" title="Upload & Analyze">
+                                <span>⬆️</span>
+                            </button>
+                        </div>
+                        
+                        <div id="voiceStatusBar" class="voice-status-bar" style="display: none; margin-top: 10px;">
+                            <span class="recording-dot"></span>
+                            <span id="voiceStatusText">Listening...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content Queue -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2>📋 Content Queue</h2>
+                        <button class="btn btn-secondary" onclick="loadPendingContent()">Refresh</button>
+                    </div>
+                    <div class="section-body">
+                        <div class="tabs">
+                            <button class="tab active" onclick="switchTab(this, 'pending')">Pending</button>
+                            <button class="tab" onclick="switchTab(this, 'scheduled')">Scheduled</button>
+                            <button class="tab" onclick="switchTab(this, 'posted')">Posted</button>
+                        </div>
+                        <div id="contentQueue" class="content-queue">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading content...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="right-column">
+                <!-- Current Strategy -->
+                <div class="section-card strategy-card" style="margin-bottom: 30px;">
+                    <div class="strategy-header">
+                        <h3>🎯 This Week's Strategy</h3>
+                    </div>
+                    <div class="strategy-content">
+                        <div class="theme-badge" id="strategy-theme">Loading...</div>
+                        <p id="strategy-description" style="color: #b4b4c7; font-size: 14px; line-height: 1.6;">
+                            Analyzing your account and competitors to build optimal strategy...
+                        </p>
+                        <ul class="insight-list" id="strategy-insights">
+                            <li>Generating recommendations...</li>
+                        </ul>
+                        <button class="btn" style="width: 100%; margin-top: 20px;" onclick="generateNewStrategy()">
+                            Generate New Strategy
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Competitor Insights -->
+                <div class="section-card" style="margin-bottom: 30px;">
+                    <div class="section-header">
+                        <h2>👀 Competitor Insights</h2>
+                    </div>
+                    <div class="section-body">
+                        <div class="competitor-list" id="competitorList">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading...
+                            </div>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <input type="text" class="form-input" id="newCompetitor" 
+                                   placeholder="Add competitor (username)" style="margin-bottom: 10px;">
+                            <button class="btn" style="width: 100%;" onclick="addCompetitor()">
+                                Track Competitor
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Top Hashtags -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2>🔥 Trending Hashtags</h2>
+                    </div>
+                    <div class="section-body">
+                        <div class="rec-tags" id="trendingHashtags">
+                            <span class="tag">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
+    <!-- Recommendation Modal -->
+    <div class="modal-overlay" id="recommendationModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>🤖 AI Recommendation</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="recommendationContent">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Analyzing content...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span>✓</span>
+        <span id="toastMessage">Success!</span>
+    </div>
+    
     <script>
-        // Elements
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const chatContainer = document.getElementById('chatContainer');
-        const fileName = document.getElementById('fileName');
-        const contextInput = document.getElementById('contextInput');
-        const micBtn = document.getElementById('micBtn');
-        const sendBtn = document.getElementById('sendBtn');
-        const status = document.getElementById('status');
-        const results = document.getElementById('results');
+        let currentContentId = null;
+        let pendingData = [];
         
-        let selectedFile = null;
+        // Voice Recording Variables
         let isRecording = false;
         let recognition = null;
+        let selectedFile = null;
         
-        // Initialize voice
+        // Initialize Speech Recognition
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRecognition();
-            recognition.continuous = false;
+            recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
             
-            recognition.onresult = (e) => {
-                let text = '';
-                for (let i = e.resultIndex; i < e.results.length; i++) {
-                    text += e.results[i][0].transcript;
+            recognition.onstart = () => {
+                isRecording = true;
+                updateVoiceUI(true);
+                showToast('🎤 Voice recording started - speak now!');
+            };
+            
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
                 }
-                contextInput.value = text;
+                
+                const contextInput = document.getElementById('contextInput');
+                if (finalTranscript) {
+                    contextInput.value += (contextInput.value ? ' ' : '') + finalTranscript;
+                }
+                // Show recording status
+                if (interimTranscript) {
+                    const statusBar = document.getElementById('voiceStatusBar');
+                    const statusText = document.getElementById('voiceStatusText');
+                    if (statusBar && statusText) {
+                        statusBar.style.display = 'flex';
+                        statusText.textContent = interimTranscript;
+                    }
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'not-allowed') {
+                    showToast('❌ Microphone access denied');
+                } else {
+                    showToast('❌ Voice error: ' + event.error);
+                }
+                stopRecording();
             };
             
             recognition.onend = () => {
-                isRecording = false;
-                micBtn.classList.remove('recording');
+                if (isRecording) {
+                    recognition.start();
+                } else {
+                    updateVoiceUI(false);
+                    const statusBar = document.getElementById('voiceStatusBar');
+                    if (statusBar) statusBar.style.display = 'none';
+                }
             };
         } else {
-            micBtn.style.display = 'none';
+            console.warn('Speech recognition not supported');
         }
         
-        // File selection
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-        
-        // Drag & drop
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-        
-        function handleFiles(files) {
-            if (files.length) {
-                selectedFile = files[0];
-                fileName.textContent = '📎 ' + selectedFile.name;
-                chatContainer.classList.add('active');
-                contextInput.focus();
-                showStatus('📎 File selected! Add context & tap ⬆️', 'loading');
-            }
-        }
-        
-        // Voice
-        micBtn.addEventListener('click', () => {
-            if (!recognition) return;
-            
-            if (isRecording) {
-                recognition.stop();
-                isRecording = false;
-                micBtn.classList.remove('recording');
-            } else {
-                recognition.start();
-                isRecording = true;
-                micBtn.classList.add('recording');
-            }
-        });
-        
-        // Upload
-        sendBtn.addEventListener('click', async () => {
-            if (!selectedFile) {
-                showStatus('❌ Select a file first', 'error');
+        function toggleVoiceRecording() {
+            if (!recognition) {
+                showToast('❌ Voice not supported. Use keyboard.');
                 return;
             }
             
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('context', contextInput.value);
-            formData.append('auto_optimize', 'true');
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+        
+        function startRecording() {
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error('Recording failed:', err);
+            }
+        }
+        
+        function stopRecording() {
+            isRecording = false;
+            if (recognition) recognition.stop();
+            updateVoiceUI(false);
+            const statusBar = document.getElementById('voiceStatusBar');
+            if (statusBar) statusBar.style.display = 'none';
+        }
+        
+        function updateVoiceUI(recording) {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            const statusBar = document.getElementById('voiceStatusBar');
             
-            showStatus('📤 Uploading & analyzing...', 'loading');
+            if (recording) {
+                voiceBtn.classList.add('recording');
+                voiceIcon.textContent = '⏹️';
+                if (statusBar) statusBar.style.display = 'flex';
+            } else {
+                voiceBtn.classList.remove('recording');
+                voiceIcon.textContent = '🎤';
+                if (statusBar) statusBar.style.display = 'none';
+            }
+        }
+        
+        async function uploadWithContext() {
+            console.log('Upload clicked, selectedFile:', selectedFile);
+            
+            if (!selectedFile) {
+                showToast('❌ Please select a file first (tap Select File)');
+                return;
+            }
+            
+            const context = document.getElementById('contextInput').value;
+            const formData = new FormData();
+            formData.append('file', selectedFile, selectedFile.name);
+            formData.append('auto_optimize', 'true');
+            formData.append('context', context);
+            
+            showToast('📤 Uploading...');
             
             try {
                 const res = await fetch('/api/content/upload', {
@@ -319,67 +894,353 @@
                     body: formData
                 });
                 
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`HTTP ${res.status}: ${errorText}`);
+                }
+                
                 const data = await res.json();
+                console.log('Upload response:', data);
                 
                 if (data.recommendation) {
-                    document.getElementById('resultCaption').textContent = data.recommendation.suggested_caption;
-                    document.getElementById('resultHashtags').textContent = data.recommendation.suggested_hashtags.map(t => '#' + t).join(' ');
-                    document.getElementById('resultTime').textContent = (data.recommendation.optimal_time?.time || '6:00 PM') + ' - ' + (data.recommendation.optimal_time?.reasoning || 'Peak time');
-                    results.classList.add('show');
-                    showStatus('✅ Upload complete! See recommendations below', 'success');
+                    currentContentId = data.content_id;
+                    showRecommendation(data.recommendation);
+                    showToast('✅ Upload complete! Check recommendations');
                 } else {
-                    showStatus('✅ Uploaded! No AI analysis available', 'success');
+                    showToast('✅ File uploaded!');
                 }
                 
                 // Reset
                 selectedFile = null;
+                document.getElementById('contextInput').value = '';
+                document.getElementById('voiceStatusBar').style.display = 'none';
                 fileInput.value = '';
-                contextInput.value = '';
-                chatContainer.classList.remove('active');
-                fileName.textContent = '';
                 
-                loadQueue();
-                
+                loadPendingContent();
             } catch (err) {
-                showStatus('❌ Upload failed: ' + err.message, 'error');
+                console.error('Upload error:', err);
+                showToast('❌ Upload failed: ' + err.message);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+            loadPendingContent();
+            loadCompetitors();
+            
+            // Check for voice support
+            if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                const voiceBtn = document.getElementById('voiceBtn');
+                if (voiceBtn) voiceBtn.style.display = 'none';
             }
         });
         
-        function showStatus(msg, type) {
-            status.textContent = msg;
-            status.className = 'status show ' + type;
-            if (type !== 'loading') {
-                setTimeout(() => status.classList.remove('show'), 5000);
+        // File Upload
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        // File selection handlers
+        fileInput.addEventListener('change', (e) => {
+            console.log('File input change event', e.target.files);
+            if (e.target.files.length) {
+                selectedFile = e.target.files[0];
+                console.log('File selected:', selectedFile.name);
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextBar').style.opacity = '1';
+                document.getElementById('contextInput').placeholder = `Add context for ${selectedFile.name}...`;
+                showToast(`📎 ${selectedFile.name} selected! Tap ⬆️ to upload`);
+            }
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                selectedFile = files[0];
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextBar').style.opacity = '1';
+                document.getElementById('contextInput').placeholder = `Add context for ${selectedFile.name}...`;
+                showToast(`📎 ${selectedFile.name} dropped! Tap ⬆️ to upload`);
+            }
+        });
+        
+        function showRecommendation(rec) {
+            const modal = document.getElementById('recommendationModal');
+            const content = document.getElementById('recommendationContent');
+            
+            const timeRec = rec.optimal_time || {};
+            
+            content.innerHTML = `
+                <div class="recommendation-item">
+                    <div class="rec-title">📝 Suggested Caption</div>
+                    <div class="rec-text">${rec.suggested_caption}</div>
+                </div>
+                
+                <div class="recommendation-item">
+                    <div class="rec-title">🏷️ Recommended Hashtags (${rec.suggested_hashtags.length})</div>
+                    <div class="rec-tags">
+                        ${rec.suggested_hashtags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                    </div>
+                </div>
+                
+                <div class="recommendation-item">
+                    <div class="rec-title">⏰ Optimal Posting Time</div>
+                    <div class="rec-text">
+                        <strong>${timeRec.time || '18:00'}</strong><br>
+                        ${timeRec.reasoning || 'Based on follower activity patterns'}
+                    </div>
+                </div>
+                
+                <div class="recommendation-item">
+                    <div class="rec-title">📊 Strategy Notes</div>
+                    <div class="rec-text">${rec.strategy_notes.replace(/\n/g, '<br>')}</div>
+                </div>
+                
+                <div class="recommendation-item">
+                    <div class="rec-title">🎯 AI Confidence</div>
+                    <div class="rec-text">${Math.round((rec.confidence_score || 0.7) * 100)}% confident in this recommendation</div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button class="btn" style="flex: 1;" onclick="scheduleWithRecommendation('${rec.content_id}')">
+                        Schedule This Post
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal()">
+                        Edit First
+                    </button>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+        
+        async function scheduleWithRecommendation(contentId) {
+            // Get the recommendation data from the modal
+            const content = document.getElementById('recommendationContent');
+            const caption = content.querySelector('.rec-text').textContent;
+            const tags = Array.from(content.querySelectorAll('.tag')).map(t => t.textContent.replace('#', ''));
+            const time = '18:00'; // Default, can be improved
+            
+            await fetch(`/api/content/${contentId}/schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    final_caption: caption,
+                    final_hashtags: tags,
+                    scheduled_time: new Date().toISOString()
+                })
+            });
+            
+            closeModal();
+            loadPendingContent();
+            showToast('Content scheduled!');
+        }
+        
+        function closeModal() {
+            document.getElementById('recommendationModal').classList.remove('active');
+        }
+        
+        // Load Dashboard Metrics
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/api/growth/dashboard');
+                const data = await res.json();
+                
+                const current = data.followers_current || 0;
+                const previous = data.followers_30d_ago || current;
+                const growth = current - previous;
+                const growthPct = previous > 0 ? Math.round((growth / previous) * 100) : 0;
+                
+                document.getElementById('followers').textContent = current.toLocaleString();
+                document.getElementById('follower-growth').innerHTML = `
+                    <span>${growth >= 0 ? '+' : ''}${growth} (${growthPct}%)</span> this month
+                `;
+                document.getElementById('follower-growth').className = `metric-change ${growth >= 0 ? 'positive' : 'negative'}`;
+                
+                document.getElementById('queue-count').textContent = data.content_stats?.total || 0;
+                
+                const engagement = data.current_strategy ? 
+                    (data.growth_trend[0]?.avg_likes || 0) / Math.max(current, 1) * 100 : 0;
+                document.getElementById('engagement').textContent = engagement.toFixed(1) + '%';
+                
+                document.getElementById('weekly-growth').textContent = (growthPct / 4).toFixed(1) + '%';
+                
+                // Update strategy section
+                if (data.current_strategy) {
+                    document.getElementById('strategy-theme').textContent = data.current_strategy.content_theme || 'Active Strategy';
+                    document.getElementById('strategy-description').textContent = 'Strategy based on competitor analysis and trending patterns';
+                    
+                    const insights = JSON.parse(data.current_strategy.competitor_insights || '[]');
+                    document.getElementById('strategy-insights').innerHTML = 
+                        insights.slice(0, 5).map(i => `<li>${i}</li>`).join('') || '<li>Continue posting consistently</li>';
+                }
+                
+                // Update hashtags
+                if (data.top_hashtags && data.top_hashtags.length) {
+                    document.getElementById('trendingHashtags').innerHTML = 
+                        data.top_hashtags.slice(0, 10).map(h => 
+                            `<span class="tag">#${h.hashtag}</span>`
+                        ).join('');
+                }
+            } catch (err) {
+                console.error('Dashboard load error:', err);
             }
         }
         
-        // Load queue
-        async function loadQueue() {
+        // Load Pending Content
+        async function loadPendingContent() {
             try {
                 const res = await fetch('/api/content/pending');
                 const data = await res.json();
-                const queue = document.getElementById('queue');
+                pendingData = data.pending || [];
                 
-                if (data.pending && data.pending.length) {
-                    queue.innerHTML = data.pending.slice(0, 5).map(item => `
-                        <div class="queue-item">
-                            <div class="queue-thumb">🍽️</div>
-                            <div class="queue-info">
-                                <div class="queue-title">${item.filename}</div>
-                                <div class="queue-status">${item.status}</div>
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    queue.innerHTML = '<p style="color: #5a5a7a; text-align: center;">No uploads yet</p>';
-                }
-            } catch (e) {
-                console.error('Queue load failed:', e);
+                renderQueue('pending');
+            } catch (err) {
+                document.getElementById('contentQueue').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>Error loading content</p>
+                    </div>
+                `;
             }
         }
         
-        // Initial load
-        loadQueue();
+        function renderQueue(filter) {
+            const container = document.getElementById('contentQueue');
+            const filtered = pendingData.filter(item => item.status === filter);
+            
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">${filter === 'pending' ? '📭' : filter === 'scheduled' ? '📅' : '✓'}</div>
+                        <p>No ${filter} content</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtered.map(item => `
+                <div class="queue-item">
+                    <div class="queue-thumb">🍽️</div>
+                    <div class="queue-info">
+                        <div class="queue-title">${item.filename}</div>
+                        <span class="queue-status status-${item.status}">${item.status}</span>
+                        <div class="queue-actions">
+                            ${item.status === 'pending' ? `
+                                <button class="queue-btn" onclick="getRecommendation('${item.id}')">Get AI Rec</button>
+                                <button class="queue-btn" onclick="scheduleContent('${item.id}')">Schedule</button>
+                            ` : item.status === 'scheduled' ? `
+                                <button class="queue-btn">Edit</button>
+                                <button class="queue-btn">Post Now</button>
+                            ` : `
+                                <button class="queue-btn">View Stats</button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function switchTab(tab, filter) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            renderQueue(filter);
+        }
+        
+        async function getRecommendation(contentId) {
+            showToast('Analyzing content...');
+            // Would fetch real recommendation here
+            setTimeout(() => {
+                showToast('Recommendation ready! (Demo mode)');
+            }, 1500);
+        }
+        
+        // Competitor Management
+        async function loadCompetitors() {
+            try {
+                const res = await fetch('/api/competitors');
+                const data = await res.json();
+                
+                const list = document.getElementById('competitorList');
+                if (!data.competitors || !data.competitors.length) {
+                    list.innerHTML = `
+                        <div class="empty-state" style="padding: 20px;">
+                            <div class="empty-icon" style="font-size: 32px;">👀</div>
+                            <p style="font-size: 13px;">Track competitors to get market insights</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                list.innerHTML = data.competitors.map(c => `
+                    <div class="competitor-item">
+                        <div>
+                            <div class="competitor-name">@${c.username}</div>
+                            <div class="competitor-stats">${(c.follower_count || 0).toLocaleString()} followers · ${c.avg_engagement || 0}% engagement</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Competitor load error:', err);
+            }
+        }
+        
+        async function addCompetitor() {
+            const input = document.getElementById('newCompetitor');
+            const username = input.value.trim();
+            if (!username) return;
+            
+            try {
+                await fetch('/api/competitors/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                input.value = '';
+                loadCompetitors();
+                showToast(`Tracking @${username}`);
+            } catch (err) {
+                showToast('Failed to add competitor');
+            }
+        }
+        
+        async function generateNewStrategy() {
+            showToast('Generating strategy...');
+            try {
+                await fetch('/api/strategy/generate', { method: 'POST' });
+                loadDashboard();
+                showToast('New strategy generated!');
+            } catch (err) {
+                showToast('Strategy generated (demo mode)');
+            }
+        }
+        
+        // Utility
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+        
+        // Close modal on overlay click
+        document.getElementById('recommendationModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) closeModal();
+        });
     </script>
 </body>
 </html>
