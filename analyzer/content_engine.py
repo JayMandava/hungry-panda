@@ -196,7 +196,7 @@ class ContentAnalyzer:
         
         # Fill in the template
         caption = template.format(
-            dish=cuisine.title() + " " + meal_type,
+            dish=(cuisine or "homestyle").title() + " " + meal_type,
             time="30-minute" if meal_type == "weeknight" else "quick",
             relative="grandmother" if random.random() > 0.5 else "mother",
             memory="happiness",
@@ -315,7 +315,7 @@ class ContentAnalyzer:
         notes = f"""
         STRATEGIC RECOMMENDATION:
         
-        Content Type: {content_type.get('meal_type', 'General').title()} | {content_type.get('cuisine_type', 'Mixed').title()} Cuisine
+        Content Type: {(content_type.get('meal_type') or 'General').title()} | {(content_type.get('cuisine_type') or 'Mixed').title()} Cuisine
         
         Why this approach:
         1. This content fits the "{random.choice(['overhead_recipe', 'plating_showcase'])}" pattern
