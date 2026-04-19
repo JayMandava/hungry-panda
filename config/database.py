@@ -47,6 +47,7 @@ def init_database():
             filepath TEXT NOT NULL,
             upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             caption TEXT,
+            context TEXT,  -- Additional context about the content (recipe, story, etc.)
             hashtags TEXT,  -- JSON array
             scheduled_time TIMESTAMP,
             posted_time TIMESTAMP,

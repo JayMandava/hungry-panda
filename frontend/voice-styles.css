@@ -1,0 +1,165 @@
+/* Voice Input Styles */
+.context-input-container {
+    margin-top: 20px;
+    background: #0f0f23;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #2d2d44;
+}
+
+.context-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.context-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.context-hint {
+    font-size: 12px;
+    color: #8b8b9a;
+}
+
+.context-textarea {
+    width: 100%;
+    min-height: 100px;
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.context-textarea:focus {
+    outline: none;
+    border-color: #e94560;
+}
+
+.context-textarea::placeholder {
+    color: #5a5a7a;
+}
+
+.voice-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    align-items: center;
+}
+
+.voice-btn {
+    background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.voice-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+}
+
+.voice-btn.recording {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.voice-btn:disabled {
+    background: #2d2d44;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.voice-status {
+    font-size: 13px;
+    color: #8b8b9a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.voice-status.recording {
+    color: #ef4444;
+}
+
+.voice-status .recording-indicator {
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.clear-context-btn {
+    background: #2d2d44;
+    border: none;
+    color: #8b8b9a;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-context-btn:hover {
+    background: #3d3d5c;
+    color: #fff;
+}
+
+/* Recording wave animation */
+.recording-wave {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+}
+
+.recording-wave.active {
+    display: flex;
+}
+
+.recording-wave span {
+    width: 3px;
+    background: #ef4444;
+    border-radius: 2px;
+    animation: wave 1s ease-in-out infinite;
+}
+
+.recording-wave span:nth-child(1) { animation-delay: 0s; height: 8px; }
+.recording-wave span:nth-child(2) { animation-delay: 0.1s; height: 14px; }
+.recording-wave span:nth-child(3) { animation-delay: 0.2s; height: 10px; }
+.recording-wave span:nth-child(4) { animation-delay: 0.3s; height: 16px; }
+.recording-wave span:nth-child(5) { animation-delay: 0.4s; height: 12px; }
+
+@keyframes wave {
+    0%, 100% { transform: scaleY(0.5); }
+    50% { transform: scaleY(1); }
+}

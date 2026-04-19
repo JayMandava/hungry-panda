@@ -333,25 +333,45 @@ class ContentAnalyzer:
         return notes.strip()
 
 
-async def analyze_and_recommend(content_id: str, filepath: str, user_caption: Optional[str] = None) -> Dict:
+async def analyze_and_recommend(
+    content_id: str, 
+    filepath: str, 
+    user_caption: Optional[str] = None,
+    context: Optional[str] = None
+) -> Dict:
     """
     Main entry point: Analyze content and return full recommendation
+    
+    Args:
+        content_id: Unique content identifier
+        filepath: Path to the uploaded file
+        user_caption: Optional user-provided caption
+        context: Additional context about the content (dish description, recipe, story)
     """
     analyzer = ContentAnalyzer()
     
     # Detect content type
     content_type = analyzer.detect_content_type(filepath, user_caption)
     
-    # Generate recommendations
-    caption = analyzer.generate_caption(content_type, strategy="engagement")
-    hashtags = analyzer.select_hashtags(content_type)
+    # Generate recommendations with context
+    caption = analyzer.generate_caption(
+        content_type, 
+        strategy="engagement",
+        content_description=context or user_caption
+    )
+    hashtags = analyzer.select_hashtags(
+        content_type,
+        content_description=context or user_caption
+    )
     time_rec = analyzer.recommend_posting_time(content_type)
     strategy_notes = analyzer.generate_strategy_notes(content_type)
     
     # Calculate confidence based on content clarity
     confidence = content_type["confidence"]
     if user_caption:
-        confidence += 0.1  # Bonus for having context
+        confidence += 0.1  # Bonus for having caption
+    if context:
+        confidence += 0.15  # Bonus for having detailed context
     confidence = min(confidence, 1.0)
     
     return {

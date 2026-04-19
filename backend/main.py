@@ -133,6 +133,7 @@ async def health_check():
 async def upload_content(
     file: UploadFile = File(..., description="Image or video file to upload"),
     caption: Optional[str] = None,
+    context: Optional[str] = None,
     auto_optimize: bool = True
 ):
     """
@@ -140,6 +141,7 @@ async def upload_content(
     
     - **file**: Photo or video to upload
     - **caption**: Optional user-provided caption hint
+    - **context**: Additional context about the content (dish description, recipe, story, etc.)
     - **auto_optimize**: If true, AI will analyze and provide recommendations
     
     Returns upload confirmation and AI recommendations if auto_optimize is enabled.
@@ -170,10 +172,10 @@ async def upload_content(
         # Store in database
         execute_insert(
             """
-            INSERT INTO content (id, filename, filepath, upload_time, caption, status)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, 'pending')
+            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, context, 'pending')
         )
         
         response = {
@@ -186,7 +188,7 @@ async def upload_content(
         # Generate AI recommendations if enabled
         if auto_optimize and ANALYZER_AVAILABLE:
             try:
-                recommendation = await analyze_and_recommend(content_id, str(filepath), caption)
+                recommendation = await analyze_and_recommend(content_id, str(filepath), caption, context)
                 response["recommendation"] = recommendation
                 logger.info(f"AI recommendation generated for {content_id}")
             except Exception as e:

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hungry Panda - Instagram Growth Agent</title>
+    <link rel="stylesheet" href="voice-styles.css">
     <style>
         * {
             margin: 0;
@@ -624,6 +625,49 @@
                                 Select File
                             </button>
                         </div>
+                        
+                        <!-- Context Input with Voice -->
+                        <div class="context-input-container">
+                            <div class="context-header">
+                                <div class="context-title">
+                                    🎤 Tell us about your post
+                                </div>
+                                <div class="context-hint">
+                                    Helps AI create better captions
+                                </div>
+                            </div>
+                            
+                            <textarea 
+                                id="contextInput" 
+                                class="context-textarea" 
+                                placeholder="What's in this photo? Describe the dish, your inspiration, the recipe, or any story behind it. You can also use the voice button to speak!"
+                            ></textarea>
+                            
+                            <div class="voice-controls">
+                                <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceRecording()">
+                                    <span id="voiceIcon">🎙️</span>
+                                    <span id="voiceText">Start Voice</span>
+                                </button>
+                                
+                                <div id="recordingWave" class="recording-wave">
+                                    <span></span><span></span><span></span><span></span><span></span>
+                                </div>
+                                
+                                <div id="voiceStatus" class="voice-status">
+                                    Tap to record your voice
+                                </div>
+                                
+                                <button class="clear-context-btn" onclick="clearContext()" style="margin-left: auto;">
+                                    Clear
+                                </button>
+                            </div>
+                            
+                            <div id="uploadActions" style="margin-top: 16px; display: none;">
+                                <button class="btn" style="width: 100%;" onclick="uploadWithContext()">
+                                    📤 Upload & Analyze with AI
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -734,11 +778,201 @@
         let currentContentId = null;
         let pendingData = [];
         
+        // Voice Recording Variables
+        let isRecording = false;
+        let recognition = null;
+        let selectedFile = null;
+        
+        // Initialize Speech Recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            
+            recognition.onstart = () => {
+                isRecording = true;
+                updateVoiceUI(true);
+                showToast('🎤 Voice recording started - speak now!');
+            };
+            
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                const contextInput = document.getElementById('contextInput');
+                if (finalTranscript) {
+                    contextInput.value += (contextInput.value ? ' ' : '') + finalTranscript;
+                }
+                if (interimTranscript) {
+                    document.getElementById('voiceStatus').textContent = 'Listening: ' + interimTranscript;
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'not-allowed') {
+                    showToast('❌ Microphone access denied. Please allow microphone access.');
+                } else {
+                    showToast('❌ Voice recording error: ' + event.error);
+                }
+                stopRecording();
+            };
+            
+            recognition.onend = () => {
+                if (isRecording) {
+                    // Auto restart if still recording (unless stopped manually)
+                    recognition.start();
+                } else {
+                    updateVoiceUI(false);
+                    showToast('✓ Voice recording stopped');
+                }
+            };
+        } else {
+            console.warn('Speech recognition not supported in this browser');
+        }
+        
+        function toggleVoiceRecording() {
+            if (!recognition) {
+                showToast('❌ Voice recording not supported in your browser. Try Chrome or Edge.');
+                return;
+            }
+            
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+        
+        function startRecording() {
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error('Failed to start recording:', err);
+                showToast('❌ Could not start recording. Please try again.');
+            }
+        }
+        
+        function stopRecording() {
+            isRecording = false;
+            if (recognition) {
+                recognition.stop();
+            }
+            updateVoiceUI(false);
+        }
+        
+        function updateVoiceUI(recording) {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const voiceIcon = document.getElementById('voiceIcon');
+            const voiceText = document.getElementById('voiceText');
+            const voiceStatus = document.getElementById('voiceStatus');
+            const recordingWave = document.getElementById('recordingWave');
+            
+            if (recording) {
+                voiceBtn.classList.add('recording');
+                voiceIcon.textContent = '⏹️';
+                voiceText.textContent = 'Stop Recording';
+                voiceStatus.textContent = '🔴 Recording... speak now!';
+                voiceStatus.classList.add('recording');
+                recordingWave.classList.add('active');
+            } else {
+                voiceBtn.classList.remove('recording');
+                voiceIcon.textContent = '🎙️';
+                voiceText.textContent = 'Start Voice';
+                voiceStatus.textContent = 'Tap to record your voice';
+                voiceStatus.classList.remove('recording');
+                recordingWave.classList.remove('active');
+            }
+        }
+        
+        function clearContext() {
+            document.getElementById('contextInput').value = '';
+            showToast('Context cleared');
+        }
+        
+        // File Input Change Handler
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                selectedFile = e.target.files[0];
+                document.getElementById('uploadActions').style.display = 'block';
+                showToast('📎 File selected! Add context and click Upload');
+            }
+        });
+        
+        // Drag and Drop Handler
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                selectedFile = files[0];
+                document.getElementById('uploadActions').style.display = 'block';
+                showToast('📎 File dropped! Add context and click Upload');
+            }
+        });
+        
+        async function uploadWithContext() {
+            if (!selectedFile) {
+                showToast('❌ Please select a file first');
+                return;
+            }
+            
+            const context = document.getElementById('contextInput').value;
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('auto_optimize', 'true');
+            formData.append('context', context);
+            
+            showToast('📤 Uploading with AI context...');
+            
+            try {
+                const res = await fetch('/api/content/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.recommendation) {
+                    currentContentId = data.content_id;
+                    showRecommendation(data.recommendation);
+                }
+                
+                // Reset
+                selectedFile = null;
+                document.getElementById('contextInput').value = '';
+                document.getElementById('uploadActions').style.display = 'none';
+                fileInput.value = '';
+                
+                loadPendingContent();
+                showToast('✅ Content uploaded successfully with AI context!');
+            } catch (err) {
+                console.error('Upload error:', err);
+                showToast('❌ Upload failed. Try again.');
+            }
+        }
+        
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboard();
             loadPendingContent();
             loadCompetitors();
+            
+            // Check for voice support
+            if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                document.getElementById('voiceBtn').disabled = true;
+                document.getElementById('voiceStatus').textContent = 'Voice not supported - use typing';
+            }
         });
         
         // File Upload
