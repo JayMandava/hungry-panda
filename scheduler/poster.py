@@ -2,17 +2,29 @@
 Scheduler & Auto-Poster
 Handles scheduling and automated posting to Instagram
 """
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import sqlite3
 import json
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import asyncio
 
-# Posting methods - can use Instagram API or browser automation
+from config.settings import config
+
+logger = logging.getLogger(__name__)
+
+# Posting methods - can use Instagram API, browser automation, or MCP
 POSTING_METHODS = {
     "api": "Instagram Basic Display API (limited features)",
     "browser": "Browser automation with Selenium/Playwright",
-    "manual": "Notify user to post manually with prepared content"
+    "manual": "Notify user to post manually with prepared content",
+    "mcp": "Model Context Protocol via official Instagram Graph API"
 }
 
 
@@ -20,7 +32,7 @@ class ContentScheduler:
     """Schedules and executes content posting"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('hungry_panda.db')
+        self.conn = sqlite3.connect(config.DATABASE_PATH)
     
     def get_scheduled_posts(self) -> List[Dict]:
         """
@@ -143,7 +155,7 @@ class ContentScheduler:
         return {
             "suggested_time": suggested_datetime.isoformat(),
             "time_display": suggested_datetime.strftime("%A %I:%M %p"),
-            "available": count < 3,  # Max 3 posts per day
+            "available": count < config.MAX_POSTS_PER_DAY,
             "existing_posts_that_day": count,
             "reasoning": f"Optimal time for {content_type} content based on engagement analysis"
         }
@@ -163,6 +175,9 @@ class InstagramPoster:
         if self.method == "manual":
             # Send notification to user with prepared content
             return await self._manual_post(content)
+        elif self.method == "mcp":
+            # Use MCP (Model Context Protocol) for official API access
+            return await self._mcp_post(content)
         elif self.method == "api":
             # Use Instagram API (requires proper setup)
             return await self._api_post(content)
@@ -185,6 +200,8 @@ class InstagramPoster:
             "status": "ready_to_post"
         }
         
+        logger.info(f"[MANUAL] Content ready for posting: {content['id']}")
+        
         # In production: Send notification via email, push, or dashboard alert
         return {
             "success": True,
@@ -193,6 +210,72 @@ class InstagramPoster:
             "message": "Content ready for manual posting"
         }
     
+    async def _mcp_post(self, content: Dict) -> Dict:
+        """
+        Post using MCP (Model Context Protocol) via Instagram Graph API
+        
+        This uses the official Instagram API through an MCP server (ig-mcp).
+        Benefits:
+        - Official API (safe, no ban risk)
+        - Full automation
+        - Built-in rate limiting
+        - Rich analytics
+        """
+        try:
+            # Import MCP client (lazy import to avoid circular dependencies)
+            from integrations.mcp_client import publish_content_via_mcp
+            
+            logger.info(f"[MCP] Publishing content via MCP: {content['id']}")
+            
+            # Prepare content data
+            content_data = {
+                'id': content['id'],
+                'filepath': content['filepath'],
+                'caption': content.get('caption', ''),
+                'hashtags': content.get('hashtags', [])
+            }
+            
+            # Publish via MCP
+            result = await publish_content_via_mcp(content['id'], content_data)
+            
+            if result['success']:
+                logger.info(f"[MCP] Successfully published: {content['id']}")
+                return {
+                    "success": True,
+                    "method": "mcp",
+                    "external_id": result.get('media_id'),
+                    "permalink": result.get('permalink'),
+                    "message": "Content published via Instagram Graph API (MCP)"
+                }
+            else:
+                logger.error(f"[MCP] Publishing failed: {result.get('error')}")
+                return {
+                    "success": False,
+                    "method": "mcp",
+                    "error": result.get('error', 'Unknown MCP error'),
+                    "fallback": "Consider switching to manual posting method"
+                }
+                
+        except ImportError as e:
+            logger.error(f"[MCP] MCP client not available: {e}")
+            return {
+                "success": False,
+                "method": "mcp",
+                "error": f"MCP integration not available: {e}",
+                "next_steps": [
+                    "Ensure integrations/mcp_client.py exists",
+                    "Install MCP dependencies",
+                    "Or switch POSTING_METHOD to manual"
+                ]
+            }
+        except Exception as e:
+            logger.exception(f"[MCP] Unexpected error: {e}")
+            return {
+                "success": False,
+                "method": "mcp",
+                "error": str(e)
+            }
+    
     async def _api_post(self, content: Dict) -> Dict:
         """
         Post using Instagram API (limited to certain account types)
@@ -200,15 +283,16 @@ class InstagramPoster:
         # Note: Instagram Basic Display API has limitations
         # Instagram Graph API requires business/creator account
         
+        logger.warning("[API] Direct API posting not fully implemented")
+        
         return {
             "success": False,
             "method": "api",
-            "error": "API posting requires Instagram Graph API setup with Business/Creator account",
+            "error": "Direct API posting deprecated. Use MCP method instead.",
             "next_steps": [
-                "Convert to Business or Creator account",
-                "Connect to Facebook Business",
-                "Generate access token",
-                "Configure API credentials"
+                "Switch POSTING_METHOD to mcp in config",
+                "Set up ig-mcp server",
+                "Configure INSTAGRAM_ACCESS_TOKEN"
             ]
         }
     
@@ -217,11 +301,13 @@ class InstagramPoster:
         Post using browser automation (Selenium/Playwright)
         """
         # Placeholder - requires additional setup
+        logger.warning("[BROWSER] Browser automation not implemented")
+        
         return {
             "success": False,
             "method": "browser",
             "error": "Browser automation requires setup with credentials and anti-detection measures",
-            "note": "Consider using manual mode or official API for reliability"
+            "note": "Consider using MCP method or manual mode for better reliability"
         }
 
 
@@ -230,7 +316,7 @@ class AutoScheduler:
     
     def __init__(self):
         self.scheduler = ContentScheduler()
-        self.poster = InstagramPoster(method="manual")
+        self.poster = InstagramPoster(method=config.POSTING_METHOD)
         self.running = False
     
     async def run_scheduler_loop(self):
@@ -238,6 +324,8 @@ class AutoScheduler:
         Main scheduler loop - checks for posts to publish
         """
         self.running = True
+        
+        logger.info(f"[SCHEDULER] Started with posting method: {config.POSTING_METHOD}")
         
         while self.running:
             try:
@@ -249,26 +337,29 @@ class AutoScheduler:
                     scheduled = datetime.fromisoformat(post['scheduled_time']) if post['scheduled_time'] else None
                     
                     if scheduled and scheduled <= datetime.now():
-                        print(f"[SCHEDULER] Posting content: {post['id']}")
+                        logger.info(f"[SCHEDULER] Posting content: {post['id']}")
                         
                         result = await self.poster.post_content(post)
                         
                         if result['success']:
-                            self.scheduler.mark_as_posted(post['id'], 
-                                result.get('external_id'))
-                            print(f"[SCHEDULER] Successfully posted: {post['id']}")
+                            self.scheduler.mark_as_posted(
+                                post['id'], 
+                                result.get('external_id')
+                            )
+                            logger.info(f"[SCHEDULER] Successfully posted: {post['id']}")
                         else:
-                            print(f"[SCHEDULER] Post failed: {result.get('error')}")
+                            logger.error(f"[SCHEDULER] Post failed: {result.get('error')}")
                 
                 # Check every minute
                 await asyncio.sleep(60)
                 
             except Exception as e:
-                print(f"[SCHEDULER ERROR] {e}")
+                logger.exception(f"[SCHEDULER ERROR] {e}")
                 await asyncio.sleep(60)
     
     def stop(self):
         self.running = False
+        logger.info("[SCHEDULER] Stopped")
 
 
 # Public interface functions

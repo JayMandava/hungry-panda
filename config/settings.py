@@ -53,6 +53,12 @@ class Config:
     AUTO_SCHEDULER_ENABLED: bool = os.getenv("AUTO_SCHEDULER_ENABLED", "false").lower() == "true"
     CHECK_INTERVAL_MINUTES: int = int(os.getenv("CHECK_INTERVAL_MINUTES", "5"))
     
+    # MCP (Model Context Protocol) Integration
+    ENABLE_MCP_INTEGRATION: bool = os.getenv("ENABLE_MCP_INTEGRATION", "false").lower() == "true"
+    MCP_SERVER_TYPE: str = os.getenv("MCP_SERVER_TYPE", "ig-mcp")  # ig-mcp, instagram_dm_mcp
+    MCP_SERVER_PATH: Optional[str] = os.getenv("MCP_SERVER_PATH")
+    INSTAGRAM_BUSINESS_ACCOUNT_ID: Optional[str] = os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID")
+    
     # Feature Flags
     ENABLE_COMPETITOR_TRACKING: bool = os.getenv("ENABLE_COMPETITOR_TRACKING", "true").lower() == "true"
     ENABLE_AUTO_CAPTIONS: bool = os.getenv("ENABLE_AUTO_CAPTIONS", "true").lower() == "true"
@@ -63,19 +69,41 @@ class Config:
     def validate(cls) -> dict:
         """Validate required configuration and return any issues"""
         issues = []
+        warnings = []
         
         if not cls.INSTAGRAM_USERNAME:
             issues.append("INSTAGRAM_USERNAME not set - needed for tracking your account")
         
+        # Validate posting method specific requirements
         if cls.POSTING_METHOD == "api" and not cls.INSTAGRAM_ACCESS_TOKEN:
             issues.append("INSTAGRAM_ACCESS_TOKEN required for API posting method")
         
         if cls.POSTING_METHOD == "browser" and (not cls.INSTAGRAM_USERNAME or not cls.INSTAGRAM_PASSWORD):
             issues.append("Instagram credentials required for browser automation")
         
+        if cls.POSTING_METHOD == "mcp":
+            if not cls.ENABLE_MCP_INTEGRATION:
+                issues.append("ENABLE_MCP_INTEGRATION must be true when using MCP posting method")
+            if not cls.INSTAGRAM_ACCESS_TOKEN:
+                issues.append("INSTAGRAM_ACCESS_TOKEN required for MCP posting method")
+            if not cls.MCP_SERVER_PATH:
+                warnings.append("MCP_SERVER_PATH not set - will use default path")
+        
+        # MCP integration validation
+        if cls.ENABLE_MCP_INTEGRATION:
+            if cls.MCP_SERVER_TYPE not in ["ig-mcp", "instagram_dm_mcp"]:
+                issues.append(f"Unsupported MCP server type: {cls.MCP_SERVER_TYPE}")
+            
+            if cls.MCP_SERVER_TYPE == "ig-mcp" and not cls.INSTAGRAM_ACCESS_TOKEN:
+                issues.append("ig-mcp requires INSTAGRAM_ACCESS_TOKEN (Business/Creator account)")
+            
+            if cls.MCP_SERVER_TYPE == "instagram_dm_mcp" and (not cls.INSTAGRAM_USERNAME or not cls.INSTAGRAM_PASSWORD):
+                issues.append("instagram_dm_mcp requires Instagram username and password")
+        
         return {
             "valid": len(issues) == 0,
-            "issues": issues
+            "issues": issues,
+            "warnings": warnings
         }
     
     @classmethod
