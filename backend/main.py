@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -136,6 +136,221 @@ async def health_check():
         "config_valid": config.validate()["valid"],
         "analyzer_available": ANALYZER_AVAILABLE
     }
+
+
+@app.get("/simple-upload", response_class=HTMLResponse)
+async def simple_upload_form():
+    """Simple HTML form upload that works without JavaScript"""
+    return HTMLResponse(content="""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Upload - Hungry Panda</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f23;
+            color: #fff;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { font-size: 24px; margin-bottom: 8px; }
+        p { color: #8b8b9a; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #b4b4c7; }
+        input[type="file"] {
+            width: 100%;
+            padding: 15px;
+            background: #1a1a2e;
+            border: 2px dashed #3d3d5c;
+            border-radius: 12px;
+            color: #fff;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            background: #1a1a2e;
+            border: 2px solid #3d3d5c;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 16px;
+        }
+        input::placeholder { color: #5a5a7a; }
+        button {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .note {
+            margin-top: 30px;
+            padding: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #8b8b9a;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐼 Hungry Panda</h1>
+    <p>Simple upload - works on all devices</p>
+    
+    <form action="/simple-upload-submit" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>📸 Select Photo or Video</label>
+            <input type="file" name="file" accept="image/*,video/*" required>
+        </div>
+        
+        <div class="form-group">
+            <label>📝 Describe Your Dish (optional)</label>
+            <input type="text" name="context" placeholder="What are you cooking? Homemade pasta with...">
+        </div>
+        
+        <button type="submit">📤 Upload & Get AI Recommendations</button>
+    </form>
+    
+    <div class="note">
+        <strong>💡 Tip:</strong> This simple form works on all browsers and devices. 
+        The AI will analyze your photo and suggest captions, hashtags, and best posting time.
+    </div>
+</body>
+</html>
+    """)
+
+
+@app.post("/simple-upload-submit", response_class=HTMLResponse)
+async def simple_upload_submit(
+    file: UploadFile = File(...),
+    context: Optional[str] = Form(None)
+):
+    """Simple form upload that returns HTML response"""
+    try:
+        # Generate unique content ID
+        content_id = hashlib.md5(
+            f"{file.filename}{datetime.now().isoformat()}".encode()
+        ).hexdigest()[:12]
+        
+        # Save file
+        filepath = Path(config.UPLOADS_DIR) / f"{content_id}_{file.filename}"
+        content = await file.read()
+        
+        with open(filepath, "wb") as f:
+            f.write(content)
+        
+        # Store in database
+        execute_insert(
+            """
+            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (content_id, file.filename, str(filepath), datetime.now().isoformat(), None, context, 'pending')
+        )
+        
+        # Generate AI recommendations
+        recommendation_html = ""
+        if ANALYZER_AVAILABLE:
+            try:
+                from analyzer.content_engine import analyze_and_recommend
+                recommendation = await analyze_and_recommend(content_id, str(filepath), None, context)
+                
+                hashtags = ' '.join([f'#{tag}' for tag in recommendation.get('suggested_hashtags', [])[:10]])
+                
+                recommendation_html = f"""
+                <div style="background: #1a1a2e; border: 1px solid #2d2d44; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                    <h3 style="color: #e94560; margin-bottom: 15px;">🤖 AI Recommendations</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #fff;">📝 Suggested Caption:</strong><br>
+                        <p style="color: #b4b4c7; margin-top: 8px; line-height: 1.5;">{recommendation.get('suggested_caption', 'N/A')}</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #fff;">🏷️ Hashtags:</strong><br>
+                        <p style="color: #4ade80; margin-top: 8px; font-size: 14px;">{hashtags}</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #fff;">⏰ Best Time to Post:</strong><br>
+                        <p style="color: #b4b4c7; margin-top: 8px;">{recommendation.get('optimal_time', {}).get('time', '6:00 PM')} - {recommendation.get('optimal_time', {}).get('reasoning', 'Peak engagement time')}</p>
+                    </div>
+                    
+                    <div>
+                        <strong style="color: #fff;">🎯 Strategy Notes:</strong><br>
+                        <p style="color: #8b8b9a; margin-top: 8px; font-size: 14px; line-height: 1.5;">{recommendation.get('strategy_notes', '').replace(chr(10), '<br>')}</p>
+                    </div>
+                </div>
+                """
+            except Exception as e:
+                recommendation_html = f"<p style='color: #ef4444;'>AI analysis error: {str(e)}</p>"
+        
+        return HTMLResponse(content=f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Complete - Hungry Panda</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f23;
+            color: #fff;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
+        h1 {{ color: #4ade80; }}
+        .success {{
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid #4ade80;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }}
+        a {{
+            display: inline-block;
+            margin-top: 20px;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+        }}
+    </style>
+</head>
+<body>
+    <h1>✅ Upload Complete!</h1>
+    <div class="success">
+        <strong>File:</strong> {file.filename}<br>
+        <strong>Content ID:</strong> {content_id}
+    </div>
+    {recommendation_html}
+    <a href="/simple-upload">📤 Upload Another Photo</a>
+    <a href="/" style="margin-left: 10px; background: #2d2d44;">🏠 Go to Dashboard</a>
+</body>
+</html>
+        """)
+    except Exception as e:
+        return HTMLResponse(content=f"""
+<!DOCTYPE html>
+<html><body style="background: #0f0f23; color: #ef4444; padding: 20px;">
+<h1>❌ Upload Failed</h1>
+<p>{str(e)}</p>
+<a href="/simple-upload" style="color: #e94560;">Try Again</a>
+</body></html>
+        """, status_code=500)
 
 
 @app.post("/api/content/upload", response_model=Dict[str, Any])
