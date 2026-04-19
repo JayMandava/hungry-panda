@@ -635,6 +635,39 @@ async def simple_upload_submit(
         """, status_code=500)
 
 
+def validate_food_content(context: Optional[str], caption: Optional[str], filename: str) -> bool:
+    """
+    Validate that the content is food/cooking related.
+    Returns True if food-related keywords are found.
+    """
+    # Food-related keywords
+    food_keywords = [
+        'food', 'cook', 'recipe', 'dish', 'meal', 'dinner', 'lunch', 'breakfast', 'brunch',
+        'pasta', 'pizza', 'curry', 'rice', 'chicken', 'beef', 'pork', 'fish', 'salmon', 'tuna',
+        'vegetable', 'salad', 'soup', 'stew', 'grill', 'bake', 'roast', 'fry', 'saute',
+        'dessert', 'cake', 'cookie', 'bread', 'pastry', 'pie', 'chocolate', 'sweet',
+        'spicy', 'homemade', 'fresh', 'delicious', 'tasty', 'yummy', 'chef', 'kitchen',
+        'ingredient', 'spice', 'herb', 'sauce', 'marinade', 'appetizer', 'entree', 'main',
+        'vegan', 'vegetarian', 'healthy', 'organic', 'gluten', 'keto', 'paleo',
+        'italian', 'indian', 'chinese', 'mexican', 'thai', 'japanese', 'korean',
+        'mediterranean', 'french', 'greek', 'spanish', 'asian', 'bbq', 'grilled'
+    ]
+    
+    # Combine all text to check
+    text_to_check = ' '.join([
+        (context or '').lower(),
+        (caption or '').lower(),
+        filename.lower()
+    ])
+    
+    # Check for food keywords
+    for keyword in food_keywords:
+        if keyword in text_to_check:
+            return True
+    
+    return False
+
+
 @app.post("/api/content/upload", response_model=Dict[str, Any])
 async def upload_content(
     file: UploadFile = File(..., description="Image or video file to upload"),
@@ -651,6 +684,8 @@ async def upload_content(
     - **auto_optimize**: If true, AI will analyze and provide recommendations
     
     Returns upload confirmation and AI recommendations if auto_optimize is enabled.
+    
+    Note: Hungry Panda only handles food and cooking related content.
     """
     try:
         # Validate file
@@ -659,6 +694,16 @@ async def upload_content(
             raise HTTPException(
                 status_code=400, 
                 detail=f"Invalid file type: {file.content_type}. Only images and videos allowed."
+            )
+        
+        # Validate food content
+        is_food_related = validate_food_content(context, caption, file.filename)
+        
+        if not is_food_related:
+            logger.warning(f"Non-food content rejected: {file.filename}")
+            raise HTTPException(
+                status_code=400,
+                detail="🐼 Hungry Panda only handles food or cooking related content. Please describe your dish in the context field (e.g., 'homemade pasta with basil') or rename your file to include food-related keywords."
             )
         
         # Generate unique content ID

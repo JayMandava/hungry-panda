@@ -895,8 +895,17 @@
                 });
                 
                 if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`HTTP ${res.status}: ${errorText}`);
+                    const errorData = await res.json();
+                    const errorDetail = errorData.detail || 'Upload failed';
+                    
+                    // Check for food content error
+                    if (errorDetail.includes('Hungry Panda only handles food') || 
+                        errorDetail.includes('food or cooking related content')) {
+                        showToast('🐼 ' + errorDetail);
+                    } else {
+                        showToast('❌ ' + errorDetail);
+                    }
+                    return;
                 }
                 
                 const data = await res.json();
