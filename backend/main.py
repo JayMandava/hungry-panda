@@ -15,7 +15,7 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -116,6 +116,15 @@ async def dashboard():
     
     # Fallback embedded dashboard
     return HTMLResponse(content=get_fallback_dashboard())
+
+
+@app.get("/voice-styles.css")
+async def serve_voice_styles():
+    """Serve voice input styles CSS"""
+    css_path = Path(__file__).parent.parent / "frontend" / "voice-styles.css"
+    if css_path.exists():
+        return FileResponse(css_path, media_type="text/css")
+    return HTMLResponse(content="/* CSS not found */", status_code=404)
 
 
 @app.get("/api/health")
