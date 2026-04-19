@@ -964,6 +964,28 @@
             uploadArea.classList.remove('dragover');
         });
         
+        // File selection handlers
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                selectedFile = e.target.files[0];
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextInput').focus();
+                showToast('📎 File selected! Add context and tap ⬆️');
+            }
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                selectedFile = files[0];
+                document.getElementById('contextBar').style.display = 'flex';
+                document.getElementById('contextInput').focus();
+                showToast('📎 File dropped! Add context and tap ⬆️');
+            }
+        });
+        
         function showRecommendation(rec) {
             const modal = document.getElementById('recommendationModal');
             const content = document.getElementById('recommendationContent');
