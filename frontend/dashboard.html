@@ -872,29 +872,6 @@
             }
         }
         
-        // File Input Change Handler
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                selectedFile = e.target.files[0];
-                document.getElementById('contextBar').style.display = 'flex';
-                document.getElementById('contextInput').focus();
-                showToast('📎 File selected! Add context (optional) and send');
-            }
-        });
-        
-        // Drag and Drop Handler
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                selectedFile = files[0];
-                document.getElementById('contextBar').style.display = 'flex';
-                document.getElementById('contextInput').focus();
-                showToast('📎 File dropped! Add context (optional) and send');
-            }
-        });
-        
         async function uploadWithContext() {
             if (!selectedFile) {
                 showToast('❌ Please select a file first');
