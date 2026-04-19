@@ -41,8 +41,19 @@ class Config:
     INSTAGRAM_APP_SECRET: Optional[str] = os.getenv("INSTAGRAM_APP_SECRET")
     INSTAGRAM_ACCESS_TOKEN: Optional[str] = os.getenv("INSTAGRAM_ACCESS_TOKEN")
     
-    # External APIs
+    # External APIs - LLM Configuration
+    # OpenAI (legacy support)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    
+    # Fireworks AI (Recommended - uses Kimi K2.5)
+    FIREWORKS_API_KEY: Optional[str] = os.getenv("FIREWORKS_API_KEY")
+    FIREWORKS_MODEL: str = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/kimi-k2-5")
+    FIREWORKS_BASE_URL: str = os.getenv("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1")
+    
+    # LLM Provider Selection
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "fireworks")  # fireworks, openai, or none
+    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1000"))
     
     # Posting Settings
     POSTING_METHOD: str = os.getenv("POSTING_METHOD", "manual")

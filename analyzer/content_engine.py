@@ -3,10 +3,20 @@ Content Analysis & Recommendation Engine
 Analyzes uploaded content and generates AI-powered recommendations
 """
 import json
+import logging
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
 import random
+
+# Optional LLM integration
+try:
+    from integrations.llm_client import generate_caption as llm_generate_caption, generate_hashtags as llm_generate_hashtags
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 # Food & cooking specific caption templates and strategies
 CAPTION_TEMPLATES = {
@@ -152,13 +162,28 @@ class ContentAnalyzer:
         
         return content_type
     
-    def generate_caption(self, content_type: Dict, strategy: str = "engagement") -> str:
+    def generate_caption(self, content_type: Dict, strategy: str = "engagement", content_description: str = "") -> str:
         """
-        Generate an optimized caption based on content type and strategy
+        Generate an optimized caption based on content type and strategy.
+        Uses LLM if configured, otherwise falls back to templates.
         """
         meal_type = content_type.get("meal_type", "dinner")
         cuisine = content_type.get("cuisine_type", "homestyle")
         
+        # Try LLM first if available
+        if LLM_AVAILABLE:
+            try:
+                description = content_description or f"{cuisine} {meal_type} food"
+                return llm_generate_caption(
+                    content_description=description,
+                    content_type=meal_type,
+                    cuisine=cuisine,
+                    tone=strategy
+                )
+            except Exception as e:
+                logger.warning(f"LLM caption generation failed, using templates: {e}")
+        
+        # Fall back to template-based generation
         # Select template category based on strategy
         if strategy == "engagement":
             templates = CAPTION_TEMPLATES["engagement_hook"] + CAPTION_TEMPLATES["recipe_focus"]
@@ -182,10 +207,25 @@ class ContentAnalyzer:
         
         return caption
     
-    def select_hashtags(self, content_type: Dict, count: int = 20) -> List[str]:
+    def select_hashtags(self, content_type: Dict, count: int = 20, content_description: str = "") -> List[str]:
         """
-        Select optimal hashtags based on content type and current performance
+        Select optimal hashtags based on content type and current performance.
+        Uses LLM if configured, otherwise falls back to template-based selection.
         """
+        # Try LLM first if available
+        if LLM_AVAILABLE:
+            try:
+                description = content_description or f"{content_type.get('cuisine_type', '')} {content_type.get('meal_type', 'food')}"
+                return llm_generate_hashtags(
+                    content_description=description,
+                    content_type=content_type.get("meal_type", "food"),
+                    cuisine=content_type.get("cuisine_type"),
+                    count=count
+                )
+            except Exception as e:
+                logger.warning(f"LLM hashtag generation failed, using templates: {e}")
+        
+        # Fall back to template-based selection
         selected = []
         
         # Get database stats for hashtag performance
