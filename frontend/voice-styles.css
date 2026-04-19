@@ -1,10 +1,9 @@
-/* Voice Input Styles */
+/* Voice Input Styles - Matching Dashboard Theme */
+
 .context-input-container {
-    margin-top: 20px;
-    background: #0f0f23;
-    border-radius: 12px;
-    padding: 20px;
-    border: 1px solid #2d2d44;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #2d2d44;
 }
 
 .context-header {
@@ -15,7 +14,7 @@
 }
 
 .context-title {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: #fff;
     display: flex;
@@ -24,21 +23,23 @@
 }
 
 .context-hint {
-    font-size: 12px;
+    font-size: 13px;
     color: #8b8b9a;
 }
 
 .context-textarea {
     width: 100%;
-    min-height: 100px;
-    background: #1a1a2e;
+    min-height: 120px;
+    background: #0f0f23;
     border: 1px solid #2d2d44;
     color: #fff;
-    padding: 12px 16px;
-    border-radius: 8px;
+    padding: 16px;
+    border-radius: 12px;
     font-size: 15px;
     resize: vertical;
     font-family: inherit;
+    line-height: 1.5;
+    transition: border-color 0.2s;
 }
 
 .context-textarea:focus {
@@ -52,16 +53,17 @@
 
 .voice-controls {
     display: flex;
-    gap: 10px;
-    margin-top: 12px;
+    gap: 12px;
+    margin-top: 16px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .voice-btn {
     background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
     border: none;
     color: white;
-    padding: 10px 20px;
+    padding: 12px 24px;
     border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
@@ -94,7 +96,7 @@
 }
 
 .voice-status {
-    font-size: 13px;
+    font-size: 14px;
     color: #8b8b9a;
     display: flex;
     align-items: center;
@@ -122,11 +124,12 @@
     background: #2d2d44;
     border: none;
     color: #8b8b9a;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
+    margin-left: auto;
 }
 
 .clear-context-btn:hover {
@@ -139,7 +142,7 @@
     display: none;
     align-items: center;
     gap: 3px;
-    height: 20px;
+    height: 24px;
 }
 
 .recording-wave.active {
@@ -147,19 +150,57 @@
 }
 
 .recording-wave span {
-    width: 3px;
+    width: 4px;
     background: #ef4444;
     border-radius: 2px;
     animation: wave 1s ease-in-out infinite;
 }
 
 .recording-wave span:nth-child(1) { animation-delay: 0s; height: 8px; }
-.recording-wave span:nth-child(2) { animation-delay: 0.1s; height: 14px; }
-.recording-wave span:nth-child(3) { animation-delay: 0.2s; height: 10px; }
-.recording-wave span:nth-child(4) { animation-delay: 0.3s; height: 16px; }
-.recording-wave span:nth-child(5) { animation-delay: 0.4s; height: 12px; }
+.recording-wave span:nth-child(2) { animation-delay: 0.1s; height: 16px; }
+.recording-wave span:nth-child(3) { animation-delay: 0.2s; height: 12px; }
+.recording-wave span:nth-child(4) { animation-delay: 0.3s; height: 20px; }
+.recording-wave span:nth-child(5) { animation-delay: 0.4s; height: 14px; }
 
 @keyframes wave {
     0%, 100% { transform: scaleY(0.5); }
     50% { transform: scaleY(1); }
+}
+
+/* Upload actions */
+#uploadActions {
+    margin-top: 20px;
+}
+
+#uploadActions .btn {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 16px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 600px) {
+    .context-input-container {
+        margin-top: 20px;
+        padding-top: 20px;
+    }
+    
+    .voice-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .voice-btn {
+        justify-content: center;
+    }
+    
+    .clear-context-btn {
+        margin-left: 0;
+        margin-top: 8px;
+    }
+    
+    .voice-status {
+        justify-content: center;
+        margin-top: 8px;
+    }
 }
