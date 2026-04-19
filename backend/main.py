@@ -138,92 +138,374 @@ async def health_check():
     }
 
 
-@app.get("/simple-upload", response_class=HTMLResponse)
-async def simple_upload_form():
-    """Simple HTML form upload that works without JavaScript"""
+@app.get("/upload", response_class=HTMLResponse)
+async def working_upload_page():
+    """Clean working upload page with chat-style bar"""
     return HTMLResponse(content="""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Upload - Hungry Panda</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Upload - Hungry Panda</title>
     <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #0f0f23;
             color: #fff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
         }
-        h1 { font-size: 24px; margin-bottom: 8px; }
-        p { color: #8b8b9a; margin-bottom: 30px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: #b4b4c7; }
-        input[type="file"] {
-            width: 100%;
-            padding: 15px;
-            background: #1a1a2e;
-            border: 2px dashed #3d3d5c;
-            border-radius: 12px;
-            color: #fff;
+        h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        input[type="text"] {
-            width: 100%;
-            padding: 15px;
-            background: #1a1a2e;
-            border: 2px solid #3d3d5c;
-            border-radius: 12px;
-            color: #fff;
+        .subtitle {
+            color: #8b8b9a;
+            margin-bottom: 30px;
             font-size: 16px;
         }
-        input::placeholder { color: #5a5a7a; }
-        button {
-            width: 100%;
-            padding: 18px;
+        
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed #3d3d5c;
+            border-radius: 20px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #1a1a2e;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        .upload-area.dragover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
+        }
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .upload-text {
+            color: #8b8b9a;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+        .btn-select {
             background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
             border: none;
-            border-radius: 12px;
             color: white;
-            font-size: 18px;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 20px;
         }
-        .note {
-            margin-top: 30px;
-            padding: 15px;
+        #fileInput { display: none; }
+        
+        /* File Preview */
+        .file-preview {
+            display: none;
             background: #1a1a2e;
-            border-radius: 8px;
-            font-size: 14px;
-            color: #8b8b9a;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
+        .file-preview.active { display: block; }
+        .file-name {
+            color: #4ade80;
+            font-weight: 600;
+            margin-bottom: 15px;
+            word-break: break-all;
+        }
+        
+        /* Chat-style Input Bar */
+        .chat-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #0f0f23;
+            border: 2px solid #3d3d5c;
+            border-radius: 28px;
+            padding: 8px 12px;
+        }
+        .chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            padding: 10px;
+            outline: none;
+        }
+        .chat-input::placeholder {
+            color: #5a5a7a;
+        }
+        .chat-mic, .chat-send {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .chat-mic {
+            background: #2d2d44;
+            color: #fff;
+        }
+        .chat-mic:hover, .chat-mic.recording {
+            background: #e94560;
+        }
+        .chat-mic.recording {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .chat-send {
+            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+            color: white;
+        }
+        .chat-send:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Recording Status */
+        .recording-status {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+            color: #ef4444;
+            font-size: 14px;
+        }
+        .recording-status.active { display: flex; }
+        .red-dot {
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            border: 1px solid #4ade80;
+            color: #4ade80;
+            padding: 12px 24px;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+            font-size: 14px;
+        }
+        .toast.show { display: block; }
     </style>
 </head>
 <body>
-    <h1>🐼 Hungry Panda</h1>
-    <p>Simple upload - works on all devices</p>
-    
-    <form action="/simple-upload-submit" method="post" enctype="multipart/form-data">
-        <div class="form-group">
-            <label>📸 Select Photo or Video</label>
-            <input type="file" name="file" accept="image/*,video/*" required>
+    <div class="container">
+        <h1>🐼 Hungry Panda</h1>
+        <p class="subtitle">Upload food photos & get AI recommendations</p>
+        
+        <!-- Upload Area -->
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">🍽️</div>
+            <div class="upload-text">
+                Drop photos here or tap below<br>
+                <small>AI will suggest captions & hashtags</small>
+            </div>
+            <button class="btn-select" onclick="document.getElementById('fileInput').click()">
+                📎 Select File
+            </button>
+            <input type="file" id="fileInput" accept="image/*,video/*">
         </div>
         
-        <div class="form-group">
-            <label>📝 Describe Your Dish (optional)</label>
-            <input type="text" name="context" placeholder="What are you cooking? Homemade pasta with...">
+        <!-- File Preview & Chat Bar -->
+        <div class="file-preview" id="filePreview">
+            <div class="file-name" id="fileName"></div>
+            
+            <div class="chat-bar">
+                <input 
+                    type="text" 
+                    id="contextInput" 
+                    class="chat-input" 
+                    placeholder="Describe your dish (optional)..."
+                >
+                <button class="chat-mic" id="micBtn" onclick="toggleVoice()">🎤</button>
+                <button class="chat-send" onclick="upload()">⬆️</button>
+            </div>
+            
+            <div class="recording-status" id="recordingStatus">
+                <span class="red-dot"></span>
+                <span id="recordingText">Listening...</span>
+            </div>
         </div>
-        
-        <button type="submit">📤 Upload & Get AI Recommendations</button>
-    </form>
-    
-    <div class="note">
-        <strong>💡 Tip:</strong> This simple form works on all browsers and devices. 
-        The AI will analyze your photo and suggest captions, hashtags, and best posting time.
     </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        let selectedFile = null;
+        let recognition = null;
+        let isRecording = false;
+        
+        // Initialize speech recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                if (transcript) {
+                    document.getElementById('contextInput').value = transcript;
+                    document.getElementById('recordingText').textContent = transcript;
+                }
+            };
+            
+            recognition.onerror = () => {
+                stopRecording();
+                showToast('❌ Voice error - try typing');
+            };
+        } else {
+            document.getElementById('micBtn').style.display = 'none';
+        }
+        
+        // File selection
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                selectedFile = e.target.files[0];
+                document.getElementById('fileName').textContent = '📎 ' + selectedFile.name;
+                document.getElementById('filePreview').classList.add('active');
+                showToast('📎 File selected! Add context & tap ⬆️');
+            }
+        });
+        
+        // Drag & drop
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                selectedFile = e.dataTransfer.files[0];
+                document.getElementById('fileName').textContent = '📎 ' + selectedFile.name;
+                document.getElementById('filePreview').classList.add('active');
+                showToast('📎 File dropped! Add context & tap ⬆️');
+            }
+        });
+        
+        // Voice toggle
+        function toggleVoice() {
+            if (!recognition) {
+                showToast('❌ Voice not supported');
+                return;
+            }
+            
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+        
+        function startRecording() {
+            isRecording = true;
+            recognition.start();
+            document.getElementById('micBtn').classList.add('recording');
+            document.getElementById('recordingStatus').classList.add('active');
+            showToast('🎤 Recording... speak now');
+        }
+        
+        function stopRecording() {
+            isRecording = false;
+            if (recognition) recognition.stop();
+            document.getElementById('micBtn').classList.remove('recording');
+            document.getElementById('recordingStatus').classList.remove('active');
+        }
+        
+        // Upload
+        async function upload() {
+            if (!selectedFile) {
+                showToast('❌ Select a file first');
+                return;
+            }
+            
+            const context = document.getElementById('contextInput').value;
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('context', context);
+            formData.append('auto_optimize', 'true');
+            
+            showToast('📤 Uploading...');
+            
+            try {
+                const res = await fetch('/api/content/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await res.json();
+                
+                if (data.recommendation) {
+                    // Show results
+                    alert('✅ Upload complete!\\n\\nCaption: ' + data.recommendation.suggested_caption + 
+                          '\\n\\nHashtags: #' + data.recommendation.suggested_hashtags.slice(0, 5).join(' #'));
+                    
+                    // Reset
+                    selectedFile = null;
+                    document.getElementById('contextInput').value = '';
+                    document.getElementById('filePreview').classList.remove('active');
+                    document.getElementById('fileInput').value = '';
+                    showToast('✅ Upload complete!');
+                } else {
+                    showToast('✅ Uploaded! Check dashboard');
+                }
+            } catch (err) {
+                showToast('❌ Upload failed: ' + err.message);
+            }
+        }
+        
+        // Toast
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
 </body>
 </html>
     """)
