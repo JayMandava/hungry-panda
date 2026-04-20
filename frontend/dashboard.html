@@ -346,6 +346,74 @@
         .recommendation-item:last-child {
             margin-bottom: 0;
         }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .variant-card {
+            background: #141429;
+            border: 1px solid #2d2d44;
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 0;
+        }
+
+        .variant-label {
+            color: #e94560;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .variant-why {
+            color: #8b8b9a;
+            font-size: 13px;
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+
+        .thinking-toggle {
+            background: #141429;
+            border: 1px solid #2d2d44;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .thinking-toggle summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .thinking-toggle summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .thinking-toggle[open] summary {
+            border-bottom: 1px solid #2d2d44;
+        }
+
+        .thinking-content {
+            padding: 14px 16px 16px;
+            color: #8b8b9a;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .rec-scroll {
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
         
         .rec-title {
             font-weight: 600;
@@ -422,7 +490,7 @@
             max-width: 700px;
             width: 100%;
             max-height: 90vh;
-            overflow-y: auto;
+            overflow: hidden;
             border: 1px solid #2d2d44;
         }
         
@@ -436,6 +504,8 @@
         
         .modal-body {
             padding: 24px;
+            max-height: calc(90vh - 86px);
+            overflow-y: auto;
         }
         
         .modal-close {
@@ -448,6 +518,12 @@
         
         .modal-close:hover {
             color: #fff;
+        }
+
+        @media (max-width: 700px) {
+            .recommendation-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         /* Form Elements */
@@ -1138,17 +1214,40 @@
             const content = document.getElementById('recommendationContent');
             
             const timeRec = rec.optimal_time || {};
+            const captionVariants = rec.caption_variants || [
+                { label: 'Primary', caption: rec.suggested_caption, why: 'Primary recommendation.' }
+            ];
+            const hashtagVariants = rec.hashtag_variants || [
+                { label: 'Primary', hashtags: rec.suggested_hashtags || [], why: 'Primary recommendation.' }
+            ];
+            const thinkingSections = rec.thinking_sections || [];
             
             content.innerHTML = `
                 <div class="recommendation-item">
-                    <div class="rec-title">📝 Suggested Caption</div>
-                    <div class="rec-text">${rec.suggested_caption}</div>
+                    <div class="rec-title">📝 Caption Variants</div>
+                    <div class="recommendation-grid">
+                        ${captionVariants.map((variant, index) => `
+                            <div class="variant-card" data-primary-caption="${index === 0 ? 'true' : 'false'}">
+                                <div class="variant-label">${variant.label}</div>
+                                <div class="rec-text">${variant.caption}</div>
+                                <div class="variant-why">${variant.why || ''}</div>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
                 
                 <div class="recommendation-item">
-                    <div class="rec-title">🏷️ Recommended Hashtags (${rec.suggested_hashtags.length})</div>
-                    <div class="rec-tags">
-                        ${rec.suggested_hashtags.map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                    <div class="rec-title">🏷️ Hashtag Variants</div>
+                    <div class="recommendation-grid">
+                        ${hashtagVariants.map((variant, index) => `
+                            <div class="variant-card" data-primary-hashtags="${index === 0 ? 'true' : 'false'}">
+                                <div class="variant-label">${variant.label}</div>
+                                <div class="rec-tags rec-scroll">
+                                    ${(variant.hashtags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                                </div>
+                                <div class="variant-why">${variant.why || ''}</div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
                 
@@ -1161,13 +1260,18 @@
                 </div>
                 
                 <div class="recommendation-item">
-                    <div class="rec-title">📊 Strategy Notes</div>
-                    <div class="rec-text">${rec.strategy_notes.replace(/\n/g, '<br>')}</div>
+                    <div class="rec-title">🧠 Thinking</div>
+                    ${thinkingSections.map(section => `
+                        <details class="thinking-toggle">
+                            <summary>${section.title}</summary>
+                            <div class="thinking-content">${section.content}</div>
+                        </details>
+                    `).join('')}
                 </div>
                 
                 <div class="recommendation-item">
                     <div class="rec-title">🎯 AI Confidence</div>
-                    <div class="rec-text">${Math.round((rec.confidence_score || 0.7) * 100)}% confident in this recommendation</div>
+                    <div class="rec-text">${Math.round((rec.confidence_score || 0.7) * 100)}% confident based on content clarity, meal/cuisine detection, and context provided.</div>
                 </div>
                 
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
@@ -1253,8 +1357,12 @@
         async function scheduleWithRecommendation(contentId) {
             // Get the recommendation data from the modal
             const content = document.getElementById('recommendationContent');
-            const caption = content.querySelector('.rec-text').textContent;
-            const tags = Array.from(content.querySelectorAll('.tag')).map(t => t.textContent.replace('#', ''));
+            const primaryCaptionCard = content.querySelector('[data-primary-caption="true"] .rec-text');
+            const primaryHashtagTags = Array.from(
+                content.querySelectorAll('[data-primary-hashtags="true"] .tag')
+            );
+            const caption = primaryCaptionCard ? primaryCaptionCard.textContent : '';
+            const tags = primaryHashtagTags.map(t => t.textContent.replace('#', ''));
             const time = '18:00'; // Default, can be improved
             
             await fetch(`/api/content/${contentId}/schedule`, {

@@ -110,6 +110,10 @@ class ContentAnalyzer:
     
     def __init__(self):
         self.conn = sqlite3.connect('hungry_panda.db')
+
+    def _get_rng(self, seed: str) -> random.Random:
+        """Return a deterministic RNG for stable but content-specific variants."""
+        return random.Random(seed)
     
     def detect_content_type(self, filepath: str, user_caption: Optional[str]) -> Dict:
         """
@@ -124,7 +128,8 @@ class ContentAnalyzer:
             "dish_detected": None,
             "meal_type": None,  # breakfast, lunch, dinner, snack
             "cuisine_type": None,
-            "confidence": 0.7
+            "format": "video" if filepath.lower().endswith((".mov", ".mp4", ".m4v", ".avi")) else "image",
+            "confidence": 0.65
         }
         
         # Analyze caption if provided
@@ -155,18 +160,39 @@ class ContentAnalyzer:
                 if any(keyword in caption_lower for keyword in keywords):
                     content_type["cuisine_type"] = cuisine
                     break
+
+            if any(word in caption_lower for word in ["reel", "video", "step by step", "watch", "pour", "sizzle"]):
+                content_type["format"] = "video"
+                content_type["confidence"] += 0.05
+
+            if any(word in caption_lower for word in ["plate", "plated", "garnish", "served", "presentation"]):
+                content_type["category"] = "food_photography"
+                content_type["confidence"] += 0.05
         
         # Default classifications if still unknown
         if not content_type["category"] or content_type["category"] == "unknown":
-            content_type["category"] = "food_photography"
+            content_type["category"] = "recipe_tutorial" if content_type["format"] == "video" else "food_photography"
+
+        if content_type.get("meal_type"):
+            content_type["confidence"] += 0.08
+        if content_type.get("cuisine_type"):
+            content_type["confidence"] += 0.07
+        content_type["confidence"] = min(content_type["confidence"], 0.9)
         
         return content_type
     
-    def generate_caption(self, content_type: Dict, strategy: str = "engagement", content_description: str = "") -> str:
+    def generate_caption(
+        self,
+        content_type: Dict,
+        strategy: str = "engagement",
+        content_description: str = "",
+        rng: Optional[random.Random] = None,
+    ) -> str:
         """
         Generate an optimized caption based on content type and strategy.
         Uses LLM if configured, otherwise falls back to templates.
         """
+        rng = rng or random.Random()
         meal_type = content_type.get("meal_type", "dinner")
         cuisine = content_type.get("cuisine_type", "homestyle")
         
@@ -192,26 +218,33 @@ class ContentAnalyzer:
         else:
             templates = CAPTION_TEMPLATES["recipe_focus"] + CAPTION_TEMPLATES["process_focus"]
         
-        template = random.choice(templates)
+        template = rng.choice(templates)
         
         # Fill in the template
         caption = template.format(
             dish=(cuisine or "homestyle").title() + " " + meal_type,
             time="30-minute" if meal_type == "weeknight" else "quick",
-            relative="grandmother" if random.random() > 0.5 else "mother",
+            relative="grandmother" if rng.random() > 0.5 else "mother",
             memory="happiness",
             emotion="comfort",
-            option_a="this version" if random.random() > 0.5 else "the classic",
-            option_b="the spicy twist" if random.random() > 0.5 else "the creamy one"
+            option_a="this version" if rng.random() > 0.5 else "the classic",
+            option_b="the spicy twist" if rng.random() > 0.5 else "the creamy one"
         )
         
         return caption
     
-    def select_hashtags(self, content_type: Dict, count: int = 20, content_description: str = "") -> List[str]:
+    def select_hashtags(
+        self,
+        content_type: Dict,
+        count: int = 20,
+        content_description: str = "",
+        rng: Optional[random.Random] = None,
+    ) -> List[str]:
         """
         Select optimal hashtags based on content type and current performance.
         Uses LLM if configured, otherwise falls back to template-based selection.
         """
+        rng = rng or random.Random()
         # Try LLM first if available
         if LLM_AVAILABLE:
             try:
@@ -235,18 +268,18 @@ class ContentAnalyzer:
         
         # Mix of hashtag types for optimal reach
         # 5-7 high volume (discovery)
-        high_volume_sample = random.sample(HASHTAG_CATEGORIES["high_volume"], 
-                                          min(6, len(HASHTAG_CATEGORIES["high_volume"])))
+        high_volume_sample = rng.sample(HASHTAG_CATEGORIES["high_volume"], 
+                                        min(6, len(HASHTAG_CATEGORIES["high_volume"])))
         selected.extend(high_volume_sample)
         
         # 8-10 niche (targeted audience)
-        niche_sample = random.sample(HASHTAG_CATEGORIES["niche"], 
-                                   min(8, len(HASHTAG_CATEGORIES["niche"])))
+        niche_sample = rng.sample(HASHTAG_CATEGORIES["niche"], 
+                                  min(8, len(HASHTAG_CATEGORIES["niche"])))
         selected.extend(niche_sample)
         
         # 3-5 engagement-focused
-        engagement_sample = random.sample(HASHTAG_CATEGORIES["engagement"], 
-                                        min(4, len(HASHTAG_CATEGORIES["engagement"])))
+        engagement_sample = rng.sample(HASHTAG_CATEGORIES["engagement"], 
+                                       min(4, len(HASHTAG_CATEGORIES["engagement"])))
         selected.extend(engagement_sample)
         
         # Add any top performing hashtags from database
@@ -268,69 +301,174 @@ class ContentAnalyzer:
         
         return selected
     
-    def recommend_posting_time(self, content_type: Dict) -> Dict:
+    def recommend_posting_time(self, content_type: Dict, content_description: str = "") -> Dict:
         """
         Recommend optimal posting time based on content type and historical data
         """
         meal_type = content_type.get("meal_type", "dinner")
+        is_video = content_type.get("format") == "video"
+        desc_lower = (content_description or "").lower()
+        weekday = datetime.now().weekday()
+        is_weekend = weekday >= 5
         
         # Base recommendation on meal type
         if meal_type == "breakfast":
-            recommended_time = OPTIMAL_POST_TIMES["weekday_breakfast"]
-            reasoning = "Breakfast content performs best when people are planning their morning meal (8 AM)"
+            recommended_time = "09:00" if is_weekend else OPTIMAL_POST_TIMES["weekday_breakfast"]
+            reasoning = "Breakfast content performs best when people are planning their morning meal."
         elif meal_type == "lunch":
-            recommended_time = OPTIMAL_POST_TIMES["weekday_lunch"]
-            reasoning = "Lunch content hits during the lunch break scroll session (12 PM)"
+            recommended_time = "13:00" if "office" in desc_lower or "work" in desc_lower else OPTIMAL_POST_TIMES["weekday_lunch"]
+            reasoning = "Lunch content aligns with midday decision-making and lunch-break browsing."
         elif meal_type == "dessert/snack":
-            recommended_time = "15:00"  # 3 PM snack craving time
-            reasoning = "Afternoon snack content captures the 3 PM craving window"
+            recommended_time = "20:00" if "late night" in desc_lower or "dessert" in desc_lower else "15:00"
+            reasoning = "Dessert and snack content performs around craving windows in the afternoon or after dinner."
         else:  # dinner default
-            # Check if it's weekend
-            today = datetime.now()
-            if today.weekday() >= 5:  # Saturday or Sunday
+            if is_weekend:
                 recommended_time = OPTIMAL_POST_TIMES["weekend_dinner"]
-                reasoning = "Weekend dinner content performs best at 5 PM when people plan their evening meal"
+                reasoning = "Weekend dinner content performs best earlier, when people plan evenings and outings."
             else:
-                recommended_time = OPTIMAL_POST_TIMES["weekday_dinner"]
-                reasoning = "Weeknight dinner content hits at 6 PM - peak dinner prep time"
+                recommended_time = "17:30" if is_video else OPTIMAL_POST_TIMES["weekday_dinner"]
+                reasoning = "Dinner content performs around planning and prep time on weekdays."
+
+        if is_video:
+            reasoning += " Video-first posts benefit from slightly earlier distribution to build momentum."
+        else:
+            reasoning += " Static visuals tend to perform better closer to the meal planning moment."
         
         return {
             "time": recommended_time,
             "reasoning": reasoning,
             "timezone": "local",
-            "engagement_prediction": "high" if meal_type in ["dinner", "dessert/snack"] else "medium"
+            "engagement_prediction": "high" if meal_type in ["dinner", "dessert/snack"] or is_video else "medium"
         }
     
-    def generate_strategy_notes(self, content_type: Dict) -> str:
+    def generate_strategy_notes(self, content_type: Dict, content_description: str = "", seed: str = "") -> str:
         """
         Generate strategic notes explaining why this recommendation was made
         """
-        patterns = []
-        
-        # Identify which high-performance pattern this content could follow
-        for pattern in HIGH_PERFORMANCE_PATTERNS:
-            if pattern["best_for"] in ["Photo posts", "Recipe tutorials"]:
-                patterns.append(pattern)
-        
+        rng = self._get_rng(seed or content_description or "strategy")
+        preferred_patterns = [
+            pattern for pattern in HIGH_PERFORMANCE_PATTERNS
+            if (
+                content_type.get("format") == "video" and pattern["best_for"] in ["Recipe tutorials", "Reels content", "Snackable content"]
+            ) or (
+                content_type.get("format") != "video" and pattern["best_for"] in ["Photo posts", "Visual impact posts"]
+            )
+        ] or HIGH_PERFORMANCE_PATTERNS[:2]
+
+        selected_pattern = rng.choice(preferred_patterns)
+        cuisine = (content_type.get('cuisine_type') or 'mixed').title()
+        meal_type = (content_type.get('meal_type') or 'general').title()
+        focus = "save-friendly teaching" if content_type.get("format") == "video" else "high-intent visual appeal"
+
         notes = f"""
         STRATEGIC RECOMMENDATION:
-        
-        Content Type: {(content_type.get('meal_type') or 'General').title()} | {(content_type.get('cuisine_type') or 'Mixed').title()} Cuisine
-        
+
+        Content Type: {meal_type} | {cuisine} Cuisine | {content_type.get('format', 'image').title()} Format
+
         Why this approach:
-        1. This content fits the "{random.choice(['overhead_recipe', 'plating_showcase'])}" pattern
-           which typically sees {random.choice(['2x', '3x', '1.5x'])} engagement boost
-        
-        2. Caption uses engagement hook to drive comments and saves
-        
-        3. Hashtag mix balances discovery (high-volume) with targeted reach (niche)
-        
-        4. Posting time aligns with when your audience plans {content_type.get('meal_type', 'meals')}
-        
-        Expected outcome: High save rate + increased profile visits
+        1. This content best matches the "{selected_pattern['type']}" pattern
+           which typically drives {selected_pattern['engagement_boost']}
+
+        2. The caption variants balance appetite appeal with a stronger engagement hook
+
+        3. The hashtag variants split between broad discovery and more targeted niche reach
+
+        4. Posting time aligns with when your audience is most likely planning or craving this meal
+
+        Expected outcome: Better {focus}, stronger saves, and more profile visits.
         """
-        
+
         return notes.strip()
+
+    def build_caption_variants(self, content_type: Dict, content_description: str, seed: str) -> List[Dict]:
+        """Build two caption variants with different tones."""
+        variant_specs = [
+            ("Performance", "engagement"),
+            ("Story-led", "story" if content_description else "process"),
+        ]
+        variants = []
+        for index, (label, strategy) in enumerate(variant_specs):
+            variant_seed = f"{seed}:caption:{index}:{strategy}"
+            rng = self._get_rng(variant_seed)
+            variants.append(
+                {
+                    "label": label,
+                    "caption": self.generate_caption(
+                        content_type,
+                        strategy=strategy,
+                        content_description=content_description,
+                        rng=rng,
+                    ),
+                    "why": (
+                        "Uses a stronger hook to drive saves and comments."
+                        if strategy == "engagement"
+                        else "Leans into story and relatability to create a warmer brand voice."
+                    ),
+                }
+            )
+        return variants
+
+    def build_hashtag_variants(self, content_type: Dict, content_description: str, seed: str) -> List[Dict]:
+        """Build two hashtag mixes for discovery vs targeted reach."""
+        base_tags = self.select_hashtags(
+            content_type,
+            content_description=content_description,
+            rng=self._get_rng(f"{seed}:hashtags:base"),
+        )
+
+        cuisine = content_type.get("cuisine_type")
+        meal_type = content_type.get("meal_type")
+        niche_boosters = [tag for tag in [f"{cuisine}food" if cuisine else None, meal_type] if tag]
+
+        discovery = list(dict.fromkeys(base_tags[:12] + ["instafood", "foodie", "foodstagram"]))[:15]
+        targeted = list(dict.fromkeys(niche_boosters + base_tags[6:18] + ["recipeideas", "homecooking"]))[:15]
+
+        return [
+            {
+                "label": "Broader Discovery",
+                "hashtags": discovery,
+                "why": "Leans on larger food discovery tags to maximize reach.",
+            },
+            {
+                "label": "Targeted Intent",
+                "hashtags": targeted,
+                "why": "Focuses on meal and cuisine intent to improve relevance and saves.",
+            },
+        ]
+
+    def build_thinking_sections(
+        self,
+        content_type: Dict,
+        optimal_time: Dict,
+        confidence: float,
+        strategy_notes: str,
+    ) -> List[Dict]:
+        """Return collapsed reasoning blocks for the UI."""
+        return [
+            {
+                "title": "Content Read",
+                "content": (
+                    f"Detected {content_type.get('format', 'image')} content for "
+                    f"{content_type.get('meal_type') or 'general'} with "
+                    f"{content_type.get('cuisine_type') or 'mixed'} cuisine signals."
+                ),
+            },
+            {
+                "title": "Timing Logic",
+                "content": optimal_time.get("reasoning", "Timing based on content type and meal window."),
+            },
+            {
+                "title": "Strategy Notes",
+                "content": strategy_notes,
+            },
+            {
+                "title": "Confidence Breakdown",
+                "content": (
+                    f"Confidence landed at {round(confidence * 100)}% based on detected meal type, "
+                    f"cuisine clues, provided context, and media format clarity."
+                ),
+            },
+        ]
 
 
 async def analyze_and_recommend(
@@ -349,40 +487,51 @@ async def analyze_and_recommend(
         context: Additional context about the content (dish description, recipe, story)
     """
     analyzer = ContentAnalyzer()
+    seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
     
     # Detect content type
     content_type = analyzer.detect_content_type(filepath, user_caption)
     
-    # Generate recommendations with context
-    caption = analyzer.generate_caption(
-        content_type, 
-        strategy="engagement",
-        content_description=context or user_caption
-    )
-    hashtags = analyzer.select_hashtags(
-        content_type,
-        content_description=context or user_caption
-    )
-    time_rec = analyzer.recommend_posting_time(content_type)
-    strategy_notes = analyzer.generate_strategy_notes(content_type)
+    description = context or user_caption or ""
+    caption_variants = analyzer.build_caption_variants(content_type, description, seed)
+    hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed)
+    caption = caption_variants[0]["caption"]
+    hashtags = hashtag_variants[0]["hashtags"]
+    time_rec = analyzer.recommend_posting_time(content_type, description)
+    strategy_notes = analyzer.generate_strategy_notes(content_type, description, seed)
     
     # Calculate confidence based on content clarity
     confidence = content_type["confidence"]
     if user_caption:
-        confidence += 0.1  # Bonus for having caption
+        confidence += 0.08
     if context:
-        confidence += 0.15  # Bonus for having detailed context
+        confidence += 0.12
+    if content_type.get("meal_type"):
+        confidence += 0.05
+    if content_type.get("cuisine_type"):
+        confidence += 0.03
+    if content_type.get("format") == "video":
+        confidence += 0.02
     confidence = min(confidence, 1.0)
+    thinking_sections = analyzer.build_thinking_sections(
+        content_type,
+        time_rec,
+        confidence,
+        strategy_notes,
+    )
     
     return {
         "content_id": content_id,
         "content_analysis": content_type,
         "suggested_caption": caption,
         "suggested_hashtags": hashtags,
+        "caption_variants": caption_variants,
+        "hashtag_variants": hashtag_variants,
         "optimal_time": time_rec,
         "strategy_notes": strategy_notes,
         "confidence_score": round(confidence, 2),
-        "content_patterns": [p["type"] for p in HIGH_PERFORMANCE_PATTERNS[:3]]
+        "content_patterns": [p["type"] for p in HIGH_PERFORMANCE_PATTERNS[:3]],
+        "thinking_sections": thinking_sections,
     }
 
 
