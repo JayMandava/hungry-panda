@@ -1,7 +1,7 @@
 /* Compact Context Input Bar - Like ChatGPT/Search */
 
 .context-bar {
-    display: flex;
+    display: none; /* Hidden by default, shown via JS */
     align-items: center;
     gap: 8px;
     margin-top: 20px;
@@ -33,7 +33,7 @@
 }
 
 .context-mic {
-    background: #2d2d44;
+    background: transparent;
     border: none;
     color: #fff;
     font-size: 18px;
@@ -46,17 +46,18 @@
     justify-content: center;
     width: 42px;
     height: 42px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: none;
 }
 
 .context-mic:hover {
-    background: #e94560;
+    background: transparent;
+    color: #e94560;
     transform: scale(1.05);
 }
 
 .context-mic.recording {
-    background: #ef4444;
-    color: white;
+    background: transparent;
+    color: #ef4444;
     animation: pulse-mic 1.5s infinite;
 }
 
@@ -66,10 +67,10 @@
 }
 
 .context-send {
-    background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
+    background: transparent;
     border: none;
-    color: white;
-    font-size: 18px;
+    color: #e94560;
+    font-size: 20px;
     padding: 10px;
     cursor: pointer;
     border-radius: 50%;
@@ -79,12 +80,11 @@
     justify-content: center;
     width: 42px;
     height: 42px;
-    box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
 }
 
 .context-send:hover {
+    background: transparent;
     transform: scale(1.05);
-    box-shadow: 0 4px 16px rgba(233, 69, 96, 0.6);
 }
 
 .voice-status-bar {

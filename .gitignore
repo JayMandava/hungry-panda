@@ -37,6 +37,7 @@ env/
 .env
 *.db
 *.sqlite3
+project-context.db
 uploads/
 *.log
 

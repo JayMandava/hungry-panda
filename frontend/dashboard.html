@@ -261,6 +261,22 @@
             background: #e94560;
             color: white;
         }
+
+        .queue-btn.delete {
+            color: #ef4444;
+        }
+
+        .queue-btn.delete:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        /* Small refresh button */
+        .btn-small {
+            padding: 6px 14px;
+            font-size: 13px;
+            border-radius: 6px;
+        }
         
         /* Strategy Panel */
         .strategy-card {
@@ -620,20 +636,24 @@
                                 Drop your food photos or videos here<br>
                                 <small style="color: #5a5a7a;">The AI will analyze and recommend optimal caption, hashtags & posting time</small>
                             </div>
-                            <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
-                            <button class="btn" onclick="document.getElementById('fileInput').click()">
-                                Select File
-                            </button>
+                            <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,video/mp4,video/quicktime" style="display: none;">
+                            <label for="fileInput" class="btn" style="cursor: pointer; display: inline-block;">
+                                Select Photo/Video
+                            </label>
+                            <div style="margin-top: 8px; font-size: 12px; color: #6b6b8a;">
+                                Works with: JPG, PNG, HEIC (iPhone), MP4
+                            </div>
                         </div>
                         
                         <!-- Compact Context Input Bar -->
-                        <div id="contextBar" class="context-bar" style="margin-top: 20px;">
+                        <div id="contextBar" class="context-bar" style="margin-top: 20px; display: none;">
                             <input 
                                 type="text" 
                                 id="contextInput" 
                                 class="context-input" 
-                                placeholder="Add context about your dish (optional)..."
+                                placeholder="Describe your dish..."
                                 onkeypress="if(event.key==='Enter') uploadWithContext()"
+                                autocomplete="off"
                             >
                             <button id="voiceBtn" class="context-mic" onclick="toggleVoiceRecording()" title="Voice input">
                                 <span id="voiceIcon">🎤</span>
@@ -654,7 +674,7 @@
                 <div class="section-card">
                     <div class="section-header">
                         <h2>📋 Content Queue</h2>
-                        <button class="btn btn-secondary" onclick="loadPendingContent()">Refresh</button>
+                        <button class="btn btn-secondary btn-small" onclick="loadPendingContent()">↻ Refresh</button>
                     </div>
                     <div class="section-body">
                         <div class="tabs">
@@ -873,7 +893,16 @@
         }
         
         async function uploadWithContext() {
-            console.log('Upload clicked, selectedFile:', selectedFile);
+            console.log('=== Upload With Context Called ===');
+            console.log('selectedFile:', selectedFile);
+            console.log('fileInput:', fileInput);
+            console.log('fileInput.files:', fileInput ? fileInput.files : null);
+            
+            // Try to get file from input if selectedFile is not set
+            if (!selectedFile && fileInput && fileInput.files && fileInput.files.length > 0) {
+                selectedFile = fileInput.files[0];
+                console.log('Retrieved file from input:', selectedFile.name);
+            }
             
             if (!selectedFile) {
                 showToast('❌ Please select a file first (tap Select File)');
@@ -881,18 +910,33 @@
             }
             
             const context = document.getElementById('contextInput').value;
+            console.log('Context value being sent:', JSON.stringify(context));
+            
             const formData = new FormData();
             formData.append('file', selectedFile, selectedFile.name);
             formData.append('auto_optimize', 'true');
             formData.append('context', context);
             
+            // Debug: log what's in formData
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}:`, value instanceof File ? `File(${value.name})` : value);
+            }
+            
             showToast('📤 Uploading...');
             
             try {
+                showToast('📤 Uploading... This may take 10-15 seconds for AI analysis');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+                
                 const res = await fetch('/api/content/upload', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
                 
                 if (!res.ok) {
                     const errorData = await res.json();
@@ -923,9 +967,17 @@
                 selectedFile = null;
                 document.getElementById('contextInput').value = '';
                 document.getElementById('voiceStatusBar').style.display = 'none';
+                document.getElementById('contextBar').style.display = 'none';
                 fileInput.value = '';
                 
-                loadPendingContent();
+                // Reset file input
+                fileInput.value = '';
+                
+                // Refresh dashboard and queue after short delay
+                setTimeout(() => {
+                    loadDashboard();
+                    loadPendingContent();
+                }, 500);
             } catch (err) {
                 console.error('Upload error:', err);
                 showToast('❌ Upload failed: ' + err.message);
@@ -949,7 +1001,13 @@
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         
-        uploadArea.addEventListener('click', () => fileInput.click());
+        // Click on upload area (but not on the label/button) triggers file input
+        uploadArea.addEventListener('click', (e) => {
+            // Don't trigger if clicking the label (it handles itself)
+            if (e.target.tagName !== 'LABEL' && !e.target.closest('label')) {
+                fileInput.click();
+            }
+        });
         
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -960,16 +1018,39 @@
             uploadArea.classList.remove('dragover');
         });
         
-        // File selection handlers
+        // File selection handlers - with iOS support
         fileInput.addEventListener('change', (e) => {
-            console.log('File input change event', e.target.files);
-            if (e.target.files.length) {
+            console.log('=== File Input Change Event ===');
+            console.log('Files:', e.target.files);
+            console.log('Files length:', e.target.files ? e.target.files.length : 0);
+            
+            if (e.target.files && e.target.files.length > 0) {
                 selectedFile = e.target.files[0];
-                console.log('File selected:', selectedFile.name);
-                document.getElementById('contextBar').style.display = 'flex';
-                document.getElementById('contextBar').style.opacity = '1';
-                document.getElementById('contextInput').placeholder = `Add context for ${selectedFile.name}...`;
-                showToast(`📎 ${selectedFile.name} selected! Tap ⬆️ to upload`);
+                console.log('File selected:', selectedFile.name, 'Type:', selectedFile.type, 'Size:', selectedFile.size);
+                
+                const contextBar = document.getElementById('contextBar');
+                const contextInput = document.getElementById('contextInput');
+                
+                if (contextBar) {
+                    contextBar.style.display = 'flex';
+                    contextBar.style.opacity = '1';
+                    console.log('Context bar shown');
+                } else {
+                    console.error('Context bar element not found!');
+                }
+                
+                if (contextInput) {
+                    contextInput.placeholder = `Add context for ${selectedFile.name}...`;
+                    // Don't auto-focus on mobile (prevents keyboard issues)
+                    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                        contextInput.focus();
+                    }
+                }
+                
+                showToast(`📎 ${selectedFile.name} selected! Add context & tap ⬆️ to upload`);
+            } else {
+                console.log('No files selected');
+                showToast('❌ No file selected. Try again.');
             }
         });
         
@@ -1157,6 +1238,7 @@
                             ` : `
                                 <button class="queue-btn">View Stats</button>
                             `}
+                            <button class="queue-btn delete" onclick="deleteContent('${item.id}')">🗑️ Delete</button>
                         </div>
                     </div>
                 </div>
@@ -1176,7 +1258,45 @@
                 showToast('Recommendation ready! (Demo mode)');
             }, 1500);
         }
-        
+
+        async function scheduleContent(contentId) {
+            showToast('Opening scheduler...');
+            // Fetch the content details and show recommendation modal
+            try {
+                const res = await fetch(`/api/content/${contentId}/recommendation`);
+                if (res.ok) {
+                    const data = await res.json();
+                    showRecommendation(data);
+                } else {
+                    showToast('❌ Could not load recommendation');
+                }
+            } catch (err) {
+                showToast('❌ Scheduler not available in demo mode');
+            }
+        }
+
+        async function deleteContent(contentId) {
+            if (!confirm('Are you sure you want to delete this content?')) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/content/${contentId}`, {
+                    method: 'DELETE'
+                });
+
+                if (res.ok) {
+                    showToast('🗑️ Content deleted');
+                    loadPendingContent();
+                } else {
+                    const data = await res.json();
+                    showToast('❌ ' + (data.detail || 'Delete failed'));
+                }
+            } catch (err) {
+                showToast('❌ Delete failed: ' + err.message);
+            }
+        }
+
         // Competitor Management
         async function loadCompetitors() {
             try {

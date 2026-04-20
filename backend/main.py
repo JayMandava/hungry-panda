@@ -9,13 +9,14 @@ import os
 import sys
 import json
 import hashlib
+import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -28,9 +29,17 @@ from config.database import (
     get_db_connection, 
     execute_query, 
     execute_insert,
-    DatabaseError
+    DatabaseError,
+    get_setting,
+    set_setting,
 )
 from config.logging_config import logger
+from integrations.instagram_login import (
+    DEFAULT_SCOPES,
+    InstagramLoginClient,
+    InstagramLoginError,
+    get_configured_redirect_uri,
+)
 
 # Import analyzer modules
 try:
@@ -99,6 +108,220 @@ class ErrorResponse(BaseModel):
     """Standard error response"""
     error: str
     detail: Optional[str] = None
+
+
+def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
+    """Build current Instagram connection status from DB settings and env fallback."""
+    base_url = str(request.base_url).rstrip("/") if request else None
+    redirect_uri = None
+    redirect_error = None
+
+    try:
+        redirect_uri = get_configured_redirect_uri(base_url)
+    except InstagramLoginError as exc:
+        redirect_error = str(exc)
+
+    permissions = get_setting("instagram_permissions", "") or ""
+    granted_permissions = [p.strip() for p in permissions.split(",") if p.strip()]
+    required_permissions = list(DEFAULT_SCOPES)
+    missing_permissions = [
+        permission for permission in required_permissions if permission not in granted_permissions
+    ]
+
+    connected = (get_setting("instagram_connected", "false") == "true")
+    account_type = get_setting("instagram_account_type") or config.INSTAGRAM_ACCOUNT_TYPE
+
+    return {
+        "connected": connected,
+        "oauth_ready": bool(
+            config.INSTAGRAM_APP_ID and
+            config.INSTAGRAM_APP_SECRET and
+            redirect_uri
+        ),
+        "app_id_configured": bool(config.INSTAGRAM_APP_ID),
+        "app_secret_configured": bool(config.INSTAGRAM_APP_SECRET),
+        "redirect_uri": redirect_uri,
+        "redirect_uri_error": redirect_error,
+        "username": get_setting("instagram_username") or config.INSTAGRAM_USERNAME,
+        "account_type": account_type,
+        "instagram_user_id": get_setting("instagram_user_id") or get_setting("instagram_business_account_id"),
+        "token_expires_at": get_setting("instagram_token_expires_at"),
+        "last_validated_at": get_setting("instagram_last_validated_at"),
+        "permissions": granted_permissions,
+        "missing_permissions": missing_permissions,
+        "can_publish": account_type in {"Business", "Media_Creator", "business", "creator"} and not missing_permissions,
+        "posting_method": config.POSTING_METHOD,
+        "connect_url": "/api/instagram/oauth/start" if redirect_uri else None,
+    }
+
+
+def persist_instagram_connection(
+    token_payload: Dict[str, Any],
+    profile_payload: Dict[str, Any],
+) -> None:
+    """Persist Instagram connection details in system settings."""
+    expires_in = int(token_payload.get("expires_in", 0) or 0)
+    expires_at = (
+        datetime.utcnow() + timedelta(seconds=expires_in)
+    ).isoformat() if expires_in else (get_setting("instagram_token_expires_at") or None)
+
+    permissions = token_payload.get("permissions", "")
+    if isinstance(permissions, list):
+        permissions = ",".join(permissions)
+
+    values = {
+        "instagram_connected": "true",
+        "instagram_access_token": token_payload.get("access_token", ""),
+        "instagram_token_type": token_payload.get("token_type", "bearer"),
+        "instagram_token_expires_at": expires_at or "",
+        "instagram_permissions": permissions or "",
+        "instagram_username": profile_payload.get("username", ""),
+        "instagram_display_name": profile_payload.get("name", ""),
+        "instagram_user_id": str(profile_payload.get("user_id", "")),
+        "instagram_business_account_id": str(profile_payload.get("user_id", "")),
+        "instagram_account_type": profile_payload.get("account_type", ""),
+        "instagram_profile_picture_url": profile_payload.get("profile_picture_url", ""),
+        "instagram_followers_count": str(profile_payload.get("followers_count", 0) or 0),
+        "instagram_follows_count": str(profile_payload.get("follows_count", 0) or 0),
+        "instagram_media_count": str(profile_payload.get("media_count", 0) or 0),
+        "instagram_last_validated_at": datetime.utcnow().isoformat(),
+        "instagram_error": "",
+    }
+
+    for key, value in values.items():
+        set_setting(key, value)
+
+
+def clear_instagram_connection(error_message: Optional[str] = None) -> None:
+    """Mark the Instagram connection as disconnected without deleting app config."""
+    set_setting("instagram_connected", "false")
+    if error_message:
+        set_setting("instagram_error", error_message)
+
+
+def render_instagram_connect_page(status: Dict[str, Any], message: Optional[str] = None) -> str:
+    """Render a small standalone page for Instagram connection management."""
+    connect_button = ""
+    if status["oauth_ready"]:
+        connect_button = (
+            '<a href="/api/instagram/oauth/start" '
+            'style="display:inline-block;background:#e94560;color:#fff;padding:12px 18px;'
+            'border-radius:10px;text-decoration:none;font-weight:600;">Connect Instagram</a>'
+        )
+
+    oauth_help = ""
+    if not status["oauth_ready"]:
+        oauth_help = (
+            "<p><strong>Missing config.</strong> Add "
+            "<code>INSTAGRAM_APP_ID</code>, <code>INSTAGRAM_APP_SECRET</code>, and "
+            "<code>INSTAGRAM_REDIRECT_URI</code> in <code>config/.env</code>."
+            "</p>"
+        )
+
+    if status.get("redirect_uri"):
+        oauth_help += (
+            f"<p><strong>Redirect URI to add in Meta App Dashboard:</strong> "
+            f"<code>{status['redirect_uri']}</code></p>"
+        )
+
+    permissions = ", ".join(status["permissions"]) if status["permissions"] else "None yet"
+    missing_permissions = (
+        ", ".join(status["missing_permissions"]) if status["missing_permissions"] else "None"
+    )
+    message_html = f"<p style='color:#4ade80'>{message}</p>" if message else ""
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Instagram Connection - Hungry Panda</title>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                background: #0f0f23;
+                color: #fff;
+                margin: 0;
+                padding: 32px 20px;
+            }}
+            .card {{
+                max-width: 760px;
+                margin: 0 auto;
+                background: #1a1a2e;
+                border: 1px solid #2d2d44;
+                border-radius: 16px;
+                padding: 24px;
+            }}
+            code {{
+                background: #0f0f23;
+                padding: 2px 6px;
+                border-radius: 6px;
+            }}
+            .row {{
+                margin: 10px 0;
+                color: #cbd5e1;
+            }}
+            .actions {{
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin: 20px 0;
+            }}
+            button {{
+                background: #2d2d44;
+                border: none;
+                color: #fff;
+                padding: 12px 18px;
+                border-radius: 10px;
+                cursor: pointer;
+                font-weight: 600;
+            }}
+            pre {{
+                background: #0f0f23;
+                border-radius: 12px;
+                padding: 16px;
+                overflow-x: auto;
+                color: #cbd5e1;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>Instagram Connection</h1>
+            <p>Use Meta's official Instagram login flow for your professional account.</p>
+            {message_html}
+            <div class="row"><strong>Connected:</strong> {status["connected"]}</div>
+            <div class="row"><strong>Username:</strong> {status["username"] or "Not connected"}</div>
+            <div class="row"><strong>Account Type:</strong> {status["account_type"] or "Unknown"}</div>
+            <div class="row"><strong>Can Publish:</strong> {status["can_publish"]}</div>
+            <div class="row"><strong>Granted Permissions:</strong> {permissions}</div>
+            <div class="row"><strong>Missing Permissions:</strong> {missing_permissions}</div>
+            <div class="row"><strong>Token Expires:</strong> {status["token_expires_at"] or "Unknown"}</div>
+            {oauth_help}
+            <div class="actions">
+                {connect_button}
+                <button onclick="testConnection()">Test Connection</button>
+                <button onclick="location.href='/'">Back to Dashboard</button>
+            </div>
+            <pre id="result">Status will appear here.</pre>
+        </div>
+        <script>
+            async function testConnection() {{
+                const result = document.getElementById('result');
+                result.textContent = 'Testing...';
+                try {{
+                    const response = await fetch('/api/instagram/test', {{ method: 'POST' }});
+                    const data = await response.json();
+                    result.textContent = JSON.stringify(data, null, 2);
+                }} catch (error) {{
+                    result.textContent = error.message;
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
 
 
 # Routes
@@ -637,11 +860,12 @@ async def simple_upload_submit(
 
 def validate_food_content(context: Optional[str], caption: Optional[str], filename: str) -> bool:
     """
-    Validate that the content is food/cooking related.
-    Returns True if food-related keywords are found.
+    Validate that the content is food/cooking/dining related.
+    Returns True if food, drink, restaurant, or hospitality-related keywords are found.
     """
-    # Food-related keywords
+    # Food & Dining related keywords - expanded for F&B, restaurants, hotels, drinks
     food_keywords = [
+        # Food basics
         'food', 'cook', 'recipe', 'dish', 'meal', 'dinner', 'lunch', 'breakfast', 'brunch',
         'pasta', 'pizza', 'curry', 'rice', 'chicken', 'beef', 'pork', 'fish', 'salmon', 'tuna',
         'vegetable', 'salad', 'soup', 'stew', 'grill', 'bake', 'roast', 'fry', 'saute',
@@ -650,7 +874,38 @@ def validate_food_content(context: Optional[str], caption: Optional[str], filena
         'ingredient', 'spice', 'herb', 'sauce', 'marinade', 'appetizer', 'entree', 'main',
         'vegan', 'vegetarian', 'healthy', 'organic', 'gluten', 'keto', 'paleo',
         'italian', 'indian', 'chinese', 'mexican', 'thai', 'japanese', 'korean',
-        'mediterranean', 'french', 'greek', 'spanish', 'asian', 'bbq', 'grilled'
+        'mediterranean', 'french', 'greek', 'spanish', 'asian', 'bbq', 'grilled',
+        
+        # Drinks & Beverages
+        'coffee', 'espresso', 'latte', 'cappuccino', 'americano', 'mocha', 'frappuccino',
+        'tea', 'chai', 'matcha', 'bubble tea', 'boba',
+        'wine', 'red wine', 'white wine', 'rosé', 'champagne', 'prosecco',
+        'beer', 'ale', 'lager', 'ipa', 'stout', 'craft beer',
+        'cocktail', 'mocktail', 'martini', 'mojito', 'margarita', 'negroni', 'old fashioned',
+        'whiskey', 'whisky', 'bourbon', 'scotch', 'vodka', 'gin', 'rum', 'tequila',
+        'juice', 'smoothie', 'milkshake', 'lemonade', 'iced tea',
+        'beverage', 'drink', 'beverages', 'drinks', 'brew', 'sip', 'sipping',
+        
+        # Restaurants & Dining
+        'restaurant', 'dining', 'eatery', 'cafe', 'café', 'bistro', 'trattoria', 'osteria',
+        'bar', 'pub', 'tavern', 'inn', 'lounge', 'rooftop', 'terrace',
+        'hotel', 'resort', 'hospitality', 'room service', 'buffet', 'banquet',
+        'menu', 'cuisine', 'gastronomy', 'culinary', 'gourmet', 'fine dining',
+        'street food', 'food truck', 'takeaway', 'takeout', 'delivery', 'catering',
+        'brasserie', 'deli', 'delicatessen', 'patisserie', 'bakery', 'butcher',
+        'farm to table', 'organic', 'locally sourced', 'seasonal', 'artisan',
+        
+        # Food Business/F&B
+        'f&b', 'food and beverage', 'food service', 'hospitality industry',
+        'restaurant life', 'chef life', 'kitchen life', 'line cook', 'sous chef',
+        'foodie', 'food photography', 'food blogger', 'food influencer', 'food content',
+        'tasting', 'pairing', 'plating', 'presentation', 'ambiance', 'atmosphere',
+        
+        # Ingredients & More
+        'cheese', 'charcuterie', 'seafood', 'sushi', 'sashimi', 'ramen', 'noodles',
+        'dumplings', 'tacos', 'burrito', 'burger', 'sandwich', 'wrap', 'bowl',
+        'breakfast', 'brunch', 'lunch', 'dinner', 'supper', 'feast', 'spread',
+        'snack', 'appetizer', 'starter', 'mains', 'dessert', 'sweets', 'treat'
     ]
     
     # Combine all text to check
@@ -671,9 +926,9 @@ def validate_food_content(context: Optional[str], caption: Optional[str], filena
 @app.post("/api/content/upload", response_model=Dict[str, Any])
 async def upload_content(
     file: UploadFile = File(..., description="Image or video file to upload"),
-    caption: Optional[str] = None,
-    context: Optional[str] = None,
-    auto_optimize: bool = True
+    caption: Optional[str] = Form(None),
+    context: Optional[str] = Form(None),
+    auto_optimize: bool = Form(True)
 ):
     """
     Upload new content for the agent to curate.
@@ -688,6 +943,8 @@ async def upload_content(
     Note: Hungry Panda only handles food and cooking related content.
     """
     try:
+        logger.info(f"Upload request received: file={file.filename}, context={context}, caption={caption}")
+        
         # Validate file
         allowed_types = ['image/', 'video/']
         if not any(file.content_type.startswith(t) for t in allowed_types):
@@ -697,6 +954,7 @@ async def upload_content(
             )
         
         # Validate food content
+        logger.info(f"Validating food content with context: {context}")
         is_food_related = validate_food_content(context, caption, file.filename)
         
         if not is_food_related:
@@ -788,7 +1046,7 @@ async def get_pending_content():
 async def schedule_content(content_id: str, schedule_data: ContentScheduleRequest):
     """
     Schedule content for posting.
-    
+
     - **content_id**: ID of the content to schedule
     - **final_caption**: Caption to use for the post
     - **final_hashtags**: List of hashtags to include
@@ -800,21 +1058,21 @@ async def schedule_content(content_id: str, schedule_data: ContentScheduleReques
             "SELECT id FROM content WHERE id = ?",
             (content_id,)
         )
-        
+
         if not rows:
             raise HTTPException(status_code=404, detail="Content not found")
-        
+
         # Use provided time or default to tomorrow at optimal time
         scheduled_time = schedule_data.scheduled_time
         if not scheduled_time:
             scheduled_time = (datetime.now() + timedelta(days=1)).replace(
                 hour=18, minute=0, second=0
             ).isoformat()
-        
+
         # Update database
         execute_insert(
             """
-            UPDATE content 
+            UPDATE content
             SET scheduled_time = ?, caption = ?, hashtags = ?, status = 'scheduled'
             WHERE id = ?
             """,
@@ -825,20 +1083,65 @@ async def schedule_content(content_id: str, schedule_data: ContentScheduleReques
                 content_id
             )
         )
-        
+
         logger.info(f"Content scheduled: {content_id} for {scheduled_time}")
-        
+
         return {
             "status": "scheduled",
             "content_id": content_id,
             "scheduled_time": scheduled_time
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Scheduling error: {e}")
         raise HTTPException(status_code=500, detail=f"Scheduling failed: {str(e)}")
+
+
+@app.delete("/api/content/{content_id}", response_model=Dict[str, str])
+async def delete_content(content_id: str):
+    """
+    Delete content from the queue.
+
+    - **content_id**: ID of the content to delete
+    """
+    try:
+        # Validate content exists
+        rows = execute_query(
+            "SELECT id, filepath FROM content WHERE id = ?",
+            (content_id,)
+        )
+
+        content = dict(rows[0])
+        file_path = content.get('filepath')
+
+        # Delete from database
+        execute_insert(
+            "DELETE FROM content WHERE id = ?",
+            (content_id,)
+        )
+
+        # Delete file if it exists
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Deleted file: {file_path}")
+            except OSError as e:
+                logger.warning(f"Failed to delete file {file_path}: {e}")
+
+        logger.info(f"Content deleted: {content_id}")
+
+        return {
+            "status": "deleted",
+            "content_id": content_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete error: {e}")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
 @app.get("/api/growth/dashboard", response_model=Dict[str, Any])
@@ -1087,19 +1390,155 @@ async def get_content_performance():
         raise HTTPException(status_code=500, detail="Failed to load performance data")
 
 
+@app.get("/instagram/connect", response_class=HTMLResponse)
+async def instagram_connect_page(request: Request):
+    """Standalone page for connecting and testing Instagram login."""
+    status = build_instagram_status(request)
+    message = get_setting("instagram_error")
+    return HTMLResponse(render_instagram_connect_page(status, message=message))
+
+
+@app.get("/api/instagram/status")
+async def instagram_status(request: Request):
+    """Return current Instagram connection status."""
+    return build_instagram_status(request)
+
+
+@app.get("/api/instagram/oauth/start")
+async def instagram_oauth_start(request: Request):
+    """Start the Instagram OAuth flow using the official Instagram login."""
+    status = build_instagram_status(request)
+    if not status["oauth_ready"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Instagram login is not configured. Set INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, and INSTAGRAM_REDIRECT_URI.",
+        )
+
+    state = secrets.token_urlsafe(24)
+    set_setting("instagram_oauth_state", state)
+    set_setting("instagram_oauth_state_created_at", datetime.utcnow().isoformat())
+
+    client = InstagramLoginClient.from_redirect_uri(status["redirect_uri"])
+    return RedirectResponse(client.build_authorization_url(state))
+
+
+@app.get("/api/instagram/oauth/callback", response_class=HTMLResponse)
+async def instagram_oauth_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    error_description: Optional[str] = None,
+):
+    """Handle the Instagram OAuth callback and persist the connection."""
+    status = build_instagram_status(request)
+
+    if error:
+        message = error_description or error
+        clear_instagram_connection(message)
+        return HTMLResponse(
+            render_instagram_connect_page(status, message=f"Instagram connection failed: {message}"),
+            status_code=400,
+        )
+
+    expected_state = get_setting("instagram_oauth_state")
+    if not code or not state or state != expected_state:
+        clear_instagram_connection("Invalid or missing OAuth state.")
+        return HTMLResponse(
+            render_instagram_connect_page(status, message="Instagram connection failed: invalid OAuth state."),
+            status_code=400,
+        )
+
+    try:
+        client = InstagramLoginClient.from_redirect_uri(status["redirect_uri"])
+        clean_code = code.replace("#_", "")
+        short_lived = client.exchange_code(clean_code)
+        long_lived = client.exchange_for_long_lived_token(short_lived["access_token"])
+
+        permissions = short_lived.get("permissions")
+        if permissions:
+            long_lived["permissions"] = permissions
+
+        profile = client.get_profile(long_lived["access_token"])
+        persist_instagram_connection(long_lived, profile)
+        refreshed_status = build_instagram_status(request)
+
+        return HTMLResponse(
+            render_instagram_connect_page(
+                refreshed_status,
+                message=f"Connected as @{profile.get('username', 'unknown')}.",
+            )
+        )
+    except InstagramLoginError as exc:
+        logger.error(f"Instagram OAuth callback failed: {exc}")
+        clear_instagram_connection(str(exc))
+        return HTMLResponse(
+            render_instagram_connect_page(status, message=f"Instagram connection failed: {exc}"),
+            status_code=400,
+        )
+
+
+@app.post("/api/instagram/test")
+async def instagram_test_connection(request: Request):
+    """Validate the stored Instagram token and return current profile details."""
+    access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No Instagram access token is configured.")
+
+    status = build_instagram_status(request)
+    if not status["redirect_uri"]:
+        raise HTTPException(status_code=400, detail="INSTAGRAM_REDIRECT_URI is not configured.")
+
+    try:
+        client = InstagramLoginClient.from_redirect_uri(status["redirect_uri"])
+        profile = client.get_profile(access_token)
+        publishing_limit = None
+        publishing_limit_error = None
+        try:
+            publishing_limit = client.get_content_publishing_limit(str(profile["user_id"]), access_token)
+        except InstagramLoginError as exc:
+            publishing_limit_error = str(exc)
+
+        persist_instagram_connection(
+            {
+                "access_token": access_token,
+                "token_type": get_setting("instagram_token_type") or "bearer",
+                "expires_in": 0,
+                "permissions": get_setting("instagram_permissions", ""),
+            },
+            profile,
+        )
+
+        return {
+            "connected": True,
+            "profile": profile,
+            "publishing_limit": publishing_limit,
+            "publishing_limit_error": publishing_limit_error,
+            "checked_at": datetime.utcnow().isoformat(),
+        }
+    except InstagramLoginError as exc:
+        clear_instagram_connection(str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/config/profile")
 async def get_profile_config():
     """
     Get current Instagram profile configuration (safe info only).
     No sensitive credentials are returned.
     """
+    username = get_setting("instagram_username") or config.INSTAGRAM_USERNAME
+    account_type = get_setting("instagram_account_type") or config.INSTAGRAM_ACCOUNT_TYPE
+    connected = get_setting("instagram_connected", "false") == "true"
+
     return {
-        "username": config.INSTAGRAM_USERNAME,
-        "account_type": config.INSTAGRAM_ACCOUNT_TYPE,
+        "username": username,
+        "account_type": account_type,
         "posting_method": config.POSTING_METHOD,
         "auto_scheduler_enabled": config.AUTO_SCHEDULER_ENABLED,
         "max_posts_per_day": config.MAX_POSTS_PER_DAY,
-        "configured": bool(config.INSTAGRAM_USERNAME)
+        "configured": bool(username),
+        "instagram_connected": connected,
     }
 
 

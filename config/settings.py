@@ -40,6 +40,8 @@ class Config:
     INSTAGRAM_APP_ID: Optional[str] = os.getenv("INSTAGRAM_APP_ID")
     INSTAGRAM_APP_SECRET: Optional[str] = os.getenv("INSTAGRAM_APP_SECRET")
     INSTAGRAM_ACCESS_TOKEN: Optional[str] = os.getenv("INSTAGRAM_ACCESS_TOKEN")
+    INSTAGRAM_REDIRECT_URI: Optional[str] = os.getenv("INSTAGRAM_REDIRECT_URI")
+    INSTAGRAM_API_VERSION: str = os.getenv("INSTAGRAM_API_VERSION", "v25.0")
     
     # External APIs - LLM Configuration
     # OpenAI (legacy support)
