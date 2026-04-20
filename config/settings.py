@@ -55,7 +55,7 @@ class Config:
     # LLM Provider Selection
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "fireworks")  # fireworks, openai, or none
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1000"))
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "10000"))
     
     # Posting Settings
     POSTING_METHOD: str = os.getenv("POSTING_METHOD", "manual")
