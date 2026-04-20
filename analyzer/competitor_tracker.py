@@ -52,6 +52,21 @@ SAMPLE_COMPETITORS = {
     }
 }
 
+INDUSTRY_TRENDING_HASHTAGS = [
+    {"hashtag": "foodandbeverage", "category": "f&b", "avg_engagement": 4.8},
+    {"hashtag": "restaurantlife", "category": "restaurant", "avg_engagement": 4.6},
+    {"hashtag": "chefstable", "category": "restaurant", "avg_engagement": 4.5},
+    {"hashtag": "hospitalitylife", "category": "hotel", "avg_engagement": 4.3},
+    {"hashtag": "hotelrestaurant", "category": "hotel", "avg_engagement": 4.2},
+    {"hashtag": "finedining", "category": "restaurant", "avg_engagement": 4.7},
+    {"hashtag": "brunchgoals", "category": "restaurant", "avg_engagement": 4.1},
+    {"hashtag": "cocktailculture", "category": "beverage", "avg_engagement": 4.0},
+    {"hashtag": "cafevibes", "category": "cafe", "avg_engagement": 4.1},
+    {"hashtag": "foodpresentation", "category": "f&b", "avg_engagement": 4.4},
+    {"hashtag": "luxurydining", "category": "hotel", "avg_engagement": 3.9},
+    {"hashtag": "restaurantmarketing", "category": "business", "avg_engagement": 3.8},
+]
+
 
 class CompetitorTracker:
     """Tracks and analyzes competitor Instagram accounts"""
@@ -179,6 +194,11 @@ def get_market_insights() -> Dict:
     """Get aggregated insights from all tracked competitors"""
     tracker = CompetitorTracker()
     return tracker.get_competitor_insights()
+
+
+def get_industry_trending_hashtags(limit: int = 10) -> List[Dict]:
+    """Return fallback trending hashtags tailored to F&B, restaurants, and hotels."""
+    return INDUSTRY_TRENDING_HASHTAGS[:limit]
 
 
 if __name__ == "__main__":

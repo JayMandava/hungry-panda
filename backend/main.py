@@ -44,7 +44,11 @@ from integrations.instagram_login import (
 # Import analyzer modules
 try:
     from analyzer.content_engine import analyze_and_recommend
-    from analyzer.competitor_tracker import analyze_competitor, get_market_insights
+    from analyzer.competitor_tracker import (
+        analyze_competitor,
+        get_market_insights,
+        get_industry_trending_hashtags,
+    )
     from analyzer.strategist import generate_weekly_strategy
     ANALYZER_AVAILABLE = True
 except ImportError as e:
@@ -108,6 +112,28 @@ class ErrorResponse(BaseModel):
     """Standard error response"""
     error: str
     detail: Optional[str] = None
+
+
+def get_fallback_trending_hashtags(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return industry-relevant fallback hashtags for the dashboard."""
+    if ANALYZER_AVAILABLE:
+        try:
+            return get_industry_trending_hashtags(limit)
+        except Exception as exc:
+            logger.warning(f"Fallback hashtag generation failed: {exc}")
+
+    return [
+        {"hashtag": "foodandbeverage", "category": "f&b", "avg_engagement": 4.8},
+        {"hashtag": "restaurantlife", "category": "restaurant", "avg_engagement": 4.6},
+        {"hashtag": "hospitalitylife", "category": "hotel", "avg_engagement": 4.3},
+        {"hashtag": "finedining", "category": "restaurant", "avg_engagement": 4.7},
+        {"hashtag": "cafevibes", "category": "cafe", "avg_engagement": 4.1},
+        {"hashtag": "cocktailculture", "category": "beverage", "avg_engagement": 4.0},
+        {"hashtag": "hotelrestaurant", "category": "hotel", "avg_engagement": 4.2},
+        {"hashtag": "chefstable", "category": "restaurant", "avg_engagement": 4.5},
+        {"hashtag": "foodpresentation", "category": "f&b", "avg_engagement": 4.4},
+        {"hashtag": "restaurantmarketing", "category": "business", "avg_engagement": 3.8},
+    ][:limit]
 
 
 def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
@@ -197,6 +223,28 @@ def clear_instagram_connection(error_message: Optional[str] = None) -> None:
     set_setting("instagram_connected", "false")
     if error_message:
         set_setting("instagram_error", error_message)
+
+
+def resolve_content_filepath(stored_filepath: Optional[str]) -> Optional[Path]:
+    """Resolve a stored content filepath across old and current upload locations."""
+    if not stored_filepath:
+        return None
+
+    candidate = Path(stored_filepath)
+    if candidate.exists():
+        return candidate
+
+    basename = candidate.name
+    fallback_paths = [
+        Path(config.UPLOADS_DIR) / basename,
+        Path("/tmp/hungry-panda/uploads") / basename,
+    ]
+
+    for fallback in fallback_paths:
+        if fallback.exists():
+            return fallback
+
+    return None
 
 
 def render_instagram_connect_page(status: Dict[str, Any], message: Optional[str] = None) -> str:
@@ -1042,6 +1090,57 @@ async def get_pending_content():
         raise HTTPException(status_code=500, detail="Failed to fetch content")
 
 
+@app.get("/api/content/{content_id}/recommendation", response_model=Dict[str, Any])
+async def get_content_recommendation(content_id: str):
+    """
+    Generate or refresh AI recommendations for an already uploaded content item.
+
+    - **content_id**: ID of the uploaded content item
+    """
+    if not ANALYZER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI analyzer not available")
+
+    try:
+        rows = execute_query(
+            """
+            SELECT id, filepath, caption, context
+            FROM content
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (content_id,),
+        )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        item = dict(rows[0])
+        resolved_filepath = resolve_content_filepath(item.get("filepath"))
+        if not resolved_filepath:
+            raise HTTPException(status_code=404, detail="Uploaded file not found")
+
+        if item.get("filepath") != str(resolved_filepath):
+            execute_insert(
+                "UPDATE content SET filepath = ? WHERE id = ?",
+                (str(resolved_filepath), content_id),
+            )
+
+        recommendation = await analyze_and_recommend(
+            content_id,
+            str(resolved_filepath),
+            item.get("caption"),
+            item.get("context"),
+        )
+
+        return recommendation
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Recommendation fetch error for {content_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate recommendation: {str(e)}")
+
+
 @app.post("/api/content/{content_id}/schedule", response_model=Dict[str, str])
 async def schedule_content(content_id: str, schedule_data: ContentScheduleRequest):
     """
@@ -1114,7 +1213,7 @@ async def delete_content(content_id: str):
         )
 
         content = dict(rows[0])
-        file_path = content.get('filepath')
+        resolved_filepath = resolve_content_filepath(content.get('filepath'))
 
         # Delete from database
         execute_insert(
@@ -1123,12 +1222,12 @@ async def delete_content(content_id: str):
         )
 
         # Delete file if it exists
-        if file_path and os.path.exists(file_path):
+        if resolved_filepath and resolved_filepath.exists():
             try:
-                os.remove(file_path)
-                logger.info(f"Deleted file: {file_path}")
+                os.remove(resolved_filepath)
+                logger.info(f"Deleted file: {resolved_filepath}")
             except OSError as e:
-                logger.warning(f"Failed to delete file {file_path}: {e}")
+                logger.warning(f"Failed to delete file {resolved_filepath}: {e}")
 
         logger.info(f"Content deleted: {content_id}")
 
@@ -1187,6 +1286,8 @@ async def get_dashboard_metrics():
             "SELECT * FROM hashtag_performance ORDER BY avg_engagement DESC LIMIT 10"
         )
         top_hashtags = [dict(row) for row in hashtag_data]
+        if not top_hashtags:
+            top_hashtags = get_fallback_trending_hashtags(limit=10)
         
         # Get latest strategy
         strategy_data = execute_query(
@@ -1276,7 +1377,7 @@ async def add_competitor(competitor: CompetitorAddRequest):
         raise HTTPException(status_code=500, detail=f"Failed to add competitor: {str(e)}")
 
 
-@app.get("/api/competitors", response_model=Dict[str, List[Dict]])
+@app.get("/api/competitors", response_model=Dict[str, Any])
 async def get_competitors():
     """Get all tracked competitors with their insights"""
     try:
@@ -1313,6 +1414,73 @@ async def get_competitors():
     except DatabaseError as e:
         logger.error(f"Get competitors error: {e}")
         raise HTTPException(status_code=500, detail="Failed to load competitors")
+
+
+@app.get("/api/competitors/{username}", response_model=Dict[str, Any])
+async def get_competitor_detail(username: str):
+    """Get detailed competitor analytics for modal display."""
+    if not config.ENABLE_COMPETITOR_TRACKING:
+        raise HTTPException(status_code=403, detail="Competitor tracking is disabled")
+
+    normalized = username.strip().replace("@", "")
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Username is required")
+
+    try:
+        if ANALYZER_AVAILABLE:
+            detail = await analyze_competitor(normalized)
+        else:
+            detail = {
+                "username": normalized,
+                "followers": 0,
+                "avg_engagement": 0,
+                "content_style": "Analyzer unavailable",
+                "top_hashtags": [],
+                "patterns": [],
+                "posting_frequency": "Unknown",
+                "caption_approach": "Unknown",
+            }
+
+        rows = execute_query(
+            """
+            SELECT username, follower_count, avg_engagement, last_analyzed, top_hashtags, content_patterns
+            FROM competitors
+            WHERE username = ?
+            LIMIT 1
+            """,
+            (normalized,),
+        )
+
+        stored = dict(rows[0]) if rows else {}
+        for field in ["top_hashtags", "content_patterns"]:
+            value = stored.get(field)
+            if value:
+                try:
+                    stored[field] = json.loads(value)
+                except json.JSONDecodeError:
+                    stored[field] = []
+
+        return {
+            "username": normalized,
+            "followers": detail.get("followers", stored.get("follower_count", 0)),
+            "avg_engagement": detail.get("avg_engagement", stored.get("avg_engagement", 0)),
+            "content_style": detail.get("content_style", "Unknown"),
+            "top_hashtags": detail.get("top_hashtags") or stored.get("top_hashtags", []),
+            "patterns": detail.get("patterns") or stored.get("content_patterns", []),
+            "posting_frequency": detail.get("posting_frequency", "Unknown"),
+            "caption_approach": detail.get("caption_approach", "Unknown"),
+            "last_analyzed": stored.get("last_analyzed"),
+            "summary": (
+                f"@{normalized} is performing at "
+                f"{detail.get('avg_engagement', stored.get('avg_engagement', 0))}% engagement "
+                f"with {detail.get('posting_frequency', 'unknown')} posting cadence."
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Competitor detail error for {normalized}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load competitor detail: {str(e)}")
 
 
 @app.post("/api/strategy/generate", response_model=Dict[str, Any])

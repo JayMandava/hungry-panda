@@ -28,7 +28,7 @@ class Config:
     
     # Paths
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", str(PROJECT_ROOT / "hungry_panda.db"))
-    UPLOADS_DIR: str = str(PROJECT_ROOT / "uploads")
+    UPLOADS_DIR: str = os.getenv("UPLOADS_DIR", str(PROJECT_ROOT / "uploads"))
     STATIC_DIR: str = str(PROJECT_ROOT / "static")
     
     # Instagram Account

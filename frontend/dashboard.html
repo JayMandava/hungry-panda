@@ -487,6 +487,9 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            max-height: 260px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
         
         .competitor-item {
@@ -496,6 +499,29 @@
             background: #0f0f23;
             padding: 16px;
             border-radius: 10px;
+            border: 1px solid #2d2d44;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .competitor-item:hover {
+            border-color: #e94560;
+            transform: translateY(-1px);
+        }
+
+        .competitor-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .competitor-badge {
+            color: #e94560;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
         
         .competitor-name {
@@ -505,6 +531,45 @@
         .competitor-stats {
             color: #8b8b9a;
             font-size: 14px;
+        }
+
+        .scroll-panel {
+            max-height: 260px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .scroll-panel::-webkit-scrollbar,
+        .competitor-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .scroll-panel::-webkit-scrollbar-thumb,
+        .competitor-list::-webkit-scrollbar-thumb {
+            background: #2d2d44;
+            border-radius: 999px;
+        }
+
+        .trending-group {
+            margin-bottom: 18px;
+        }
+
+        .trending-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .trending-label {
+            font-size: 12px;
+            color: #8b8b9a;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 10px;
+        }
+
+        .rec-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         
         /* Tabs */
@@ -740,8 +805,10 @@
                         <h2>🔥 Trending Hashtags</h2>
                     </div>
                     <div class="section-body">
-                        <div class="rec-tags" id="trendingHashtags">
+                        <div class="scroll-panel" id="trendingHashtagsPanel">
+                            <div class="rec-tags" id="trendingHashtags">
                             <span class="tag">Loading...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -753,7 +820,7 @@
     <div class="modal-overlay" id="recommendationModal">
         <div class="modal">
             <div class="modal-header">
-                <h2>🤖 AI Recommendation</h2>
+                <h2 id="modalTitle">🤖 AI Recommendation</h2>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -1068,7 +1135,7 @@
         });
         
         function showRecommendation(rec) {
-            const modal = document.getElementById('recommendationModal');
+            document.getElementById('modalTitle').textContent = '🤖 AI Recommendation';
             const content = document.getElementById('recommendationContent');
             
             const timeRec = rec.optimal_time || {};
@@ -1114,9 +1181,76 @@
                 </div>
             `;
             
-            modal.classList.add('active');
+            openModal();
         }
-        
+
+        function openModal() {
+            document.getElementById('recommendationModal').classList.add('active');
+        }
+
+        function showModalContent(title, html) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('recommendationContent').innerHTML = html;
+            openModal();
+        }
+
+        function formatNumber(value) {
+            const numericValue = Number(value || 0);
+            if (!Number.isFinite(numericValue)) return '0';
+            return numericValue.toLocaleString();
+        }
+
+        async function showCompetitorDetail(username) {
+            try {
+                const res = await fetch(`/api/competitors/${encodeURIComponent(username)}`);
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Failed to load competitor analytics');
+                }
+
+                const hashtags = (data.top_hashtags || []).map(tag => `<span class="tag">#${tag}</span>`).join('');
+                const patterns = (data.patterns || []).map(pattern => `<li>${pattern}</li>`).join('');
+
+                showModalContent(
+                    `👀 @${data.username} Analytics`,
+                    `
+                        <div class="recommendation-item">
+                            <div class="rec-title">📊 Snapshot</div>
+                            <div class="rec-text">
+                                <strong>${formatNumber(data.followers)}</strong> followers<br>
+                                <strong>${data.avg_engagement || 0}%</strong> average engagement<br>
+                                Posting cadence: ${data.posting_frequency || 'Unknown'}
+                            </div>
+                        </div>
+
+                        <div class="recommendation-item">
+                            <div class="rec-title">🎯 Content Style</div>
+                            <div class="rec-text">${data.content_style || 'No style analysis available yet.'}</div>
+                        </div>
+
+                        <div class="recommendation-item">
+                            <div class="rec-title">🏷️ Top Hashtags</div>
+                            <div class="rec-tags">${hashtags || '<span class="rec-text">No hashtag data yet.</span>'}</div>
+                        </div>
+
+                        <div class="recommendation-item">
+                            <div class="rec-title">🔥 Winning Patterns</div>
+                            <div class="rec-text">
+                                ${patterns ? `<ul class="insight-list">${patterns}</ul>` : 'No recurring patterns found yet.'}
+                            </div>
+                        </div>
+
+                        <div class="recommendation-item">
+                            <div class="rec-title">✍️ Caption Approach</div>
+                            <div class="rec-text">${data.caption_approach || 'Unknown'}</div>
+                        </div>
+                    `
+                );
+            } catch (err) {
+                showToast(`❌ ${err.message}`);
+            }
+        }
+
         async function scheduleWithRecommendation(contentId) {
             // Get the recommendation data from the modal
             const content = document.getElementById('recommendationContent');
@@ -1180,10 +1314,21 @@
                 
                 // Update hashtags
                 if (data.top_hashtags && data.top_hashtags.length) {
-                    document.getElementById('trendingHashtags').innerHTML = 
-                        data.top_hashtags.slice(0, 10).map(h => 
-                            `<span class="tag">#${h.hashtag}</span>`
-                        ).join('');
+                    const grouped = {};
+                    data.top_hashtags.slice(0, 12).forEach(h => {
+                        const category = h.category || 'industry';
+                        if (!grouped[category]) grouped[category] = [];
+                        grouped[category].push(h);
+                    });
+
+                    document.getElementById('trendingHashtags').innerHTML = Object.entries(grouped).map(([category, hashtags]) => `
+                        <div class="trending-group">
+                            <div class="trending-label">${category}</div>
+                            <div class="rec-tags">
+                                ${hashtags.map(h => `<span class="tag">#${h.hashtag}</span>`).join('')}
+                            </div>
+                        </div>
+                    `).join('');
                 }
             } catch (err) {
                 console.error('Dashboard load error:', err);
@@ -1253,10 +1398,20 @@
         
         async function getRecommendation(contentId) {
             showToast('Analyzing content...');
-            // Would fetch real recommendation here
-            setTimeout(() => {
-                showToast('Recommendation ready! (Demo mode)');
-            }, 1500);
+            try {
+                const res = await fetch(`/api/content/${contentId}/recommendation`);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Could not load recommendation');
+                }
+
+                currentContentId = contentId;
+                showRecommendation(data);
+                showToast('Recommendation ready!');
+            } catch (err) {
+                showToast(`❌ ${err.message}`);
+            }
         }
 
         async function scheduleContent(contentId) {
@@ -1264,14 +1419,15 @@
             // Fetch the content details and show recommendation modal
             try {
                 const res = await fetch(`/api/content/${contentId}/recommendation`);
-                if (res.ok) {
-                    const data = await res.json();
-                    showRecommendation(data);
-                } else {
-                    showToast('❌ Could not load recommendation');
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Could not load recommendation');
                 }
+
+                currentContentId = contentId;
+                showRecommendation(data);
             } catch (err) {
-                showToast('❌ Scheduler not available in demo mode');
+                showToast(`❌ ${err.message}`);
             }
         }
 
@@ -1315,11 +1471,13 @@
                 }
                 
                 list.innerHTML = data.competitors.map(c => `
-                    <div class="competitor-item">
-                        <div>
+                    <div class="competitor-item" onclick="showCompetitorDetail('${c.username}')">
+                        <div class="competitor-meta">
+                            <div class="competitor-badge">Tap for analytics</div>
                             <div class="competitor-name">@${c.username}</div>
-                            <div class="competitor-stats">${(c.follower_count || 0).toLocaleString()} followers · ${c.avg_engagement || 0}% engagement</div>
+                            <div class="competitor-stats">${formatNumber(c.follower_count)} followers · ${c.avg_engagement || 0}% engagement</div>
                         </div>
+                        <div class="competitor-stats">View</div>
                     </div>
                 `).join('');
             } catch (err) {
@@ -1341,6 +1499,7 @@
                 
                 input.value = '';
                 loadCompetitors();
+                loadDashboard();
                 showToast(`Tracking @${username}`);
             } catch (err) {
                 showToast('Failed to add competitor');
