@@ -1099,6 +1099,373 @@
         ::-webkit-scrollbar-thumb:hover {
             background: var(--text-muted);
         }
+        
+        /* ========================================
+           MOBILE ENHANCEMENTS - Phase 2
+           Addressing 5 mobile-specific issues
+           ======================================== */
+        
+        @media (max-width: 768px) {
+            /* M1: Mobile Header - Stronger presence */
+            .app-header {
+                padding: var(--space-5) var(--space-4);
+                position: sticky;
+                top: 0;
+            }
+            
+            .brand {
+                gap: var(--space-3);
+            }
+            
+            .brand-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+            
+            .brand-text h1 {
+                font-size: var(--text-xl);
+                letter-spacing: -0.03em;
+            }
+            
+            .brand-text p {
+                display: none; /* Hide tagline on mobile for cleaner header */
+            }
+            
+            .header-meta .status-badge {
+                padding: var(--space-1) var(--space-2);
+                font-size: 10px;
+            }
+            
+            /* M2: Mobile Metrics - Compact layout */
+            .metrics-section {
+                margin-bottom: var(--space-5);
+            }
+            
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-3);
+            }
+            
+            .metric-card {
+                padding: var(--space-4);
+                border-radius: var(--radius-md);
+            }
+            
+            .metric-label {
+                font-size: 10px;
+                letter-spacing: 0.06em;
+            }
+            
+            .metric-value {
+                font-size: var(--text-xl);
+                margin-top: var(--space-1);
+            }
+            
+            .metric-change {
+                font-size: var(--text-xs);
+                margin-top: var(--space-1);
+            }
+            
+            .metric-change svg {
+                width: 12px;
+                height: 12px;
+            }
+            
+            /* Container adjustments */
+            .app-container {
+                padding: var(--space-4);
+            }
+            
+            /* Section spacing for better pacing */
+            .section {
+                margin-bottom: var(--space-5);
+                border-radius: var(--radius-lg);
+            }
+            
+            .section-header {
+                padding: var(--space-4);
+            }
+            
+            .section-body {
+                padding: var(--space-4);
+            }
+            
+            /* M5: Mobile Upload - Native-feeling UX */
+            .upload-hero {
+                padding: var(--space-8) var(--space-4);
+            }
+            
+            .upload-icon-large {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+            
+            .upload-hero h3 {
+                font-size: var(--text-lg);
+            }
+            
+            .upload-hero p {
+                font-size: var(--text-sm);
+            }
+            
+            .upload-formats {
+                font-size: 10px;
+            }
+            
+            /* Voice input adjustments */
+            .voice-input-container {
+                padding: 4px;
+            }
+            
+            .voice-input {
+                font-size: var(--text-base);
+                padding: var(--space-2) var(--space-3);
+            }
+            
+            .voice-btn, .send-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            /* M3: Mobile Queue - Reduced action density */
+            .queue-tabs {
+                gap: var(--space-1);
+                padding: var(--space-1);
+            }
+            
+            .tab {
+                padding: var(--space-2) var(--space-3);
+                font-size: var(--text-sm);
+            }
+            
+            .queue-list {
+                gap: var(--space-3);
+            }
+            
+            .queue-item {
+                padding: var(--space-3);
+                gap: var(--space-3);
+            }
+            
+            .queue-thumb {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+            
+            .queue-filename {
+                font-size: var(--text-sm);
+            }
+            
+            .queue-details {
+                flex-wrap: wrap;
+            }
+            
+            .status-pill {
+                font-size: 10px;
+                padding: 2px var(--space-2);
+            }
+            
+            /* M4: Better action density - single row, progressive disclosure */
+            .queue-actions {
+                flex-direction: column;
+                gap: var(--space-1);
+            }
+            
+            .action-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            /* Strategy panel compact */
+            .strategy-header {
+                margin-bottom: var(--space-3);
+            }
+            
+            .strategy-badge {
+                font-size: 10px;
+            }
+            
+            .strategy-title {
+                font-size: var(--text-base);
+            }
+            
+            .strategy-description {
+                font-size: var(--text-sm);
+                margin-bottom: var(--space-3);
+            }
+            
+            .insight-list li {
+                padding: var(--space-2) 0;
+                font-size: var(--text-sm);
+            }
+            
+            /* Right column sections */
+            .right-column .section {
+                margin-bottom: var(--space-4);
+            }
+            
+            .right-column .section-body {
+                padding: var(--space-4);
+            }
+            
+            /* Hashtag chips */
+            .hashtag-chip {
+                padding: var(--space-1) var(--space-2);
+                font-size: var(--text-xs);
+            }
+            
+            /* Competitor items */
+            .competitor-item {
+                padding: var(--space-2) 0;
+            }
+            
+            .competitor-avatar {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+            
+            .competitor-name {
+                font-size: var(--text-sm);
+            }
+            
+            /* Modal adjustments */
+            .modal {
+                max-height: 85vh;
+                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+                margin-top: auto;
+            }
+            
+            .modal-overlay {
+                align-items: flex-end;
+                padding: 0;
+            }
+            
+            .modal-header {
+                padding: var(--space-4) var(--space-5);
+            }
+            
+            .modal-body {
+                padding: var(--space-4) var(--space-5);
+            }
+            
+            /* Toast positioning */
+            .toast-container {
+                left: var(--space-4);
+                right: var(--space-4);
+                bottom: var(--space-4);
+            }
+            
+            .toast {
+                max-width: none;
+            }
+            
+            /* Form inputs */
+            .form-input {
+                font-size: 16px; /* Prevent zoom on iOS */
+                padding: var(--space-3);
+            }
+            
+            .btn {
+                font-size: var(--text-base);
+            }
+            
+            .btn-lg {
+                padding: var(--space-3) var(--space-5);
+                font-size: var(--text-base);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            /* M2: Ultra-compact metrics for small screens */
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--space-2);
+            }
+            
+            .metric-card {
+                padding: var(--space-3);
+            }
+            
+            .metric-value {
+                font-size: var(--text-lg);
+            }
+            
+            /* M4: Single column queue with simplified actions */
+            .queue-item {
+                flex-wrap: wrap;
+            }
+            
+            .queue-meta {
+                width: calc(100% - 60px);
+            }
+            
+            .queue-actions {
+                width: 100%;
+                flex-direction: row;
+                justify-content: flex-end;
+                margin-top: var(--space-2);
+                padding-top: var(--space-2);
+                border-top: 1px solid var(--border-subtle);
+            }
+            
+            /* Section title simplification */
+            .section-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+            }
+            
+            .section-title h2 {
+                font-size: var(--text-base);
+            }
+        }
+        
+        /* Touch device optimizations */
+        @media (hover: none) and (pointer: coarse) {
+            .metric-card:hover {
+                transform: none;
+            }
+            
+            .queue-item:hover {
+                transform: none;
+            }
+            
+            .action-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            /* Larger touch targets */
+            .tab {
+                min-height: 44px;
+            }
+            
+            .btn {
+                min-height: 44px;
+            }
+            
+            .hashtag-chip {
+                min-height: 32px;
+            }
+        }
+        
+        /* Safe area insets for modern mobile devices */
+        @supports (padding: max(0px)) {
+            .app-container {
+                padding-left: max(var(--space-4), env(safe-area-inset-left));
+                padding-right: max(var(--space-4), env(safe-area-inset-right));
+                padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+            }
+            
+            .toast-container {
+                bottom: max(var(--space-4), env(safe-area-inset-bottom));
+            }
+        }
     </style>
 </head>
 <body>
