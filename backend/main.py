@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import hashlib
+import random
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -43,7 +44,7 @@ from integrations.instagram_login import (
 
 # Import analyzer modules
 try:
-    from analyzer.content_engine import analyze_and_recommend
+    from analyzer.content_engine import analyze_and_recommend, get_recommendation_stats
     from analyzer.competitor_tracker import (
         analyze_competitor,
         get_market_insights,
@@ -133,7 +134,37 @@ def get_fallback_trending_hashtags(limit: int = 10) -> List[Dict[str, Any]]:
         {"hashtag": "chefstable", "category": "restaurant", "avg_engagement": 4.5},
         {"hashtag": "foodpresentation", "category": "f&b", "avg_engagement": 4.4},
         {"hashtag": "restaurantmarketing", "category": "business", "avg_engagement": 3.8},
+        {"hashtag": "brunchgoals", "category": "restaurant", "avg_engagement": 4.1},
+        {"hashtag": "luxurydining", "category": "hotel", "avg_engagement": 3.9},
+        {"hashtag": "cheflife", "category": "restaurant", "avg_engagement": 4.0},
+        {"hashtag": "platedessert", "category": "restaurant", "avg_engagement": 3.9},
+        {"hashtag": "craftcocktails", "category": "beverage", "avg_engagement": 3.8},
+        {"hashtag": "weekendbrunch", "category": "cafe", "avg_engagement": 4.0},
+        {"hashtag": "boutiquehotel", "category": "hotel", "avg_engagement": 3.7},
+        {"hashtag": "tablescape", "category": "f&b", "avg_engagement": 3.9},
+        {"hashtag": "restaurantdesign", "category": "business", "avg_engagement": 3.6},
+        {"hashtag": "mixologyart", "category": "beverage", "avg_engagement": 3.7},
     ][:limit]
+
+
+def get_dashboard_top_hashtags(refresh: bool = False, limit: int = 10) -> List[Dict[str, Any]]:
+    """Return dashboard hashtags, varying the list when the user explicitly refreshes."""
+    hashtag_data = execute_query(
+        "SELECT * FROM hashtag_performance ORDER BY avg_engagement DESC LIMIT 30"
+    )
+    hashtag_pool = [dict(row) for row in hashtag_data]
+    if not hashtag_pool:
+        hashtag_pool = get_fallback_trending_hashtags(limit=max(limit * 3, 18))
+
+    if not refresh:
+        return hashtag_pool[:limit]
+
+    if len(hashtag_pool) <= limit:
+        refreshed = hashtag_pool[:]
+        random.shuffle(refreshed)
+        return refreshed[:limit]
+
+    return random.sample(hashtag_pool, limit)
 
 
 def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
@@ -401,11 +432,14 @@ async def serve_voice_styles():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
+    recommendation_stats = get_recommendation_stats() if ANALYZER_AVAILABLE else {}
     return {
         "status": "healthy",
         "version": "1.0.0",
         "config_valid": config.validate()["valid"],
-        "analyzer_available": ANALYZER_AVAILABLE
+        "analyzer_available": ANALYZER_AVAILABLE,
+        "structured_rec_success_rate": recommendation_stats.get("structured_rec_success_rate"),
+        "recommendation_stats": recommendation_stats,
     }
 
 
@@ -987,8 +1021,6 @@ async def upload_content(
     - **auto_optimize**: If true, AI will analyze and provide recommendations
     
     Returns upload confirmation and AI recommendations if auto_optimize is enabled.
-    
-    Note: Hungry Panda only handles food and cooking related content.
     """
     try:
         logger.info(f"Upload request received: file={file.filename}, context={context}, caption={caption}")
@@ -999,17 +1031,6 @@ async def upload_content(
             raise HTTPException(
                 status_code=400, 
                 detail=f"Invalid file type: {file.content_type}. Only images and videos allowed."
-            )
-        
-        # Validate food content
-        logger.info(f"Validating food content with context: {context}")
-        is_food_related = validate_food_content(context, caption, file.filename)
-        
-        if not is_food_related:
-            logger.warning(f"Non-food content rejected: {file.filename}")
-            raise HTTPException(
-                status_code=400,
-                detail="🐼 Hungry Panda only handles food or cooking related content. Please describe your dish in the context field (e.g., 'homemade pasta with basil') or rename your file to include food-related keywords."
             )
         
         # Generate unique content ID
@@ -1141,6 +1162,57 @@ async def get_content_recommendation(content_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to generate recommendation: {str(e)}")
 
 
+@app.post("/api/content/{content_id}/hashtags/refresh", response_model=Dict[str, Any])
+async def refresh_content_hashtags(content_id: str):
+    """
+    Regenerate hashtag variants for an uploaded content item while keeping the recommendation modal open.
+
+    - **content_id**: ID of the uploaded content item
+    """
+    if not ANALYZER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI analyzer not available")
+
+    try:
+        rows = execute_query(
+            """
+            SELECT id, filepath, caption, context
+            FROM content
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (content_id,),
+        )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        item = dict(rows[0])
+        resolved_filepath = resolve_content_filepath(item.get("filepath"))
+        if not resolved_filepath:
+            raise HTTPException(status_code=404, detail="Uploaded file not found")
+
+        recommendation = await analyze_and_recommend(
+            content_id,
+            str(resolved_filepath),
+            item.get("caption"),
+            item.get("context"),
+        )
+
+        return {
+            "content_id": content_id,
+            "suggested_hashtags": recommendation.get("suggested_hashtags", []),
+            "hashtag_variants": recommendation.get("hashtag_variants", []),
+            "confidence_score": recommendation.get("confidence_score"),
+            "confidence_reasoning": recommendation.get("confidence_reasoning"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Hashtag refresh error for {content_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to refresh hashtags: {str(e)}")
+
+
 @app.post("/api/content/{content_id}/schedule", response_model=Dict[str, str])
 async def schedule_content(content_id: str, schedule_data: ContentScheduleRequest):
     """
@@ -1244,7 +1316,7 @@ async def delete_content(content_id: str):
 
 
 @app.get("/api/growth/dashboard", response_model=Dict[str, Any])
-async def get_dashboard_metrics():
+async def get_dashboard_metrics(refresh: Optional[str] = None):
     """
     Get all metrics for the growth dashboard.
     
@@ -1282,12 +1354,7 @@ async def get_dashboard_metrics():
         }
         
         # Get top performing hashtags
-        hashtag_data = execute_query(
-            "SELECT * FROM hashtag_performance ORDER BY avg_engagement DESC LIMIT 10"
-        )
-        top_hashtags = [dict(row) for row in hashtag_data]
-        if not top_hashtags:
-            top_hashtags = get_fallback_trending_hashtags(limit=10)
+        top_hashtags = get_dashboard_top_hashtags(refresh=bool(refresh), limit=10)
         
         # Get latest strategy
         strategy_data = execute_query(

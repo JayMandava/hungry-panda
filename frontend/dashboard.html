@@ -878,6 +878,7 @@
                 <div class="section-card">
                     <div class="section-header">
                         <h2>🔥 Trending Hashtags</h2>
+                        <button class="btn btn-secondary btn-small" onclick="refreshTrendingHashtags()">↻ Refresh</button>
                     </div>
                     <div class="section-body">
                         <div class="scroll-panel" id="trendingHashtagsPanel">
@@ -1083,14 +1084,8 @@
                 if (!res.ok) {
                     const errorData = await res.json();
                     const errorDetail = errorData.detail || 'Upload failed';
-                    
-                    // Check for food content error
-                    if (errorDetail.includes('Hungry Panda only handles food') || 
-                        errorDetail.includes('food or cooking related content')) {
-                        showToast('🐼 ' + errorDetail);
-                    } else {
-                        showToast('❌ ' + errorDetail);
-                    }
+
+                    showToast('❌ ' + errorDetail);
                     return;
                 }
                 
@@ -1237,7 +1232,10 @@
                 </div>
                 
                 <div class="recommendation-item">
-                    <div class="rec-title">🏷️ Hashtag Variants</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px;">
+                        <div class="rec-title" style="margin-bottom: 0;">🏷️ Hashtag Variants</div>
+                        <button class="queue-btn btn-small" onclick="refreshHashtags('${rec.content_id}')">Refresh</button>
+                    </div>
                     <div class="recommendation-grid">
                         ${hashtagVariants.map((variant, index) => `
                             <div class="variant-card" data-primary-hashtags="${index === 0 ? 'true' : 'false'}">
@@ -1271,7 +1269,8 @@
                 
                 <div class="recommendation-item">
                     <div class="rec-title">🎯 AI Confidence</div>
-                    <div class="rec-text">${Math.round((rec.confidence_score || 0.7) * 100)}% confident based on content clarity, meal/cuisine detection, and context provided.</div>
+                    <div class="rec-text" id="confidenceScoreText">${Math.round((rec.confidence_score || 0.7) * 100)}% quality score for the generated recommendation.</div>
+                    <div class="variant-why" id="confidenceReasoningText">${rec.confidence_reasoning || 'Scored from caption strength, hashtag quality, timing rationale, strategy specificity, and how distinct the two variants are.'}</div>
                 </div>
                 
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
@@ -1402,12 +1401,67 @@
         function closeModal() {
             document.getElementById('recommendationModal').classList.remove('active');
         }
+
+        function renderTrendingHashtags(topHashtags) {
+            const container = document.getElementById('trendingHashtags');
+            if (!container) return;
+
+            if (!topHashtags || !topHashtags.length) {
+                container.innerHTML = `
+                    <span class="tag">#foodandbeverage</span>
+                    <span class="tag">#restaurantlife</span>
+                    <span class="tag">#cafevibes</span>
+                `;
+                return;
+            }
+
+            const grouped = {};
+            topHashtags.slice(0, 12).forEach(h => {
+                const category = h.category || 'industry';
+                if (!grouped[category]) grouped[category] = [];
+                grouped[category].push(h);
+            });
+
+            container.innerHTML = Object.entries(grouped).map(([category, hashtags]) => `
+                <div class="trending-group">
+                    <div class="trending-label">${category}</div>
+                    <div class="rec-tags">
+                        ${hashtags.map(h => `<span class="tag">#${h.hashtag}</span>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setTrendingHashtagsLoading() {
+            const container = document.getElementById('trendingHashtags');
+            if (!container) return;
+
+            container.innerHTML = `
+                <div class="loading" style="padding: 12px 0;">
+                    <div class="spinner"></div>
+                    Refreshing hashtags...
+                </div>
+            `;
+        }
+
+        async function fetchDashboardData(forceFresh = false) {
+            const suffix = forceFresh ? `?refresh=${Date.now()}` : '';
+            const res = await fetch(`/api/growth/dashboard${suffix}`, {
+                cache: forceFresh ? 'no-store' : 'default',
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Could not load dashboard');
+            }
+
+            return data;
+        }
         
         // Load Dashboard Metrics
         async function loadDashboard() {
             try {
-                const res = await fetch('/api/growth/dashboard');
-                const data = await res.json();
+                const data = await fetchDashboardData();
                 
                 const current = data.followers_current || 0;
                 const previous = data.followers_30d_ago || current;
@@ -1438,26 +1492,22 @@
                         insights.slice(0, 5).map(i => `<li>${i}</li>`).join('') || '<li>Continue posting consistently</li>';
                 }
                 
-                // Update hashtags
-                if (data.top_hashtags && data.top_hashtags.length) {
-                    const grouped = {};
-                    data.top_hashtags.slice(0, 12).forEach(h => {
-                        const category = h.category || 'industry';
-                        if (!grouped[category]) grouped[category] = [];
-                        grouped[category].push(h);
-                    });
-
-                    document.getElementById('trendingHashtags').innerHTML = Object.entries(grouped).map(([category, hashtags]) => `
-                        <div class="trending-group">
-                            <div class="trending-label">${category}</div>
-                            <div class="rec-tags">
-                                ${hashtags.map(h => `<span class="tag">#${h.hashtag}</span>`).join('')}
-                            </div>
-                        </div>
-                    `).join('');
-                }
+                renderTrendingHashtags(data.top_hashtags || []);
             } catch (err) {
                 console.error('Dashboard load error:', err);
+            }
+        }
+
+        async function refreshTrendingHashtags() {
+            try {
+                setTrendingHashtagsLoading();
+                showToast('Refreshing trending hashtags...');
+                const data = await fetchDashboardData(true);
+                renderTrendingHashtags(data.top_hashtags || []);
+                showToast('Trending hashtags refreshed!');
+            } catch (err) {
+                renderTrendingHashtags([]);
+                showToast(`❌ ${err.message}`);
             }
         }
         
@@ -1535,6 +1585,53 @@
                 currentContentId = contentId;
                 showRecommendation(data);
                 showToast('Recommendation ready!');
+            } catch (err) {
+                showToast(`❌ ${err.message}`);
+            }
+        }
+
+        async function refreshHashtags(contentId) {
+            showToast('Refreshing hashtags...');
+            try {
+                const res = await fetch(`/api/content/${contentId}/hashtags/refresh`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Could not refresh hashtags');
+                }
+
+                const hashtagVariants = data.hashtag_variants || [
+                    { label: 'Primary', hashtags: data.suggested_hashtags || [], why: 'Primary recommendation.' }
+                ];
+
+                const hashtagSection = document.querySelector('#recommendationContent [data-primary-hashtags="true"]')?.closest('.recommendation-item');
+                if (hashtagSection) {
+                    const grid = hashtagSection.querySelector('.recommendation-grid');
+                    if (grid) {
+                        grid.innerHTML = hashtagVariants.map((variant, index) => `
+                            <div class="variant-card" data-primary-hashtags="${index === 0 ? 'true' : 'false'}">
+                                <div class="variant-label">${variant.label}</div>
+                                <div class="rec-tags rec-scroll">
+                                    ${(variant.hashtags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                                </div>
+                                <div class="variant-why">${variant.why || ''}</div>
+                            </div>
+                        `).join('');
+                    }
+                }
+
+                const confidenceScoreText = document.getElementById('confidenceScoreText');
+                const confidenceReasoningText = document.getElementById('confidenceReasoningText');
+                if (confidenceScoreText) {
+                    confidenceScoreText.textContent = `${Math.round((data.confidence_score || 0.7) * 100)}% quality score for the generated recommendation.`;
+                }
+                if (confidenceReasoningText) {
+                    confidenceReasoningText.textContent = data.confidence_reasoning || 'Scored from caption strength, hashtag quality, timing rationale, strategy specificity, and how distinct the two variants are.';
+                }
+
+                showToast('Hashtags refreshed!');
             } catch (err) {
                 showToast(`❌ ${err.message}`);
             }

@@ -30,6 +30,16 @@ from config.settings import config
 
 logger = logging.getLogger(__name__)
 
+VALID_MEAL_TYPES = {
+    "breakfast",
+    "brunch",
+    "lunch",
+    "dinner",
+    "dessert/snack",
+    "beverage",
+    "unknown",
+}
+
 
 class LLMError(Exception):
     """Custom exception for LLM errors"""
@@ -86,7 +96,8 @@ class LLMClient:
         system_prompt = """You are a social media expert specializing in food and cooking content.
 Your captions are engaging, authentic, and drive engagement (likes, comments, saves).
 Keep captions concise (under 100 words), use emojis naturally, and include a hook.
-Never use generic phrases like "delicious" or "yummy" without context."""
+Never use generic phrases like "delicious" or "yummy" without context.
+Return only valid JSON in the shape {"caption": "string"}."""
 
         user_prompt = f"""Create an Instagram caption for this {content_type} content:
 
@@ -101,11 +112,19 @@ Requirements:
 - Keep it under 100 words
 - Make it personal and authentic
 
-Caption:"""
+Return exactly:
+{{"caption": "final caption text"}}"""
 
         try:
-            response = self._call_llm(system_prompt, user_prompt, max_tokens=350, timeout=45)
-            cleaned = self._sanitize_caption_response(response)
+            response = self._call_llm(
+                system_prompt,
+                user_prompt,
+                max_tokens=450,
+                timeout=45,
+                json_mode=True,
+            )
+            cleaned = self._extract_json_string_field(response, "caption")
+            cleaned = self._sanitize_caption_response(cleaned or "")
             if cleaned:
                 return cleaned
             raise LLMError("Caption response contained meta-planning instead of a usable caption")
@@ -137,7 +156,7 @@ Caption:"""
         
         system_prompt = """You are a hashtag optimization expert for Instagram food content.
 You understand which hashtags drive discovery vs engagement.
-Provide hashtags without the # symbol, comma-separated."""
+Return only valid JSON in the shape {"hashtags": ["tag1", "tag2"]}."""
 
         user_prompt = f"""Generate {count} optimized Instagram hashtags for this food content:
 
@@ -151,12 +170,18 @@ Mix should include:
 - 3-5 community/brand hashtags
 - 2-3 trending if applicable
 
-Return only the hashtags, comma-separated, no # symbol:
-"""
+Return exactly:
+{{"hashtags": ["tag1", "tag2"]}}"""
 
         try:
-            response = self._call_llm(system_prompt, user_prompt, max_tokens=500, timeout=45)
-            hashtags = self._sanitize_hashtag_response(response, count)
+            response = self._call_llm(
+                system_prompt,
+                user_prompt,
+                max_tokens=700,
+                timeout=45,
+                json_mode=True,
+            )
+            hashtags = self._extract_json_string_list_field(response, "hashtags", count)
             if hashtags:
                 return hashtags[:count]
             raise LLMError("Hashtag response contained meta-planning instead of a usable hashtag list")
@@ -170,15 +195,19 @@ Return only the hashtags, comma-separated, no # symbol:
         user_caption: Optional[str] = None,
         context: Optional[str] = None,
         fallback_analysis: Optional[Dict[str, Any]] = None,
+        visual_analysis: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate a structured, growth-focused recommendation for a post.
         Uses image understanding when the uploaded asset is a supported image.
+        Pass pre-computed visual_analysis to avoid a redundant vision call.
         """
         if self.provider == "none":
             raise LLMError("LLM disabled - multimodal recommendation unavailable")
 
-        visual_analysis = self._inspect_visual_asset(filepath, user_caption=user_caption, context=context)
+        if visual_analysis is None:
+            visual_analysis = self._inspect_visual_asset(filepath, user_caption=user_caption, context=context)
+
         strategy_prompt = self._build_post_recommendation_prompt(
             filepath=filepath,
             user_caption=user_caption,
@@ -191,11 +220,35 @@ Return only the hashtags, comma-separated, no # symbol:
             "Your job is to maximize reach, saves, shares, profile visits, and follows. "
             "Use the provided visual analysis as the source of truth when it conflicts with the user text. "
             "If the asset is ambiguous, say so explicitly and lower confidence. "
-            "Return only valid JSON. No markdown fences."
+            "Return only valid JSON. No markdown fences. No explanation text before or after the JSON."
         )
 
-        response = self._call_llm(system_prompt, strategy_prompt, max_tokens=1400, timeout=60)
-        parsed = self._extract_json_object(response)
+        response = self._call_llm(
+            system_prompt,
+            strategy_prompt,
+            max_tokens=2000,
+            timeout=60,
+            json_mode=True,
+        )
+        try:
+            parsed = self._extract_json_object(response)
+            self._validate_recommendation_payload(parsed)
+        except LLMError:
+            retry_prompt = (
+                strategy_prompt
+                + "\n\nCRITICAL: Your previous response was not valid JSON. "
+                "Return ONLY the JSON object, starting with { and ending with }. No other text."
+            )
+            response = self._call_llm(
+                system_prompt,
+                retry_prompt,
+                max_tokens=2000,
+                timeout=60,
+                json_mode=True,
+            )
+            parsed = self._extract_json_object(response)
+            self._validate_recommendation_payload(parsed)
+
         if not isinstance(parsed, dict):
             raise LLMError("Structured recommendation response was not a JSON object")
         return parsed
@@ -256,6 +309,7 @@ Response:"""
         user_prompt: Any,
         max_tokens: Optional[int] = None,
         timeout: Optional[int] = None,
+        json_mode: bool = False,
     ) -> str:
         """
         Call the configured LLM provider.
@@ -268,7 +322,13 @@ Response:"""
             LLM response text
         """
         if self.provider == "fireworks":
-            return self._call_fireworks(system_prompt, user_prompt, max_tokens=max_tokens, timeout=timeout)
+            return self._call_fireworks(
+                system_prompt,
+                user_prompt,
+                max_tokens=max_tokens,
+                timeout=timeout,
+                json_mode=json_mode,
+            )
         elif self.provider == "openai":
             return self._call_openai(system_prompt, user_prompt, max_tokens=max_tokens)
         else:
@@ -280,6 +340,7 @@ Response:"""
         user_prompt: Any,
         max_tokens: Optional[int] = None,
         timeout: Optional[int] = None,
+        json_mode: bool = False,
     ) -> str:
         """Call Fireworks AI API (Kimi K2.5)"""
         url = f"{config.FIREWORKS_BASE_URL}/chat/completions"
@@ -299,6 +360,8 @@ Response:"""
             # Fireworks rejects non-streaming chat requests above 4096 output tokens.
             "max_tokens": min(max_tokens or config.LLM_MAX_TOKENS, 4096),
         }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
         
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=timeout or 45)
@@ -395,13 +458,7 @@ Return JSON with exactly this shape:
   }},
   "strategy_notes": "string",
   "confidence_score": 0.0,
-  "content_patterns": ["string"],
-  "thinking_sections": [
-    {{"title": "Content Read", "content": "string"}},
-    {{"title": "Timing Logic", "content": "string"}},
-    {{"title": "Strategy Notes", "content": "string"}},
-    {{"title": "Confidence Breakdown", "content": "string"}}
-  ]
+  "content_patterns": ["string"]
 }}"""
 
     def _inspect_visual_asset(
@@ -456,7 +513,45 @@ Return JSON with exactly this shape:
             "Do not explain your reasoning. Return only the requested 8 tagged lines."
         )
         response = self._call_llm(system_prompt, content_blocks, max_tokens=220, timeout=45)
-        return self._parse_visual_analysis(response, filepath)
+        result = self._parse_visual_analysis(response, filepath)
+
+        # Second descriptive pass for high-confidence food assets to deepen visual_summary
+        if result.get("food_present") is True and result.get("confidence", 0) >= 0.7:
+            detail = self._inspect_visual_detail(image_data_url, result)
+            if detail:
+                result["visual_summary"] = detail
+
+        return result
+
+    def _inspect_visual_detail(
+        self, image_data_url: str, first_pass: Dict[str, Any]
+    ) -> Optional[str]:
+        """Second vision pass: richer description for high-confidence food assets."""
+        dish = first_pass.get("dish_detected") or "the dish"
+        content_blocks = [
+            {
+                "type": "text",
+                "text": (
+                    f"You identified this as {dish}. "
+                    "In 2-3 sentences describe: plating style, visible textures, "
+                    "preparation cues (grilled, fried, garnished, etc.), freshness signals, "
+                    "and the strongest appetite appeal in this frame. Be specific and visual."
+                ),
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": image_data_url},
+            },
+        ]
+        try:
+            return self._call_llm(
+                "You are a food photography critic. Be specific and visual.",
+                content_blocks,
+                max_tokens=180,
+                timeout=30,
+            ).strip()
+        except Exception:
+            return None
 
     def _parse_visual_analysis(self, text: str, filepath: str) -> Dict[str, Any]:
         """Parse tagged-line visual analysis output into a structured dict."""
@@ -603,10 +698,13 @@ Return JSON with exactly this shape:
     def _extract_json_object(self, text: str) -> Dict[str, Any]:
         """Extract a JSON object from a raw model response."""
         cleaned = text.strip()
+        # Strip markdown code fences without corrupting JSON content
         if cleaned.startswith("```"):
-            cleaned = cleaned.strip("`")
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:].strip()
+            lines = cleaned.split("\n")
+            lines = lines[1:]  # remove opening fence line (e.g. "```" or "```json")
+            while lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
 
         try:
             return json.loads(cleaned)
@@ -619,6 +717,63 @@ Return JSON with exactly this shape:
                 return json.loads(cleaned[start:end + 1])
             except json.JSONDecodeError as exc:
                 raise LLMError(f"Failed to parse recommendation JSON: {exc}") from exc
+
+    def _extract_json_string_field(self, text: str, field_name: str) -> str:
+        """Extract a non-empty string field from a JSON object response."""
+        parsed = self._extract_json_object(text)
+        value = parsed.get(field_name)
+        if not isinstance(value, str) or not value.strip():
+            raise LLMError(f"Missing or invalid '{field_name}' field in JSON response")
+        return value.strip()
+
+    def _extract_json_string_list_field(self, text: str, field_name: str, count: int) -> List[str]:
+        """Extract a list of hashtag-style strings from a JSON object response."""
+        parsed = self._extract_json_object(text)
+        value = parsed.get(field_name)
+        if not isinstance(value, list):
+            raise LLMError(f"Missing or invalid '{field_name}' field in JSON response")
+
+        cleaned: List[str] = []
+        for item in value:
+            tag = str(item).strip().lstrip("#")
+            if not tag:
+                continue
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_]{1,40}", tag):
+                continue
+            cleaned.append(tag)
+
+        cleaned = list(dict.fromkeys(cleaned))
+        if len(cleaned) < min(5, count):
+            raise LLMError(f"Insufficient valid '{field_name}' values in JSON response")
+        return cleaned[:count]
+
+    def _validate_recommendation_payload(self, payload: Dict[str, Any]) -> None:
+        """Validate core structured recommendation fields before they reach the analyzer."""
+        if not isinstance(payload, dict):
+            raise LLMError("Structured recommendation payload must be a JSON object")
+
+        content_analysis = payload.get("content_analysis")
+        if not isinstance(content_analysis, dict):
+            raise LLMError("Structured recommendation missing content_analysis object")
+
+        meal_type = str(content_analysis.get("meal_type") or "").strip().lower()
+        if meal_type and meal_type not in VALID_MEAL_TYPES:
+            raise LLMError(f"Invalid meal_type in structured recommendation: {meal_type}")
+
+        for confidence_key in ("confidence_score",):
+            raw_value = payload.get(confidence_key)
+            if raw_value is None:
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError) as exc:
+                raise LLMError(f"Invalid {confidence_key} in structured recommendation") from exc
+            if value < 0.0 or value > 1.0:
+                raise LLMError(f"{confidence_key} out of range in structured recommendation")
+
+        optimal_time = payload.get("optimal_time")
+        if optimal_time is not None and not isinstance(optimal_time, dict):
+            raise LLMError("Structured recommendation optimal_time must be an object")
 
     def _sanitize_caption_response(self, text: str) -> Optional[str]:
         """Return a usable caption or None if the model produced planning/meta output."""

@@ -8,6 +8,7 @@ import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
 import random
+import re
 
 # Optional LLM integration
 try:
@@ -15,12 +16,24 @@ try:
         analyze_visual_asset as llm_analyze_visual_asset,
         generate_caption as llm_generate_caption,
         generate_hashtags as llm_generate_hashtags,
+        generate_post_recommendation as llm_generate_post_recommendation,
     )
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+RECOMMENDATION_STATS = {
+    "total": 0,
+    "structured_attempts": 0,
+    "structured_successes": 0,
+    "by_source": {
+        "llm_structured": 0,
+        "llm_fallback": 0,
+        "template": 0,
+    },
+}
 
 # Food & cooking specific caption templates and strategies
 CAPTION_TEMPLATES = {
@@ -107,6 +120,41 @@ HIGH_PERFORMANCE_PATTERNS = [
         "best_for": "Photo posts"
     }
 ]
+
+
+def record_recommendation_outcome(
+    source: str,
+    structured_attempted: bool = False,
+    structured_success: bool = False,
+) -> None:
+    """Track which recommendation path produced the final result."""
+    RECOMMENDATION_STATS["total"] += 1
+    RECOMMENDATION_STATS["by_source"][source] = RECOMMENDATION_STATS["by_source"].get(source, 0) + 1
+    if structured_attempted:
+        RECOMMENDATION_STATS["structured_attempts"] += 1
+    if structured_success:
+        RECOMMENDATION_STATS["structured_successes"] += 1
+
+    logger.info(
+        "Recommendation source=%s structured_attempted=%s structured_success=%s",
+        source,
+        structured_attempted,
+        structured_success,
+    )
+
+
+def get_recommendation_stats() -> Dict[str, object]:
+    """Return lightweight recommendation pipeline counters for health reporting."""
+    attempts = RECOMMENDATION_STATS["structured_attempts"]
+    successes = RECOMMENDATION_STATS["structured_successes"]
+    success_rate = round(successes / attempts, 4) if attempts else None
+    return {
+        "total": RECOMMENDATION_STATS["total"],
+        "structured_attempts": attempts,
+        "structured_successes": successes,
+        "structured_rec_success_rate": success_rate,
+        "by_source": dict(RECOMMENDATION_STATS["by_source"]),
+    }
 
 MEAL_KEYWORDS = {
     "breakfast": ["breakfast", "morning", "toast", "omelette", "omelet", "pancake", "waffle", "granola"],
@@ -225,6 +273,7 @@ class ContentAnalyzer:
         content_id: str,
         content_type: Dict,
         visual_analysis: Dict,
+        recommendation_source: str = "template",
     ) -> Dict:
         """Return a safe response when the uploaded asset does not appear to contain food content."""
         summary = visual_analysis.get("visual_summary") or visual_analysis.get("primary_subject") or "The uploaded asset does not appear to show food."
@@ -237,6 +286,7 @@ class ContentAnalyzer:
         return {
             "content_id": content_id,
             "content_analysis": content_type,
+            "recommendation_source": recommendation_source,
             "suggested_caption": "This upload does not appear to show food or hospitality content. Upload a food asset to get growth-ready recommendations.",
             "suggested_hashtags": [],
             "caption_variants": [
@@ -292,8 +342,6 @@ class ContentAnalyzer:
         description = context or user_caption or ""
         seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
         fallback_content_type = self.detect_content_type(filepath, user_caption)
-        fallback_time = self.recommend_posting_time(fallback_content_type, description)
-        fallback_notes = self.generate_strategy_notes(fallback_content_type, description, seed)
 
         content_type = dict(fallback_content_type)
         content_type.update(llm_result.get("content_analysis") or {})
@@ -313,23 +361,37 @@ class ContentAnalyzer:
             seed,
         )
 
-        optimal_time = llm_result.get("optimal_time") or fallback_time
-        if not isinstance(optimal_time, dict):
+        optimal_time = llm_result.get("optimal_time")
+        if not isinstance(optimal_time, dict) or not optimal_time.get("time"):
+            fallback_time = self.recommend_posting_time(content_type, description)
             optimal_time = fallback_time
+        else:
+            fallback_time = optimal_time
 
-        strategy_notes = (llm_result.get("strategy_notes") or "").strip() or fallback_notes
-        confidence = self._normalize_confidence(llm_result.get("confidence_score"), content_type, user_caption, context)
+        strategy_notes = (llm_result.get("strategy_notes") or "").strip()
+        if not strategy_notes:
+            strategy_notes = self.build_strategy_notes(content_type, None, optimal_time)
+        confidence_payload = self.score_recommendation_quality(
+            caption_variants,
+            hashtag_variants,
+            optimal_time,
+            strategy_notes,
+            recommendation_source="llm_structured",
+        )
+        confidence = confidence_payload["score"]
         thinking_sections = llm_result.get("thinking_sections") or self.build_thinking_sections(
             content_type,
             optimal_time,
             confidence,
             strategy_notes,
+            confidence_payload["reasoning"],
         )
         content_patterns = llm_result.get("content_patterns") or [p["type"] for p in HIGH_PERFORMANCE_PATTERNS[:3]]
 
         return {
             "content_id": content_id,
             "content_analysis": content_type,
+            "recommendation_source": "llm_structured",
             "suggested_caption": caption_variants[0]["caption"],
             "suggested_hashtags": hashtag_variants[0]["hashtags"],
             "caption_variants": caption_variants,
@@ -342,6 +404,7 @@ class ContentAnalyzer:
             },
             "strategy_notes": strategy_notes,
             "confidence_score": round(confidence, 2),
+            "confidence_reasoning": confidence_payload["reasoning"],
             "content_patterns": content_patterns,
             "thinking_sections": thinking_sections,
         }
@@ -401,28 +464,171 @@ class ContentAnalyzer:
             )
         return normalized
 
-    def _normalize_confidence(
+    def _caption_quality_score(self, captions: List[str]) -> float:
+        """Score how specific and usable the generated captions are."""
+        if not captions:
+            return 0.2
+
+        meta_markers = {
+            "the user wants",
+            "requirements",
+            "strategy",
+            "option 1",
+            "option 2",
+            "let me",
+            "return exactly",
+        }
+        total = 0.0
+        for caption in captions:
+            text = (caption or "").strip()
+            lower = text.lower()
+            score = 0.35
+
+            if len(text.split()) >= 8:
+                score += 0.2
+            if len(text.split()) <= 40:
+                score += 0.1
+            if any(char in text for char in "?!"):
+                score += 0.08
+            if any(char in text for char in "🍕🍛🍜🍔🥘☕🍰🌮🍝🥞"):
+                score += 0.05
+            if re.search(r"\b(save|tag|comment|tell me|follow|try|craving)\b", lower):
+                score += 0.12
+            if len(set(re.findall(r"[a-z0-9]+", lower))) >= 8:
+                score += 0.1
+            if any(marker in lower for marker in meta_markers):
+                score -= 0.45
+            total += max(0.0, min(score, 1.0))
+        return total / len(captions)
+
+    def _hashtag_quality_score(self, hashtag_variants: List[Dict]) -> float:
+        """Score hashtag usefulness based on volume, cleanliness, and variant spread."""
+        if not hashtag_variants:
+            return 0.15
+
+        total = 0.0
+        planning_words = {"optimized", "generate", "instagram", "hashtags", "specific", "post", "break", "down"}
+        for variant in hashtag_variants:
+            tags = [str(tag).strip().lstrip("#") for tag in (variant.get("hashtags") or []) if str(tag).strip()]
+            if not tags:
+                continue
+
+            score = 0.3
+            unique_tags = list(dict.fromkeys(tags))
+            if len(unique_tags) >= 10:
+                score += 0.25
+            elif len(unique_tags) >= 6:
+                score += 0.15
+
+            clean_tags = [tag for tag in unique_tags if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_]{1,40}", tag)]
+            score += 0.2 * (len(clean_tags) / max(len(unique_tags), 1))
+
+            if len({tag.lower() for tag in unique_tags}) == len(unique_tags):
+                score += 0.08
+            if not any(tag.lower() in planning_words for tag in unique_tags):
+                score += 0.12
+            total += max(0.0, min(score, 1.0))
+
+        variant_score = total / max(len(hashtag_variants), 1)
+        if len(hashtag_variants) >= 2:
+            first = {tag.lower() for tag in hashtag_variants[0].get("hashtags", [])}
+            second = {tag.lower() for tag in hashtag_variants[1].get("hashtags", [])}
+            overlap = len(first & second) / max(len(first | second), 1)
+            variant_score += max(0.0, 0.1 - overlap * 0.1)
+        return max(0.0, min(variant_score, 1.0))
+
+    def _time_quality_score(self, optimal_time: Dict) -> float:
+        """Score whether timing output looks specific and properly reasoned."""
+        if not isinstance(optimal_time, dict):
+            return 0.2
+
+        score = 0.25
+        time_value = str(optimal_time.get("time") or "").strip()
+        reasoning = str(optimal_time.get("reasoning") or "").strip()
+
+        if re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", time_value):
+            score += 0.25
+        if len(reasoning.split()) >= 12:
+            score += 0.2
+        if re.search(r"\b(craving|window|audience|save|share|prep|decision|commute|planning)\b", reasoning.lower()):
+            score += 0.2
+        if "based on follower activity patterns" not in reasoning.lower():
+            score += 0.05
+        return max(0.0, min(score, 1.0))
+
+    def _strategy_quality_score(self, strategy_notes: str) -> float:
+        """Score how actionable and non-generic the strategy note is."""
+        text = (strategy_notes or "").strip()
+        if not text:
+            return 0.15
+
+        lower = text.lower()
+        score = 0.3
+        if len(text.split()) >= 20:
+            score += 0.2
+        if re.search(r"\b(post|hook|save|share|follow|profile|craving|texture|timing|audience)\b", lower):
+            score += 0.2
+        if re.search(r"\b(dish|pizza|dosa|curry|biryani|pasta|coffee|dessert|meal)\b", lower):
+            score += 0.1
+        if "strategic recommendation" not in lower:
+            score += 0.08
+        if "visual read is limited" in lower:
+            score -= 0.08
+        return max(0.0, min(score, 1.0))
+
+    def _variant_distinction_score(self, caption_variants: List[Dict], hashtag_variants: List[Dict]) -> float:
+        """Score whether the paired variants are meaningfully different."""
+        score = 0.45
+
+        if len(caption_variants) >= 2:
+            first = set(re.findall(r"[a-z0-9]+", caption_variants[0].get("caption", "").lower()))
+            second = set(re.findall(r"[a-z0-9]+", caption_variants[1].get("caption", "").lower()))
+            caption_overlap = len(first & second) / max(len(first | second), 1)
+            score += max(0.0, 0.25 - caption_overlap * 0.25)
+
+        if len(hashtag_variants) >= 2:
+            first_tags = {tag.lower() for tag in hashtag_variants[0].get("hashtags", [])}
+            second_tags = {tag.lower() for tag in hashtag_variants[1].get("hashtags", [])}
+            tag_overlap = len(first_tags & second_tags) / max(len(first_tags | second_tags), 1)
+            score += max(0.0, 0.2 - tag_overlap * 0.2)
+
+        return max(0.0, min(score, 1.0))
+
+    def score_recommendation_quality(
         self,
-        raw_confidence: Optional[float],
-        content_type: Dict,
-        user_caption: Optional[str],
-        context: Optional[str],
-    ) -> float:
-        try:
-            confidence = float(raw_confidence)
-        except (TypeError, ValueError):
-            confidence = float(content_type.get("confidence") or 0.55)
-            if user_caption:
-                confidence += 0.08
-            if context:
-                confidence += 0.12
-            if content_type.get("meal_type"):
-                confidence += 0.05
-            if content_type.get("cuisine_type"):
-                confidence += 0.03
-            if content_type.get("format") == "video":
-                confidence += 0.02
-        return max(0.1, min(confidence, 0.99))
+        caption_variants: List[Dict],
+        hashtag_variants: List[Dict],
+        optimal_time: Dict,
+        strategy_notes: str,
+        recommendation_source: str,
+    ) -> Dict[str, str]:
+        """Score recommendation quality from the generated output itself."""
+        caption_score = self._caption_quality_score([item.get("caption", "") for item in caption_variants])
+        hashtag_score = self._hashtag_quality_score(hashtag_variants)
+        time_score = self._time_quality_score(optimal_time)
+        strategy_score = self._strategy_quality_score(strategy_notes)
+        distinction_score = self._variant_distinction_score(caption_variants, hashtag_variants)
+
+        overall = (
+            caption_score * 0.28
+            + hashtag_score * 0.2
+            + time_score * 0.2
+            + strategy_score * 0.2
+            + distinction_score * 0.12
+        )
+
+        if recommendation_source == "template":
+            overall *= 0.82
+        elif recommendation_source == "llm_fallback":
+            overall *= 0.9
+
+        overall = max(0.12, min(overall, 0.96))
+        reasoning = (
+            f"Scored from output quality: captions {round(caption_score * 100)}%, "
+            f"hashtags {round(hashtag_score * 100)}%, timing {round(time_score * 100)}%, "
+            f"strategy {round(strategy_score * 100)}%, variant separation {round(distinction_score * 100)}%."
+        )
+        return {"score": overall, "reasoning": reasoning}
     
     def detect_content_type(self, filepath: str, user_caption: Optional[str]) -> Dict:
         """
@@ -610,6 +816,33 @@ class ContentAnalyzer:
         
         return selected
     
+    def _get_best_engagement_hour(self, meal_type: Optional[str]) -> Optional[str]:
+        """Query historical post data to find the best-performing hour for this meal type."""
+        try:
+            c = self.conn.cursor()
+            c.execute(
+                """
+                SELECT strftime('%H', posted_time) AS hour,
+                       AVG(likes + comments * 2 + saves * 3) AS score
+                FROM content
+                WHERE posted_time IS NOT NULL
+                  AND status = 'posted'
+                  AND likes + comments + saves > 0
+                  AND (content_type = ? OR ? IS NULL)
+                GROUP BY hour
+                HAVING COUNT(*) >= 2
+                ORDER BY score DESC
+                LIMIT 1
+                """,
+                (meal_type, meal_type),
+            )
+            row = c.fetchone()
+            if row and row[0]:
+                return f"{int(row[0]):02d}:00"
+        except Exception:
+            pass
+        return None
+
     def recommend_posting_time(self, content_type: Dict, content_description: str = "") -> Dict:
         """
         Recommend optimal posting time based on content type and historical data
@@ -655,7 +888,13 @@ class ContentAnalyzer:
             reasoning += " Video-first posts benefit from slightly earlier distribution to build momentum."
         else:
             reasoning += " Static visuals tend to perform better closer to the meal planning moment."
-        
+
+        # Override with account-specific engagement history when enough data exists
+        best_hour = self._get_best_engagement_hour(meal_type if meal_type != "unknown" else None)
+        if best_hour:
+            recommended_time = best_hour
+            reasoning += f" Your account's historical engagement data points to {best_hour} as the top-performing window for {meal_type} posts."
+
         return {
             "time": recommended_time,
             "reasoning": reasoning,
@@ -795,6 +1034,7 @@ class ContentAnalyzer:
         optimal_time: Dict,
         confidence: float,
         strategy_notes: str,
+        confidence_reasoning: Optional[str] = None,
     ) -> List[Dict]:
         """Return collapsed reasoning blocks for the UI."""
         return [
@@ -816,9 +1056,9 @@ class ContentAnalyzer:
             },
             {
                 "title": "Confidence Breakdown",
-                "content": (
-                    f"Confidence landed at {round(confidence * 100)}% based on detected meal type, "
-                    f"cuisine clues, provided context, and media format clarity."
+                "content": confidence_reasoning or (
+                    f"Confidence landed at {round(confidence * 100)}% based on the strength, specificity, "
+                    f"and distinctness of the generated recommendation."
                 ),
             },
         ]
@@ -858,39 +1098,51 @@ async def analyze_and_recommend(
     content_type = analyzer.refine_content_type(filepath, user_caption, context, visual_analysis)
     description = analyzer.build_visual_description(visual_analysis, user_caption, context) or description
 
-    if visual_analysis and visual_analysis.get("food_present") is False:
-        return analyzer.build_non_food_response(content_id, content_type, visual_analysis)
+    # Primary path: one structured LLM call for captions, hashtags, timing, and strategy
+    if LLM_AVAILABLE:
+        try:
+            llm_result = llm_generate_post_recommendation(
+                filepath,
+                user_caption=user_caption,
+                context=context,
+                fallback_analysis=dict(content_type),
+                visual_analysis=visual_analysis,
+            )
+            result = analyzer.normalize_llm_recommendation(content_id, filepath, user_caption, context, llm_result)
+            record_recommendation_outcome("llm_structured", structured_attempted=True, structured_success=True)
+            return result
+        except Exception as e:
+            logger.warning(f"Structured recommendation failed, falling back to separate calls: {e}")
 
+    # Fallback: separate caption, hashtag, and timing calls
     caption_variants = analyzer.build_caption_variants(content_type, description, seed)
     hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed)
     caption = caption_variants[0]["caption"]
     hashtags = hashtag_variants[0]["hashtags"]
     time_rec = analyzer.recommend_posting_time(content_type, description)
     strategy_notes = analyzer.build_strategy_notes(content_type, visual_analysis, time_rec)
-    
-    # Calculate confidence based on content clarity
-    confidence = content_type["confidence"]
-    if user_caption:
-        confidence += 0.08
-    if context:
-        confidence += 0.12
-    if content_type.get("meal_type"):
-        confidence += 0.05
-    if content_type.get("cuisine_type"):
-        confidence += 0.03
-    if content_type.get("format") == "video":
-        confidence += 0.02
-    confidence = min(confidence, 1.0)
+    source = "llm_fallback" if LLM_AVAILABLE else "template"
+    confidence_payload = analyzer.score_recommendation_quality(
+        caption_variants,
+        hashtag_variants,
+        time_rec,
+        strategy_notes,
+        recommendation_source=source,
+    )
+    confidence = confidence_payload["score"]
     thinking_sections = analyzer.build_thinking_sections(
         content_type,
         time_rec,
         confidence,
         strategy_notes,
+        confidence_payload["reasoning"],
     )
-    
+    record_recommendation_outcome(source, structured_attempted=LLM_AVAILABLE, structured_success=False)
+
     return {
         "content_id": content_id,
         "content_analysis": content_type,
+        "recommendation_source": source,
         "suggested_caption": caption,
         "suggested_hashtags": hashtags,
         "caption_variants": caption_variants,
@@ -898,6 +1150,7 @@ async def analyze_and_recommend(
         "optimal_time": time_rec,
         "strategy_notes": strategy_notes,
         "confidence_score": round(confidence, 2),
+        "confidence_reasoning": confidence_payload["reasoning"],
         "content_patterns": [p["type"] for p in HIGH_PERFORMANCE_PATTERNS[:3]],
         "thinking_sections": thinking_sections,
     }
