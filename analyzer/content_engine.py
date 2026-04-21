@@ -11,7 +11,11 @@ import random
 
 # Optional LLM integration
 try:
-    from integrations.llm_client import generate_caption as llm_generate_caption, generate_hashtags as llm_generate_hashtags
+    from integrations.llm_client import (
+        analyze_visual_asset as llm_analyze_visual_asset,
+        generate_caption as llm_generate_caption,
+        generate_hashtags as llm_generate_hashtags,
+    )
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
@@ -104,6 +108,42 @@ HIGH_PERFORMANCE_PATTERNS = [
     }
 ]
 
+MEAL_KEYWORDS = {
+    "breakfast": ["breakfast", "morning", "toast", "omelette", "omelet", "pancake", "waffle", "granola"],
+    "brunch": ["brunch", "dosa", "idli", "upma", "avocado toast", "shakshuka"],
+    "lunch": ["lunch", "salad", "sandwich", "bowl", "wrap", "burger", "rice bowl"],
+    "dinner": ["dinner", "supper", "pizza", "pasta", "curry", "biryani", "steak", "ramen", "tacos"],
+    "dessert/snack": ["dessert", "snack", "cake", "cookie", "brownie", "ice cream", "pastry", "fries"],
+    "beverage": ["coffee", "latte", "espresso", "tea", "smoothie", "juice", "cocktail", "mocktail"],
+}
+
+CUISINE_KEYWORDS = {
+    "italian": ["pizza", "pasta", "risotto", "lasagna", "italian"],
+    "indian": ["dosa", "idli", "sambar", "curry", "naan", "tikka", "masala", "biryani", "paneer"],
+    "asian": ["ramen", "sushi", "noodles", "dumpling", "stir fry", "bao", "asian"],
+    "mexican": ["taco", "quesadilla", "burrito", "enchilada", "mexican"],
+    "american": ["burger", "bbq", "wings", "fries", "american"],
+    "mediterranean": ["falafel", "hummus", "shawarma", "greek", "mediterranean"],
+}
+
+DISH_KEYWORDS = [
+    "dosa",
+    "pizza",
+    "pasta",
+    "curry",
+    "biryani",
+    "burger",
+    "ramen",
+    "salad",
+    "sandwich",
+    "taco",
+    "coffee",
+    "latte",
+    "smoothie",
+    "cake",
+    "cookie",
+]
+
 
 class ContentAnalyzer:
     """Analyzes content and generates strategic recommendations"""
@@ -114,6 +154,275 @@ class ContentAnalyzer:
     def _get_rng(self, seed: str) -> random.Random:
         """Return a deterministic RNG for stable but content-specific variants."""
         return random.Random(seed)
+
+    def merge_visual_analysis(self, content_type: Dict, visual_analysis: Optional[Dict]) -> Dict:
+        """Merge compact vision facts into the detected content type."""
+        if not visual_analysis:
+            return content_type
+
+        merged = dict(content_type)
+        if visual_analysis.get("dish_detected"):
+            merged["dish_detected"] = visual_analysis["dish_detected"]
+        if visual_analysis.get("meal_type") and visual_analysis.get("meal_type") != "unknown":
+            merged["meal_type"] = visual_analysis["meal_type"]
+        if visual_analysis.get("cuisine_type"):
+            merged["cuisine_type"] = visual_analysis["cuisine_type"]
+        if visual_analysis.get("format"):
+            merged["format"] = visual_analysis["format"]
+        if visual_analysis.get("confidence") is not None:
+            merged["confidence"] = max(float(merged.get("confidence", 0.5)), float(visual_analysis["confidence"]))
+        return merged
+
+    def infer_content_signals(self, text: str) -> Dict[str, Optional[str]]:
+        """Infer meal type and cuisine from any available text context."""
+        lower_text = (text or "").lower()
+        result: Dict[str, Optional[str]] = {"meal_type": None, "cuisine_type": None, "dish_detected": None}
+
+        for meal_type, keywords in MEAL_KEYWORDS.items():
+            if any(keyword in lower_text for keyword in keywords):
+                result["meal_type"] = meal_type
+                break
+
+        for cuisine, keywords in CUISINE_KEYWORDS.items():
+            if any(keyword in lower_text for keyword in keywords):
+                result["cuisine_type"] = cuisine
+                break
+
+        for dish in DISH_KEYWORDS:
+            if dish in lower_text:
+                result["dish_detected"] = dish
+                break
+
+        return result
+
+    def build_visual_description(
+        self,
+        visual_analysis: Optional[Dict],
+        user_caption: Optional[str],
+        context: Optional[str],
+    ) -> str:
+        """Build a grounded content description that prioritizes what the image actually shows."""
+        parts: List[str] = []
+        if visual_analysis:
+            if visual_analysis.get("dish_detected"):
+                parts.append(f"Visible dish: {visual_analysis['dish_detected']}")
+            if visual_analysis.get("visual_summary"):
+                parts.append(f"Visual summary: {visual_analysis['visual_summary']}")
+            if visual_analysis.get("meal_type") and visual_analysis.get("meal_type") != "unknown":
+                parts.append(f"Meal type: {visual_analysis['meal_type']}")
+            if visual_analysis.get("cuisine_type"):
+                parts.append(f"Cuisine: {visual_analysis['cuisine_type']}")
+            if visual_analysis.get("contradicts_user_text"):
+                parts.append("The uploaded image conflicts with the provided text context.")
+        if context:
+            parts.append(f"User context: {context}")
+        if user_caption:
+            parts.append(f"User caption: {user_caption}")
+        return " | ".join(parts).strip()
+
+    def build_non_food_response(
+        self,
+        content_id: str,
+        content_type: Dict,
+        visual_analysis: Dict,
+    ) -> Dict:
+        """Return a safe response when the uploaded asset does not appear to contain food content."""
+        summary = visual_analysis.get("visual_summary") or visual_analysis.get("primary_subject") or "The uploaded asset does not appear to show food."
+        mismatch = visual_analysis.get("contradicts_user_text")
+        mismatch_note = " The image appears to conflict with the text you entered." if mismatch else ""
+        note = (
+            f"This upload looks like non-food content: {summary}.{mismatch_note} "
+            "Growth recommendations for food content would be guesswork until the visual matches the concept."
+        )
+        return {
+            "content_id": content_id,
+            "content_analysis": content_type,
+            "suggested_caption": "This upload does not appear to show food or hospitality content. Upload a food asset to get growth-ready recommendations.",
+            "suggested_hashtags": [],
+            "caption_variants": [
+                {
+                    "label": "Needs Matching Asset",
+                    "caption": "This upload does not appear to show food or hospitality content. Upload a relevant asset to generate growth-ready caption ideas.",
+                    "why": "Avoid publishing a misleading caption against a mismatched asset.",
+                },
+                {
+                    "label": "Use Correct Visual First",
+                    "caption": "The uploaded image conflicts with the described dish. Replace it with the actual food visual before optimizing for reach.",
+                    "why": "Visual-content mismatch weakens trust, clicks, and conversion into follows.",
+                },
+            ],
+            "hashtag_variants": [
+                {
+                    "label": "Not Recommended",
+                    "hashtags": [],
+                    "why": "Hashtags would be misleading until the visual matches the intended food post.",
+                },
+                {
+                    "label": "Not Recommended",
+                    "hashtags": [],
+                    "why": "Upload the actual food image first, then build discovery and intent hashtags around it.",
+                },
+            ],
+            "optimal_time": {
+                "time": "N/A",
+                "reasoning": "Posting-time optimization is intentionally withheld because the uploaded asset does not appear to be a food or hospitality post.",
+                "timezone": "local",
+                "engagement_prediction": "low",
+            },
+            "strategy_notes": note,
+            "confidence_score": 0.18,
+            "content_patterns": [],
+            "thinking_sections": [
+                {"title": "Content Read", "content": summary},
+                {"title": "Timing Logic", "content": "No timing recommendation was produced because the visual is not a usable food post."},
+                {"title": "Strategy Notes", "content": note},
+                {"title": "Confidence Breakdown", "content": "Confidence is intentionally low because the uploaded image does not align with the requested food recommendation."},
+            ],
+        }
+
+    def normalize_llm_recommendation(
+        self,
+        content_id: str,
+        filepath: str,
+        user_caption: Optional[str],
+        context: Optional[str],
+        llm_result: Dict,
+    ) -> Dict:
+        """Normalize a structured LLM response into the UI contract used by the app."""
+        description = context or user_caption or ""
+        seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
+        fallback_content_type = self.detect_content_type(filepath, user_caption)
+        fallback_time = self.recommend_posting_time(fallback_content_type, description)
+        fallback_notes = self.generate_strategy_notes(fallback_content_type, description, seed)
+
+        content_type = dict(fallback_content_type)
+        content_type.update(llm_result.get("content_analysis") or {})
+        if not content_type.get("format"):
+            content_type["format"] = fallback_content_type.get("format", "image")
+
+        caption_variants = self._normalize_caption_variants(
+            llm_result.get("caption_variants"),
+            content_type,
+            description,
+            seed,
+        )
+        hashtag_variants = self._normalize_hashtag_variants(
+            llm_result.get("hashtag_variants"),
+            content_type,
+            description,
+            seed,
+        )
+
+        optimal_time = llm_result.get("optimal_time") or fallback_time
+        if not isinstance(optimal_time, dict):
+            optimal_time = fallback_time
+
+        strategy_notes = (llm_result.get("strategy_notes") or "").strip() or fallback_notes
+        confidence = self._normalize_confidence(llm_result.get("confidence_score"), content_type, user_caption, context)
+        thinking_sections = llm_result.get("thinking_sections") or self.build_thinking_sections(
+            content_type,
+            optimal_time,
+            confidence,
+            strategy_notes,
+        )
+        content_patterns = llm_result.get("content_patterns") or [p["type"] for p in HIGH_PERFORMANCE_PATTERNS[:3]]
+
+        return {
+            "content_id": content_id,
+            "content_analysis": content_type,
+            "suggested_caption": caption_variants[0]["caption"],
+            "suggested_hashtags": hashtag_variants[0]["hashtags"],
+            "caption_variants": caption_variants,
+            "hashtag_variants": hashtag_variants,
+            "optimal_time": {
+                "time": optimal_time.get("time", fallback_time["time"]),
+                "reasoning": optimal_time.get("reasoning", fallback_time["reasoning"]),
+                "timezone": optimal_time.get("timezone", "local"),
+                "engagement_prediction": optimal_time.get("engagement_prediction", fallback_time.get("engagement_prediction", "medium")),
+            },
+            "strategy_notes": strategy_notes,
+            "confidence_score": round(confidence, 2),
+            "content_patterns": content_patterns,
+            "thinking_sections": thinking_sections,
+        }
+
+    def _normalize_caption_variants(
+        self,
+        raw_variants: Optional[List[Dict]],
+        content_type: Dict,
+        content_description: str,
+        seed: str,
+    ) -> List[Dict]:
+        if not isinstance(raw_variants, list):
+            return self.build_caption_variants(content_type, content_description, seed)
+
+        normalized: List[Dict] = []
+        fallback = self.build_caption_variants(content_type, content_description, seed)
+        for index in range(2):
+            source = raw_variants[index] if index < len(raw_variants) and isinstance(raw_variants[index], dict) else {}
+            fallback_item = fallback[index]
+            caption = str(source.get("caption") or fallback_item["caption"]).strip()
+            normalized.append(
+                {
+                    "label": str(source.get("label") or fallback_item["label"]).strip(),
+                    "caption": caption,
+                    "why": str(source.get("why") or fallback_item["why"]).strip(),
+                }
+            )
+        return normalized
+
+    def _normalize_hashtag_variants(
+        self,
+        raw_variants: Optional[List[Dict]],
+        content_type: Dict,
+        content_description: str,
+        seed: str,
+    ) -> List[Dict]:
+        if not isinstance(raw_variants, list):
+            return self.build_hashtag_variants(content_type, content_description, seed)
+
+        normalized: List[Dict] = []
+        fallback = self.build_hashtag_variants(content_type, content_description, seed)
+        for index in range(2):
+            source = raw_variants[index] if index < len(raw_variants) and isinstance(raw_variants[index], dict) else {}
+            fallback_item = fallback[index]
+            raw_tags = source.get("hashtags")
+            if not isinstance(raw_tags, list):
+                raw_tags = fallback_item["hashtags"]
+            tags = [str(tag).lstrip("#").strip() for tag in raw_tags if str(tag).strip()]
+            if not tags:
+                tags = fallback_item["hashtags"]
+            normalized.append(
+                {
+                    "label": str(source.get("label") or fallback_item["label"]).strip(),
+                    "hashtags": tags[:20],
+                    "why": str(source.get("why") or fallback_item["why"]).strip(),
+                }
+            )
+        return normalized
+
+    def _normalize_confidence(
+        self,
+        raw_confidence: Optional[float],
+        content_type: Dict,
+        user_caption: Optional[str],
+        context: Optional[str],
+    ) -> float:
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = float(content_type.get("confidence") or 0.55)
+            if user_caption:
+                confidence += 0.08
+            if context:
+                confidence += 0.12
+            if content_type.get("meal_type"):
+                confidence += 0.05
+            if content_type.get("cuisine_type"):
+                confidence += 0.03
+            if content_type.get("format") == "video":
+                confidence += 0.02
+        return max(0.1, min(confidence, 0.99))
     
     def detect_content_type(self, filepath: str, user_caption: Optional[str]) -> Dict:
         """
@@ -135,31 +444,11 @@ class ContentAnalyzer:
         # Analyze caption if provided
         if user_caption:
             caption_lower = user_caption.lower()
-            
-            # Detect meal type
-            if any(word in caption_lower for word in ["breakfast", "morning", "brunch", "pancake", "toast"]):
-                content_type["meal_type"] = "breakfast"
-            elif any(word in caption_lower for word in ["lunch", "noon", "sandwich", "salad"]):
-                content_type["meal_type"] = "lunch"
-            elif any(word in caption_lower for word in ["dinner", "evening", "supper", "steak", "pasta", "curry"]):
-                content_type["meal_type"] = "dinner"
-            elif any(word in caption_lower for word in ["snack", "dessert", "sweet", "cake", "cookie"]):
-                content_type["meal_type"] = "dessert/snack"
-            
-            # Detect cuisine
-            cuisines = {
-                "italian": ["pasta", "pizza", "risotto", "italian"],
-                "indian": ["curry", "naan", "tikka", "masala", "biryani"],
-                "asian": ["stir fry", "noodles", "ramen", "sushi", "asian"],
-                "mexican": ["taco", "burrito", "enchilada", "salsa", "mexican"],
-                "mediterranean": ["hummus", "falafel", "mediterranean", "greek"],
-                "american": ["burger", "bbq", "steak", "comfort"]
-            }
-            
-            for cuisine, keywords in cuisines.items():
-                if any(keyword in caption_lower for keyword in keywords):
-                    content_type["cuisine_type"] = cuisine
-                    break
+            inferred = self.infer_content_signals(caption_lower)
+            if inferred.get("meal_type"):
+                content_type["meal_type"] = inferred["meal_type"]
+            if inferred.get("cuisine_type"):
+                content_type["cuisine_type"] = inferred["cuisine_type"]
 
             if any(word in caption_lower for word in ["reel", "video", "step by step", "watch", "pour", "sizzle"]):
                 content_type["format"] = "video"
@@ -180,6 +469,25 @@ class ContentAnalyzer:
         content_type["confidence"] = min(content_type["confidence"], 0.9)
         
         return content_type
+
+    def refine_content_type(
+        self,
+        filepath: str,
+        user_caption: Optional[str],
+        context: Optional[str],
+        visual_analysis: Optional[Dict],
+    ) -> Dict:
+        """Combine heuristics, text context, and visual clues into one content-type view."""
+        combined_text = " ".join(part for part in [user_caption or "", context or ""] if part).strip()
+        content_type = self.detect_content_type(filepath, combined_text or None)
+        inferred = self.infer_content_signals(combined_text)
+        if inferred.get("meal_type") and not content_type.get("meal_type"):
+            content_type["meal_type"] = inferred["meal_type"]
+        if inferred.get("cuisine_type") and not content_type.get("cuisine_type"):
+            content_type["cuisine_type"] = inferred["cuisine_type"]
+        if inferred.get("dish_detected") and not content_type.get("dish_detected"):
+            content_type["dish_detected"] = inferred["dish_detected"]
+        return self.merge_visual_analysis(content_type, visual_analysis)
     
     def generate_caption(
         self,
@@ -195,11 +503,12 @@ class ContentAnalyzer:
         rng = rng or random.Random()
         meal_type = content_type.get("meal_type", "dinner")
         cuisine = content_type.get("cuisine_type", "homestyle")
+        dish_name = content_type.get("dish_detected") or f"{cuisine} {meal_type}".strip()
         
         # Try LLM first if available
         if LLM_AVAILABLE:
             try:
-                description = content_description or f"{cuisine} {meal_type} food"
+                description = content_description or f"{dish_name} food"
                 return llm_generate_caption(
                     content_description=description,
                     content_type=meal_type,
@@ -222,7 +531,7 @@ class ContentAnalyzer:
         
         # Fill in the template
         caption = template.format(
-            dish=(cuisine or "homestyle").title() + " " + meal_type,
+            dish=dish_name.title(),
             time="30-minute" if meal_type == "weeknight" else "quick",
             relative="grandmother" if rng.random() > 0.5 else "mother",
             memory="happiness",
@@ -305,7 +614,7 @@ class ContentAnalyzer:
         """
         Recommend optimal posting time based on content type and historical data
         """
-        meal_type = content_type.get("meal_type", "dinner")
+        meal_type = content_type.get("meal_type") or "unknown"
         is_video = content_type.get("format") == "video"
         desc_lower = (content_description or "").lower()
         weekday = datetime.now().weekday()
@@ -315,19 +624,32 @@ class ContentAnalyzer:
         if meal_type == "breakfast":
             recommended_time = "09:00" if is_weekend else OPTIMAL_POST_TIMES["weekday_breakfast"]
             reasoning = "Breakfast content performs best when people are planning their morning meal."
+        elif meal_type == "brunch":
+            recommended_time = OPTIMAL_POST_TIMES["weekend_brunch"] if is_weekend else "10:30"
+            reasoning = "Brunch-style content performs best in the late-morning craving window, especially for leisurely saves and shares."
         elif meal_type == "lunch":
             recommended_time = "13:00" if "office" in desc_lower or "work" in desc_lower else OPTIMAL_POST_TIMES["weekday_lunch"]
             reasoning = "Lunch content aligns with midday decision-making and lunch-break browsing."
         elif meal_type == "dessert/snack":
             recommended_time = "20:00" if "late night" in desc_lower or "dessert" in desc_lower else "15:00"
             reasoning = "Dessert and snack content performs around craving windows in the afternoon or after dinner."
-        else:  # dinner default
+        elif meal_type == "beverage":
+            if any(word in desc_lower for word in ["coffee", "latte", "espresso", "tea"]):
+                recommended_time = "08:30"
+                reasoning = "Morning beverage content performs best when people are entering their first caffeine or cafe decision window."
+            else:
+                recommended_time = "17:00"
+                reasoning = "Drinks content tends to perform best late afternoon, when social plans and cravings start forming."
+        elif meal_type == "dinner":
             if is_weekend:
                 recommended_time = OPTIMAL_POST_TIMES["weekend_dinner"]
                 reasoning = "Weekend dinner content performs best earlier, when people plan evenings and outings."
             else:
                 recommended_time = "17:30" if is_video else OPTIMAL_POST_TIMES["weekday_dinner"]
                 reasoning = "Dinner content performs around planning and prep time on weekdays."
+        else:
+            recommended_time = "11:30" if not is_video else "16:30"
+            reasoning = "The meal signal is unclear, so this uses a broader discovery window instead of assuming dinner."
 
         if is_video:
             reasoning += " Video-first posts benefit from slightly earlier distribution to build momentum."
@@ -340,6 +662,37 @@ class ContentAnalyzer:
             "timezone": "local",
             "engagement_prediction": "high" if meal_type in ["dinner", "dessert/snack"] or is_video else "medium"
         }
+
+    def build_strategy_notes(
+        self,
+        content_type: Dict,
+        visual_analysis: Optional[Dict],
+        optimal_time: Dict,
+    ) -> str:
+        """Generate concise, grounded strategy notes from the available signals."""
+        dish = content_type.get("dish_detected") or "the dish"
+        meal_type = content_type.get("meal_type") or "general meal"
+        cuisine = (content_type.get("cuisine_type") or "mixed").title()
+        visual_summary = (visual_analysis or {}).get("visual_summary") or "The visual read is limited, so the strategy leans on dish and format cues."
+        format_name = "video" if content_type.get("format") == "video" else "image"
+
+        if format_name == "video":
+            hook = "Use motion and texture as the main growth lever. The first 1-2 seconds should show the strongest sensory moment."
+            win_condition = "This should optimize for replays, saves, and shares."
+        else:
+            hook = "Lead with appetite and clarity. The frame needs to sell texture, freshness, and brand taste in one glance."
+            win_condition = "This should optimize for profile taps and saves."
+
+        mismatch_note = ""
+        if visual_analysis and visual_analysis.get("contradicts_user_text"):
+            mismatch_note = " The uploaded visual and the typed context appear to conflict, so confidence is intentionally reduced."
+
+        return (
+            f"Visual read: {visual_summary} "
+            f"For {dish} in the {meal_type} window, position it as {cuisine} {format_name} content with a clear craving hook. "
+            f"{hook} Post around {optimal_time['time']} because that window best matches when people decide on or crave this type of content. "
+            f"{win_condition}{mismatch_note}"
+        )
     
     def generate_strategy_notes(self, content_type: Dict, content_description: str = "", seed: str = "") -> str:
         """
@@ -488,17 +841,32 @@ async def analyze_and_recommend(
     """
     analyzer = ContentAnalyzer()
     seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
-    
-    # Detect content type
-    content_type = analyzer.detect_content_type(filepath, user_caption)
-    
     description = context or user_caption or ""
+    visual_analysis = None
+
+    if LLM_AVAILABLE:
+        try:
+            visual_analysis = llm_analyze_visual_asset(
+                filepath,
+                user_caption=user_caption,
+                context=context,
+            )
+        except Exception as e:
+            logger.warning(f"Visual analysis failed, continuing without image facts: {e}")
+
+    # Detect content type
+    content_type = analyzer.refine_content_type(filepath, user_caption, context, visual_analysis)
+    description = analyzer.build_visual_description(visual_analysis, user_caption, context) or description
+
+    if visual_analysis and visual_analysis.get("food_present") is False:
+        return analyzer.build_non_food_response(content_id, content_type, visual_analysis)
+
     caption_variants = analyzer.build_caption_variants(content_type, description, seed)
     hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed)
     caption = caption_variants[0]["caption"]
     hashtags = hashtag_variants[0]["hashtags"]
     time_rec = analyzer.recommend_posting_time(content_type, description)
-    strategy_notes = analyzer.generate_strategy_notes(content_type, description, seed)
+    strategy_notes = analyzer.build_strategy_notes(content_type, visual_analysis, time_rec)
     
     # Calculate confidence based on content clarity
     confidence = content_type["confidence"]
