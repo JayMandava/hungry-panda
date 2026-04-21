@@ -450,15 +450,15 @@
         .upload-hero::before {
             content: '';
             position: absolute;
-            inset: 0;
+            inset: 2px;
             background: radial-gradient(circle at center, rgba(255, 107, 107, 0.05) 0%, transparent 70%);
             opacity: 0;
+            border-radius: calc(var(--radius-xl) - 2px);
             transition: opacity var(--transition-base);
         }
         
         .upload-hero:hover {
             border-color: var(--brand-primary);
-            transform: translateY(-2px);
             box-shadow: var(--shadow-glow);
         }
         
@@ -2434,7 +2434,24 @@
         // Get recommendations for existing content
         async function getRecommendations(contentId) {
             showToast('Generating AI recommendations for your content...');
-            // Implementation would call backend to analyze existing content
+            
+            try {
+                const response = await fetch(`/api/content/${contentId}/recommendation`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail || 'Unable to generate recommendations right now.', 'error');
+                    return;
+                }
+
+                currentRecommendation = {
+                    content_id: contentId,
+                    recommendation: data
+                };
+                showRecommendationModal(currentRecommendation);
+            } catch (err) {
+                showToast('Unable to generate recommendations right now.', 'error');
+            }
         }
         
         // Delete content
@@ -2515,41 +2532,76 @@
             }
         }
         
-        // Load trending hashtags
-        async function loadTrendingHashtags() {
-            try {
-                const response = await fetch('/api/growth/dashboard');
-                const data = await response.json();
-                
-                const container = document.getElementById('trendingHashtags');
-                const hashtags = data.top_hashtags || [];
-                
-                if (hashtags.length === 0) {
-                    // Fallback hashtags
-                    const fallback = ['foodie', 'homecooking', 'foodphotography', 'instafood', 'yummy', 
-                                    'delicious', 'foodstagram', 'homemade', 'cooking', 'foodlover'];
-                    container.innerHTML = fallback.map(tag => 
-                        `<span class="hashtag-chip">#${tag}</span>`
-                    ).join('');
-                    return;
-                }
-                
-                container.innerHTML = hashtags.slice(0, 12).map(h => `
+        function setTrendingHashtagsLoading() {
+            const container = document.getElementById('trendingHashtags');
+            container.innerHTML = `
+                <div class="loading" style="padding: var(--space-4) 0;">
+                    <div class="spinner" style="width: 28px; height: 28px;"></div>
+                    <span>Refreshing hashtag mix...</span>
+                </div>
+            `;
+        }
+
+        function renderTrendingHashtags(hashtags) {
+            const container = document.getElementById('trendingHashtags');
+
+            if (!hashtags.length) {
+                const fallback = ['foodie', 'homecooking', 'foodphotography', 'instafood', 'yummy',
+                                'delicious', 'foodstagram', 'homemade', 'cooking', 'foodlover'];
+                container.innerHTML = fallback.map(tag =>
+                    `<span class="hashtag-chip">#${tag}</span>`
+                ).join('');
+                return;
+            }
+
+            container.innerHTML = hashtags.slice(0, 12).map(h => {
+                const engagement = Number(h.avg_engagement);
+                const engagementLabel = Number.isFinite(engagement)
+                    ? `<span class="engagement">${engagement.toFixed(1)}%</span>`
+                    : '';
+
+                return `
                     <span class="hashtag-chip">
                         #${h.hashtag}
-                        <span class="engagement">${(h.avg_engagement || 0).toFixed(1)}%</span>
+                        ${engagementLabel}
                     </span>
-                `).join('');
-                
+                `;
+            }).join('');
+        }
+
+        // Load trending hashtags
+        async function loadTrendingHashtags(forceRefresh = false) {
+            try {
+                if (forceRefresh) {
+                    setTrendingHashtagsLoading();
+                }
+
+                const dashboardUrl = forceRefresh
+                    ? `/api/growth/dashboard?refresh=${Date.now()}`
+                    : '/api/growth/dashboard';
+
+                const response = await fetch(dashboardUrl, {
+                    cache: forceRefresh ? 'no-store' : 'default'
+                });
+                const data = await response.json();
+                const hashtags = data.top_hashtags || [];
+
+                renderTrendingHashtags(hashtags);
+                return true;
             } catch (err) {
                 console.error('Hashtag load error:', err);
+                return false;
             }
         }
         
         // Refresh trending hashtags
-        function refreshTrendingHashtags() {
-            loadTrendingHashtags();
-            showToast('Trending hashtags updated');
+        async function refreshTrendingHashtags() {
+            const refreshed = await loadTrendingHashtags(true);
+            if (refreshed) {
+                showToast('Trending hashtags updated');
+            } else {
+                showToast('Unable to refresh hashtags. Please try again.', 'error');
+            }
         }
         
         // Generate new strategy
