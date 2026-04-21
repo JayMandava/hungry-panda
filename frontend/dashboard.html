@@ -1303,6 +1303,25 @@
             return numericValue.toLocaleString();
         }
 
+        function isNumericValue(value) {
+            const numericValue = Number(value);
+            return Number.isFinite(numericValue);
+        }
+
+        function formatCompetitorFollowers(value) {
+            if (isNumericValue(value)) {
+                return `${formatNumber(value)} followers`;
+            }
+            return value || 'Unknown followers';
+        }
+
+        function formatCompetitorEngagement(value) {
+            if (isNumericValue(value)) {
+                return `${Number(value).toFixed(1)}% engagement`;
+            }
+            return value || 'Unknown engagement';
+        }
+
         async function showCompetitorDetail(username) {
             try {
                 const res = await fetch(`/api/competitors/${encodeURIComponent(username)}`);
@@ -1320,8 +1339,8 @@
                         <div class="recommendation-item">
                             <div class="rec-title">📊 Snapshot</div>
                             <div class="rec-text">
-                                <strong>${formatNumber(data.followers)}</strong> followers<br>
-                                <strong>${data.avg_engagement || 0}%</strong> average engagement<br>
+                                <strong>${formatCompetitorFollowers(data.followers)}</strong><br>
+                                <strong>${formatCompetitorEngagement(data.avg_engagement)}</strong><br>
                                 Posting cadence: ${data.posting_frequency || 'Unknown'}
                             </div>
                         </div>
@@ -1582,7 +1601,7 @@
                         <div class="competitor-meta">
                             <div class="competitor-badge">Tap for analytics</div>
                             <div class="competitor-name">@${c.username}</div>
-                            <div class="competitor-stats">${formatNumber(c.follower_count)} followers · ${c.avg_engagement || 0}% engagement</div>
+                            <div class="competitor-stats">${formatCompetitorFollowers(c.follower_count)} · ${formatCompetitorEngagement(c.avg_engagement)}</div>
                         </div>
                         <div class="competitor-stats">View</div>
                     </div>

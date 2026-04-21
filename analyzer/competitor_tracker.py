@@ -98,7 +98,7 @@ class CompetitorTracker:
         return {
             "username": username,
             "followers": "unknown - requires API access",
-            "avg_engagement": "unknown - requires monitoring %",
+            "avg_engagement": "unknown - requires monitoring",
             "content_style": "analysis pending",
             "top_hashtags": [],
             "patterns": [],
