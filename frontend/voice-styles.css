@@ -1,130 +1,210 @@
-/* Compact Context Input Bar - Like ChatGPT/Search */
+/* Hungry Panda - Voice Input Styles */
+/* Premium Design System - Phase 1 */
 
-.context-bar {
-    display: none; /* Hidden by default, shown via JS */
-    align-items: center;
-    gap: 8px;
-    margin-top: 20px;
-    padding: 10px 14px;
-    background: #1a1a2e;
-    border: 2px solid #3d3d5c;
-    border-radius: 28px;
-    transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+:root {
+  /* Brand Colors - Sophisticated Food-Growth Palette */
+  --brand-accent: #ff6b6b;
+  --brand-accent-hover: #ff5252;
+  --brand-warm: #ffa726;
+  --brand-success: #66bb6a;
+  
+  /* Surface System - Layered Depth */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #12121a;
+  --bg-tertiary: #1a1a25;
+  --bg-elevated: #222230;
+  --bg-card: rgba(26, 26, 37, 0.6);
+  
+  /* Border & Separation */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(255, 107, 107, 0.3);
+  
+  /* Text Hierarchy */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-tertiary: rgba(255, 255, 255, 0.5);
+  --text-muted: rgba(255, 255, 255, 0.35);
+  
+  /* Typography Scale */
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  
+  /* Spacing Rhythm */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* Effects */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 40px rgba(255, 107, 107, 0.15);
+  
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 }
 
-.context-bar:focus-within {
-    border-color: #e94560;
-    box-shadow: 0 4px 16px rgba(233, 69, 96, 0.2);
+/* Voice Input Container */
+.voice-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 50px;
+  padding: 6px;
+  transition: all 0.3s ease;
 }
 
-.context-input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 15px;
-    padding: 10px 8px;
-    outline: none;
+.voice-input-container:focus-within {
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
 }
 
-.context-input::placeholder {
-    color: #6b6b8a;
+.voice-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 10px 16px;
+  outline: none;
+  font-family: var(--font-display);
 }
 
-.context-mic {
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 18px;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    box-shadow: none;
+.voice-input::placeholder {
+  color: var(--text-tertiary);
 }
 
-.context-mic:hover {
-    background: transparent;
-    color: #e94560;
+/* Voice Button */
+.voice-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 18px;
+}
+
+.voice-btn:hover {
+  background: var(--brand-accent);
+  color: white;
+  transform: scale(1.05);
+}
+
+.voice-btn.recording {
+  background: var(--brand-accent);
+  color: white;
+  animation: pulse-recording 1.5s infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4);
+  }
+  50% { 
     transform: scale(1.05);
+    box-shadow: 0 0 0 12px rgba(255, 107, 107, 0);
+  }
 }
 
-.context-mic.recording {
-    background: transparent;
-    color: #ef4444;
-    animation: pulse-mic 1.5s infinite;
+/* Send Button */
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent-hover) 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-size: 18px;
 }
 
-@keyframes pulse-mic {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-    50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+.send-btn:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
 }
 
-.context-send {
-    background: transparent;
-    border: none;
-    color: #e94560;
-    font-size: 20px;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
+.send-btn:active {
+  transform: scale(0.95);
 }
 
-.context-send:hover {
-    background: transparent;
-    transform: scale(1.05);
+/* Recording Status */
+.recording-status {
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--brand-accent);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.voice-status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 8px;
-    color: #ef4444;
-    font-size: 14px;
+.recording-status.active {
+  display: flex;
 }
 
 .recording-dot {
-    width: 8px;
-    height: 8px;
-    background: #ef4444;
-    border-radius: 50%;
-    animation: blink-dot 1s infinite;
+  width: 8px;
+  height: 8px;
+  background: var(--brand-accent);
+  border-radius: 50%;
+  animation: blink 1s infinite;
 }
 
-@keyframes blink-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-/* Mobile */
-@media (max-width: 600px) {
-    .context-bar {
-        padding: 6px 10px;
-    }
-    
-    .context-input {
-        font-size: 16px; /* Prevents zoom on iOS */
-    }
-    
-    .context-mic,
-    .context-send {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
-    }
+/* Voice Wave Animation */
+.voice-wave {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+}
+
+.voice-wave.active {
+  display: flex;
+}
+
+.voice-wave-bar {
+  width: 3px;
+  background: var(--brand-accent);
+  border-radius: 3px;
+  animation: wave 1s ease-in-out infinite;
+}
+
+.voice-wave-bar:nth-child(1) { animation-delay: 0s; height: 8px; }
+.voice-wave-bar:nth-child(2) { animation-delay: 0.1s; height: 16px; }
+.voice-wave-bar:nth-child(3) { animation-delay: 0.2s; height: 12px; }
+.voice-wave-bar:nth-child(4) { animation-delay: 0.3s; height: 20px; }
+.voice-wave-bar:nth-child(5) { animation-delay: 0.4s; height: 10px; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
 }
