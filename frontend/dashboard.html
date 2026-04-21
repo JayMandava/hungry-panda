@@ -613,7 +613,47 @@
             justify-content: center;
             font-size: 24px;
             flex-shrink: 0;
+            overflow: hidden;
+            position: relative;
         }
+        
+        .queue-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: var(--radius-md);
+        }
+        
+        .queue-thumb .thumb-icon {
+            font-size: 24px;
+            opacity: 0.7;
+        }
+        
+        .queue-thumb .thumb-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
+            border-radius: var(--radius-md);
+        }
+        
+        /* Content type specific icons */
+        .queue-thumb.type-image {
+            background: linear-gradient(135deg, rgba(102, 187, 106, 0.1) 0%, rgba(102, 187, 106, 0.05) 100%);
+        }
+        
+        .queue-thumb.type-video {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(255, 107, 107, 0.05) 100%);
+        }
+        
+        .queue-thumb.type-breakfast { --icon: '🍳'; }
+        .queue-thumb.type-lunch { --icon: '🥗'; }
+        .queue-thumb.type-dinner { --icon: '🍽️'; }
+        .queue-thumb.type-dessert { --icon: '🍰'; }
+        
+        .queue-thumb.type-breakfast .thumb-icon::before { content: '🍳'; }
+        .queue-thumb.type-lunch .thumb-icon::before { content: '🥗'; }
+        .queue-thumb.type-dinner .thumb-icon::before { content: '🍽️'; }
+        .queue-thumb.type-dessert .thumb-icon::before { content: '🍰'; }
         
         .queue-meta {
             flex: 1;
@@ -2187,9 +2227,11 @@
                     return;
                 }
                 
-                queue.innerHTML = filtered.map(item => `
+                queue.innerHTML = filtered.map(item => {
+                    const thumbHtml = generateThumbnail(item);
+                    return `
                     <div class="queue-item">
-                        <div class="queue-thumb">🍽️</div>
+                        ${thumbHtml}
                         <div class="queue-meta">
                             <div class="queue-filename">${item.filename}</div>
                             <div class="queue-details">
@@ -2208,7 +2250,7 @@
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
                 
             } catch (err) {
                 console.error('Queue load error:', err);
@@ -2221,6 +2263,47 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             element.classList.add('active');
             loadPendingContent();
+        }
+        
+        // Generate thumbnail HTML based on content type
+        function generateThumbnail(item) {
+            const contentType = item.content_type || 'image';
+            const isVideo = item.filename?.match(/\.(mp4|mov|quicktime)$/i);
+            
+            // If we have a filepath that could be displayed as image
+            if (item.filepath && !isVideo) {
+                return `
+                    <div class="queue-thumb ${isVideo ? 'type-video' : 'type-image'}">
+                        <img src="${item.filepath}" alt="" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="thumb-icon" style="display: none;">${getContentTypeIcon(contentType)}</div>
+                        <div class="thumb-overlay"></div>
+                        ${isVideo ? '<div style="position: absolute; bottom: 4px; right: 4px; font-size: 12px;">▶️</div>' : ''}
+                    </div>
+                `;
+            }
+            
+            // Fallback to icon based on content type
+            const icon = getContentTypeIcon(contentType);
+            const typeClass = contentType ? `type-${contentType}` : '';
+            
+            return `
+                <div class="queue-thumb ${typeClass}">
+                    <div class="thumb-icon">${icon}</div>
+                </div>
+            `;
+        }
+        
+        // Get icon based on content type
+        function getContentTypeIcon(contentType) {
+            const icons = {
+                'breakfast': '🍳',
+                'lunch': '🥗',
+                'dinner': '🍽️',
+                'dessert': '🍰',
+                'image': '📸',
+                'video': '🎬'
+            };
+            return icons[contentType] || icons[contentType?.toLowerCase()] || '🍽️';
         }
         
         // Get recommendations for existing content
