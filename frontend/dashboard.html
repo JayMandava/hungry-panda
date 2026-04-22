@@ -1870,20 +1870,23 @@
             /* M5: Mobile Upload - Native-feeling UX */
             .upload-hero {
                 padding: var(--space-8) var(--space-4);
+                border-radius: var(--radius-lg);
+                box-shadow: none;
             }
 
             .upload-hero::before {
-                inset: 4px;
-                border-radius: calc(var(--radius-xl) - 4px);
+                inset: 0;
+                border-radius: inherit;
             }
 
             .upload-hero::after {
-                inset: 6px;
-                border: 1.5px solid rgba(190, 214, 165, 0.42);
-                border-radius: calc(var(--radius-xl) - 6px);
-                background-image: none;
-                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-                opacity: 0.92;
+                content: '';
+                inset: 4px;
+                border: 2px dashed var(--border-accent);
+                border-radius: calc(var(--radius-lg) - 4px);
+                background: none;
+                box-shadow: none;
+                opacity: 0.58;
             }
             
             .upload-icon-large {
