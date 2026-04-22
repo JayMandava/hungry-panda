@@ -1150,9 +1150,19 @@ async def get_pending_content():
             if stored_filepath:
                 # Extract just the filename from the path
                 filename = Path(stored_filepath).name
-                item['preview_url'] = f"/uploads/{filename}"
+                file_path = Path(stored_filepath)
+
+                # Check if HEIC/HEIF - needs conversion for browser preview
+                if filename.lower().endswith(('.heic', '.heif')):
+                    preview_filename = _get_or_create_heic_preview(file_path, filename)
+                    item['preview_url'] = f"/uploads/{preview_filename}"
+                    item['is_heic'] = True
+                else:
+                    item['preview_url'] = f"/uploads/{filename}"
+                    item['is_heic'] = False
             else:
                 item['preview_url'] = None
+                item['is_heic'] = False
 
             # Remove the raw filepath from response (security)
             item.pop('filepath', None)
@@ -1164,6 +1174,37 @@ async def get_pending_content():
     except DatabaseError as e:
         logger.error(f"Database error fetching pending content: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch content")
+
+
+def _get_or_create_heic_preview(file_path: Path, original_filename: str) -> str:
+    """
+    Convert HEIC/HEIF to JPEG for browser preview.
+    Returns the preview filename (JPEG) to serve.
+    """
+    from PIL import Image, ImageOps
+
+    preview_filename = original_filename.rsplit('.', 1)[0] + '_preview.jpg'
+    preview_path = file_path.parent / preview_filename
+
+    # Return cached preview if exists
+    if preview_path.exists():
+        return preview_filename
+
+    try:
+        # Convert HEIC to JPEG
+        with Image.open(file_path) as img:
+            img = ImageOps.exif_transpose(img)
+            # Convert to RGB if necessary
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            # Save as JPEG with good quality
+            img.save(preview_path, 'JPEG', quality=85, optimize=True)
+        logger.info(f"Created HEIC preview: {preview_filename}")
+        return preview_filename
+    except Exception as e:
+        logger.warning(f"Failed to convert HEIC preview for {original_filename}: {e}")
+        # Fall back to original filename - browser will show icon
+        return original_filename
 
 
 @app.get("/api/content/{content_id}/recommendation", response_model=Dict[str, Any])
