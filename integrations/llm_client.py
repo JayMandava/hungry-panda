@@ -368,10 +368,11 @@ Return: {{"hashtags": ["tag1", "tag2", ...]}}"""
                 + "\n\nCRITICAL: Your previous response was not valid JSON. "
                 "Return ONLY the JSON object, starting with { and ending with }. No other text."
             )
+            # Retry with same tight budget (P1 consistency)
             response = self._call_llm(
                 system_prompt,
                 retry_prompt,
-                max_tokens=2000,
+                max_tokens=1500,  # Consistent with primary call (reduced from 2000)
                 timeout=60,
                 json_mode=True,
             )
