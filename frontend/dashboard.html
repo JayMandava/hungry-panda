@@ -164,8 +164,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
             box-shadow: var(--shadow-glow);
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .brand-icon svg {
+            width: 26px;
+            height: 26px;
         }
         
         .brand-text h1 {
@@ -370,6 +376,48 @@
             width: 14px;
             height: 14px;
         }
+
+        .icon {
+            width: 1em;
+            height: 1em;
+            flex-shrink: 0;
+            stroke: currentColor;
+        }
+
+        .icon-sm {
+            width: 14px;
+            height: 14px;
+        }
+
+        .icon-md {
+            width: 18px;
+            height: 18px;
+        }
+
+        .icon-lg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .icon-xl {
+            width: 24px;
+            height: 24px;
+        }
+
+        .icon-2xl {
+            width: 34px;
+            height: 34px;
+        }
+
+        .icon-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-spot {
+            color: var(--brand-primary);
+        }
         
         /* ========================================
            SECTIONS - Hierarchical Cards
@@ -411,7 +459,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            color: var(--brand-primary);
+            flex-shrink: 0;
+        }
+
+        .section-icon svg {
+            width: 18px;
+            height: 18px;
         }
         
         .section-title h2 {
@@ -451,7 +505,7 @@
         
         .upload-hero {
             background: var(--bg-hero);
-            border: 2px dashed var(--border-accent);
+            border: 1px solid transparent;
             border-radius: var(--radius-xl);
             padding: var(--space-10) var(--space-8);
             text-align: center;
@@ -464,16 +518,29 @@
         .upload-hero::before {
             content: '';
             position: absolute;
-            inset: 2px;
+            inset: 3px;
             background: radial-gradient(circle at center, rgba(255, 107, 107, 0.05) 0%, transparent 70%);
             opacity: 0;
-            border-radius: calc(var(--radius-xl) - 2px);
+            border-radius: calc(var(--radius-xl) - 3px);
             transition: opacity var(--transition-base);
+        }
+
+        .upload-hero::after {
+            content: '';
+            position: absolute;
+            inset: 1px;
+            border: 2px dashed var(--border-accent);
+            border-radius: calc(var(--radius-xl) - 1px);
+            pointer-events: none;
+            transition: border-color var(--transition-base);
         }
         
         .upload-hero:hover {
-            border-color: var(--brand-primary);
             box-shadow: var(--shadow-glow);
+        }
+
+        .upload-hero:hover::after {
+            border-color: var(--brand-primary);
         }
         
         .upload-hero:hover::before {
@@ -481,8 +548,11 @@
         }
         
         .upload-hero.dragover {
-            border-color: var(--brand-success);
             background: rgba(102, 187, 106, 0.05);
+        }
+
+        .upload-hero.dragover::after {
+            border-color: var(--brand-success);
         }
         
         .upload-hero-content {
@@ -499,9 +569,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 40px;
             box-shadow: var(--shadow-md);
             animation: gentle-pulse 4s ease-in-out infinite;
+            color: white;
+        }
+
+        .upload-icon-large svg {
+            width: 40px;
+            height: 40px;
         }
         
         @keyframes gentle-pulse {
@@ -643,6 +718,15 @@
         .btn-primary.loading::after {
             border-top-color: white;
         }
+
+        .btn.is-busy {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        .btn.is-busy .icon-refresh {
+            animation: spin 0.8s linear infinite;
+        }
         
         /* ========================================
            CONTENT QUEUE - Redesigned Rows
@@ -696,11 +780,24 @@
             border: 1px solid var(--border-subtle);
             border-radius: var(--radius-lg);
             transition: all var(--transition-fast);
+            animation: queueItemEnter 0.35s ease backwards;
+            animation-delay: calc(var(--item-index, 0) * 45ms);
         }
-        
+
         .queue-item:hover {
             border-color: var(--border-default);
             transform: translateX(4px);
+        }
+
+        @keyframes queueItemEnter {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .queue-thumb {
@@ -725,8 +822,16 @@
         }
         
         .queue-thumb .thumb-icon {
-            font-size: 24px;
-            opacity: 0.7;
+            opacity: 0.78;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .queue-thumb .thumb-icon svg {
+            width: 24px;
+            height: 24px;
         }
         
         .queue-thumb .thumb-overlay {
@@ -744,16 +849,6 @@
         .queue-thumb.type-video {
             background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(255, 107, 107, 0.05) 100%);
         }
-        
-        .queue-thumb.type-breakfast { --icon: '🍳'; }
-        .queue-thumb.type-lunch { --icon: '🥗'; }
-        .queue-thumb.type-dinner { --icon: '🍽️'; }
-        .queue-thumb.type-dessert { --icon: '🍰'; }
-        
-        .queue-thumb.type-breakfast .thumb-icon::before { content: '🍳'; }
-        .queue-thumb.type-lunch .thumb-icon::before { content: '🥗'; }
-        .queue-thumb.type-dinner .thumb-icon::before { content: '🍽️'; }
-        .queue-thumb.type-dessert .thumb-icon::before { content: '🍰'; }
         
         .queue-meta {
             flex: 1;
@@ -821,7 +916,11 @@
             color: var(--text-tertiary);
             cursor: pointer;
             transition: all var(--transition-fast);
-            font-size: 16px;
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
         }
         
         .action-btn:hover {
@@ -903,9 +1002,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
             flex-shrink: 0;
             margin-top: 2px;
+            color: var(--brand-success);
+        }
+
+        .insight-bullet svg {
+            width: 12px;
+            height: 12px;
         }
         
         /* ========================================
@@ -936,13 +1040,19 @@
         .competitor-avatar {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 107, 107, 0.06) 100%);
+            border: 1px solid var(--border-default);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
             flex-shrink: 0;
+            color: var(--brand-primary);
+        }
+
+        .competitor-avatar svg {
+            width: 18px;
+            height: 18px;
         }
         
         .competitor-info {
@@ -980,6 +1090,8 @@
             color: var(--text-secondary);
             cursor: pointer;
             transition: all var(--transition-fast);
+            animation: chipEnter 0.28s ease backwards;
+            animation-delay: calc(var(--chip-index, 0) * 35ms);
         }
         
         .hashtag-chip:hover {
@@ -992,6 +1104,17 @@
             font-size: var(--text-xs);
             color: var(--brand-success);
             font-weight: var(--font-medium);
+        }
+
+        @keyframes chipEnter {
+            from {
+                opacity: 0;
+                transform: translateY(8px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
         
         /* ========================================
@@ -1059,11 +1182,10 @@
             align-items: center;
             gap: var(--space-2);
         }
-        
-        .modal-header h2::before {
-            content: '✨';
+
+        .modal-header h2 .icon {
             -webkit-text-fill-color: initial;
-            font-size: 24px;
+            color: var(--brand-primary);
         }
         
         .modal-close {
@@ -1084,6 +1206,11 @@
             background: var(--bg-elevated);
             color: var(--text-primary);
         }
+
+        .modal-close svg {
+            width: 18px;
+            height: 18px;
+        }
         
         .modal-body {
             padding: var(--space-6);
@@ -1092,10 +1219,23 @@
         
         .recommendation-section {
             margin-bottom: var(--space-6);
+            animation: modalSectionEnter 0.32s ease backwards;
+            animation-delay: calc(var(--section-index, 0) * 70ms);
         }
         
         .recommendation-section:last-child {
             margin-bottom: 0;
+        }
+
+        @keyframes modalSectionEnter {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .section-label {
@@ -1133,6 +1273,21 @@
             color: var(--text-primary);
             font-weight: var(--font-medium);
         }
+
+        .recommendation-content.caption.content-swap {
+            animation: captionSwap 0.22s ease;
+        }
+
+        @keyframes captionSwap {
+            from {
+                opacity: 0.6;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
         
         .variant-cards {
             display: flex;
@@ -1163,7 +1318,6 @@
         }
         
         .variant-card.selected::after {
-            content: '✓';
             position: absolute;
             top: var(--space-3);
             right: var(--space-3);
@@ -1174,8 +1328,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
             color: white;
+            content: '\2713';
+            font-size: 12px;
+            font-weight: 700;
         }
         
         .variant-label {
@@ -1243,10 +1399,10 @@
             font-weight: var(--font-semibold);
             color: var(--brand-primary);
         }
-        
-        .time-badge::before {
-            content: '🕐';
-            font-size: 16px;
+
+        .time-badge svg {
+            width: 16px;
+            height: 16px;
         }
         
         .time-reasoning {
@@ -1296,10 +1452,16 @@
         }
         
         .empty-state-icon {
-            font-size: 48px;
             margin-bottom: var(--space-4);
             opacity: 0.5;
             animation: float 3s ease-in-out infinite;
+            display: inline-flex;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon svg {
+            width: 48px;
+            height: 48px;
         }
         
         @keyframes float {
@@ -1353,6 +1515,40 @@
             transform: translateX(120%);
             transition: transform var(--transition-base);
             max-width: 400px;
+        }
+
+        .toast-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .toast-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .video-indicator {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: rgba(10, 10, 15, 0.74);
+            color: white;
+            backdrop-filter: blur(8px);
+        }
+
+        .video-indicator svg {
+            width: 10px;
+            height: 10px;
         }
         
         .toast.show {
@@ -1528,6 +1724,16 @@
             /* M5: Mobile Upload - Native-feeling UX */
             .upload-hero {
                 padding: var(--space-8) var(--space-4);
+            }
+
+            .upload-hero::before {
+                inset: 4px;
+                border-radius: calc(var(--radius-xl) - 4px);
+            }
+
+            .upload-hero::after {
+                inset: 2px;
+                border-radius: calc(var(--radius-xl) - 2px);
             }
             
             .upload-icon-large {
@@ -1864,7 +2070,9 @@
     <header class="app-header">
         <div class="header-content">
             <div class="brand">
-                <div class="brand-icon">🐼</div>
+                <div class="brand-icon" aria-hidden="true">
+                    <svg class="icon icon-xl"><use href="assets/ui-icons.svg#brand-panda"></use></svg>
+                </div>
                 <div class="brand-text">
                     <h1>Hungry Panda</h1>
                     <p>AI-Powered Instagram Growth</p>
@@ -1927,7 +2135,9 @@
                     <div class="section-body" style="padding: 0;">
                         <div class="upload-hero" id="uploadArea">
                             <div class="upload-hero-content">
-                                <div class="upload-icon-large">📸</div>
+                                <div class="upload-icon-large" aria-hidden="true">
+                                    <svg class="icon icon-2xl"><use href="assets/ui-icons.svg#camera"></use></svg>
+                                </div>
                                 <h3>Upload Your Food Content</h3>
                                 <p>Drop photos or videos here, or click to browse</p>
                                 <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,video/mp4,video/quicktime" style="display: none;">
@@ -1953,10 +2163,14 @@
                                     autocomplete="off"
                                 >
                                 <button id="voiceBtn" class="voice-btn" onclick="toggleVoiceRecording()" title="Voice input">
-                                    <span id="voiceIcon">🎤</span>
+                                    <span id="voiceIcon" class="icon-button">
+                                        <svg class="icon icon-md"><use href="assets/ui-icons.svg#mic"></use></svg>
+                                    </span>
                                 </button>
                                 <button class="send-btn" onclick="uploadWithContext()" title="Upload & Analyze">
-                                    <span>⬆️</span>
+                                    <span class="icon-button">
+                                        <svg class="icon icon-md"><use href="assets/ui-icons.svg#send-up"></use></svg>
+                                    </span>
                                 </button>
                             </div>
                             <div id="voiceStatusBar" class="recording-status">
@@ -1978,13 +2192,13 @@
                 <section class="section">
                     <div class="section-header">
                         <div class="section-title">
-                            <div class="section-icon">📋</div>
+                            <div class="section-icon" aria-hidden="true">
+                                <svg class="icon icon-md"><use href="assets/ui-icons.svg#list"></use></svg>
+                            </div>
                             <h2>Content Queue</h2>
                         </div>
-                        <button class="btn btn-secondary btn-sm" onclick="loadPendingContent()">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
-                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                            </svg>
+                        <button class="btn btn-secondary btn-sm" onclick="loadPendingContent(this)">
+                            <svg class="icon icon-sm icon-refresh"><use href="assets/ui-icons.svg#refresh"></use></svg>
                             Refresh
                         </button>
                     </div>
@@ -2018,7 +2232,9 @@
                         </p>
                         <ul class="insight-list" id="strategy-insights">
                             <li>
-                                <span class="insight-bullet">✓</span>
+                                <span class="insight-bullet">
+                                    <svg class="icon"><use href="assets/ui-icons.svg#check"></use></svg>
+                                </span>
                                 <span>Generating recommendations...</span>
                             </li>
                         </ul>
@@ -2032,7 +2248,9 @@
                 <section class="section">
                     <div class="section-header">
                         <div class="section-title">
-                            <div class="section-icon">👀</div>
+                            <div class="section-icon" aria-hidden="true">
+                                <svg class="icon icon-md"><use href="assets/ui-icons.svg#eye"></use></svg>
+                            </div>
                             <h2>Competitor Insights</h2>
                         </div>
                     </div>
@@ -2055,13 +2273,13 @@
                 <section class="section">
                     <div class="section-header">
                         <div class="section-title">
-                            <div class="section-icon">🔥</div>
+                            <div class="section-icon" aria-hidden="true">
+                                <svg class="icon icon-md"><use href="assets/ui-icons.svg#flame"></use></svg>
+                            </div>
                             <h2>Trending Hashtags</h2>
                         </div>
-                        <button class="btn btn-secondary btn-sm" onclick="refreshTrendingHashtags()">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
-                                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                            </svg>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshTrendingHashtags(this)">
+                            <svg class="icon icon-sm icon-refresh"><use href="assets/ui-icons.svg#refresh"></use></svg>
                             Refresh
                         </button>
                     </div>
@@ -2079,8 +2297,13 @@
     <div class="modal-overlay" id="recommendationModal">
         <div class="modal">
             <div class="modal-header">
-                <h2>AI Recommendation</h2>
-                <button class="modal-close" onclick="closeModal()">✕</button>
+                <h2>
+                    <svg class="icon icon-lg"><use href="assets/ui-icons.svg#sparkles"></use></svg>
+                    AI Recommendation
+                </h2>
+                <button class="modal-close" onclick="closeModal()" aria-label="Close recommendation">
+                    <svg class="icon"><use href="assets/ui-icons.svg#x"></use></svg>
+                </button>
             </div>
             <div class="modal-body" id="modalContent">
                 <div class="loading">
@@ -2101,6 +2324,17 @@
         let isRecording = false;
         let recognition = null;
         let currentRecommendation = null;
+        const iconSprite = 'assets/ui-icons.svg';
+
+        function icon(name, className = 'icon', hidden = true) {
+            const ariaHidden = hidden ? 'true' : 'false';
+            return `<svg class="${className}" aria-hidden="${ariaHidden}"><use href="${iconSprite}#${name}"></use></svg>`;
+        }
+
+        function setButtonBusy(button, busy) {
+            if (!button) return;
+            button.classList.toggle('is-busy', busy);
+        }
         
         // Initialize speech recognition
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -2266,7 +2500,7 @@
             let variantsHtml = '';
             if (rec.caption_variants && rec.caption_variants.length > 0) {
                 variantsHtml = `
-                    <div class="recommendation-section">
+                    <div class="recommendation-section" style="--section-index: 1;">
                         <p class="section-label">Choose Your Style</p>
                         <div id="captionVariants" class="variant-cards">
                             ${rec.caption_variants.map((variant, i) => `
@@ -2284,36 +2518,36 @@
             
             // Build hashtags HTML
             const hashtags = rec.suggested_hashtags || [];
-            const hashtagHtml = hashtags.slice(0, 15).map(tag => 
-                `<span class="hashtag-chip">#${tag}</span>`
+            const hashtagHtml = hashtags.slice(0, 15).map((tag, index) =>
+                `<span class="hashtag-chip" style="--chip-index: ${index};">#${tag}</span>`
             ).join('');
             
             content.innerHTML = `
-                <div class="recommendation-section">
+                <div class="recommendation-section" style="--section-index: 0;">
                     <p class="section-label">AI-Generated Caption</p>
                     <div class="recommendation-content caption" id="selectedCaption">
                         ${rec.suggested_caption || 'No caption generated'}
                     </div>
                 </div>
                 ${variantsHtml}
-                <div class="recommendation-section">
+                <div class="recommendation-section" style="--section-index: 2;">
                     <p class="section-label">Recommended Hashtags <span style="color: var(--text-muted);">(${hashtags.length})</span></p>
                     <div class="modal-hashtags">
                         ${hashtagHtml}
                     </div>
                 </div>
-                <div class="recommendation-section">
+                <div class="recommendation-section" style="--section-index: 3;">
                     <p class="section-label">Best Time to Post</p>
                     <div class="recommendation-content">
                         <div class="optimal-time-display">
-                            <div class="time-badge">${rec.optimal_time?.time || '6:00 PM'}</div>
+                            <div class="time-badge">${icon('clock', 'icon icon-sm')}${rec.optimal_time?.time || '6:00 PM'}</div>
                             <div class="time-reasoning">${rec.optimal_time?.reasoning || 'Peak engagement time for maximum reach'}</div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-actions">
+                <div class="modal-actions recommendation-section" style="--section-index: 4;">
                     <button class="btn btn-primary" onclick="scheduleContent('${data.content_id}')">
-                        <span>📅</span> Schedule Post
+                        ${icon('calendar', 'icon icon-sm')} Schedule Post
                     </button>
                     <button class="btn btn-secondary" onclick="closeModal()">
                         Save for Later
@@ -2332,7 +2566,11 @@
             if (currentRecommendation && currentRecommendation.recommendation) {
                 const variant = currentRecommendation.recommendation.caption_variants[index];
                 if (variant) {
-                    document.getElementById('selectedCaption').textContent = variant.caption;
+                    const selectedCaption = document.getElementById('selectedCaption');
+                    selectedCaption.classList.remove('content-swap');
+                    void selectedCaption.offsetWidth;
+                    selectedCaption.textContent = variant.caption;
+                    selectedCaption.classList.add('content-swap');
                 }
             }
         }
@@ -2402,7 +2640,7 @@
                     document.getElementById('strategy-insights').innerHTML = 
                         insights.map(i => `
                             <li>
-                                <span class="insight-bullet">✓</span>
+                                <span class="insight-bullet">${icon('check', 'icon')}</span>
                                 <span>${i}</span>
                             </li>
                         `).join('');
@@ -2419,7 +2657,8 @@
         }
         
         // Load pending content
-        async function loadPendingContent() {
+        async function loadPendingContent(sourceBtn = null) {
+            setButtonBusy(sourceBtn, true);
             try {
                 const response = await fetch('/api/content/pending');
                 const data = await response.json();
@@ -2443,17 +2682,17 @@
                     };
                     queue.innerHTML = `
                         <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
+                            <div class="empty-state-icon">${icon('inbox', 'icon')}</div>
                             <p style="font-size: var(--text-sm); color: var(--text-tertiary); max-width: 280px; margin: 0 auto;">${emptyMessages[currentTab] || 'No content yet'}</p>
                         </div>
                     `;
                     return;
                 }
                 
-                queue.innerHTML = filtered.map(item => {
+                queue.innerHTML = filtered.map((item, index) => {
                     const thumbHtml = generateThumbnail(item);
                     return `
-                    <div class="queue-item">
+                    <div class="queue-item" style="--item-index: ${index};">
                         ${thumbHtml}
                         <div class="queue-meta">
                             <div class="queue-filename">${item.filename}</div>
@@ -2465,11 +2704,11 @@
                         <div class="queue-actions">
                             ${item.status === 'pending' ? `
                                 <button class="action-btn primary" onclick="getRecommendations('${item.id}')" title="Get AI recommendations">
-                                    ✨
+                                    ${icon('sparkles', 'icon icon-sm')}
                                 </button>
                             ` : ''}
                             <button class="action-btn" onclick="deleteContent('${item.id}')" title="Delete">
-                                🗑️
+                                ${icon('trash', 'icon icon-sm')}
                             </button>
                         </div>
                     </div>
@@ -2477,6 +2716,8 @@
                 
             } catch (err) {
                 console.error('Queue load error:', err);
+            } finally {
+                setButtonBusy(sourceBtn, false);
             }
         }
         
@@ -2500,7 +2741,7 @@
                         <img src="${item.filepath}" alt="" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="thumb-icon" style="display: none;">${getContentTypeIcon(contentType)}</div>
                         <div class="thumb-overlay"></div>
-                        ${isVideo ? '<div style="position: absolute; bottom: 4px; right: 4px; font-size: 12px;">▶️</div>' : ''}
+                        ${isVideo ? `<div class="video-indicator">${icon('play', 'icon')}</div>` : ''}
                     </div>
                 `;
             }
@@ -2518,15 +2759,7 @@
         
         // Get icon based on content type
         function getContentTypeIcon(contentType) {
-            const icons = {
-                'breakfast': '🍳',
-                'lunch': '🥗',
-                'dinner': '🍽️',
-                'dessert': '🍰',
-                'image': '📸',
-                'video': '🎬'
-            };
-            return icons[contentType] || icons[contentType?.toLowerCase()] || '🍽️';
+            return icon('utensils', 'icon icon-md');
         }
         
         // Get recommendations for existing content
@@ -2591,7 +2824,7 @@
                 
                 list.innerHTML = competitors.map(comp => `
                     <div class="competitor-item">
-                        <div class="competitor-avatar">👤</div>
+                        <div class="competitor-avatar">${icon('eye', 'icon icon-md')}</div>
                         <div class="competitor-info">
                             <div class="competitor-name">@${comp.username}</div>
                             <div class="competitor-stats">
@@ -2646,20 +2879,20 @@
             if (!hashtags.length) {
                 const fallback = ['foodie', 'homecooking', 'foodphotography', 'instafood', 'yummy',
                                 'delicious', 'foodstagram', 'homemade', 'cooking', 'foodlover'];
-                container.innerHTML = fallback.map(tag =>
-                    `<span class="hashtag-chip">#${tag}</span>`
+                container.innerHTML = fallback.map((tag, index) =>
+                    `<span class="hashtag-chip" style="--chip-index: ${index};">#${tag}</span>`
                 ).join('');
                 return;
             }
 
-            container.innerHTML = hashtags.slice(0, 12).map(h => {
+            container.innerHTML = hashtags.slice(0, 12).map((h, index) => {
                 const engagement = Number(h.avg_engagement);
                 const engagementLabel = Number.isFinite(engagement)
                     ? `<span class="engagement">${engagement.toFixed(1)}%</span>`
                     : '';
 
                 return `
-                    <span class="hashtag-chip">
+                    <span class="hashtag-chip" style="--chip-index: ${index};">
                         #${h.hashtag}
                         ${engagementLabel}
                     </span>
@@ -2693,13 +2926,14 @@
         }
         
         // Refresh trending hashtags
-        async function refreshTrendingHashtags() {
+        async function refreshTrendingHashtags(sourceBtn = null) {
+            setButtonBusy(sourceBtn, true);
             const refreshed = await loadTrendingHashtags(true);
-            if (refreshed) {
-                showToast('Trending hashtags updated');
-            } else {
-                showToast('Unable to refresh hashtags. Please try again.', 'error');
-            }
+            setButtonBusy(sourceBtn, false);
+            showToast(
+                refreshed ? 'Trending hashtags updated' : 'Unable to refresh hashtags. Please try again.',
+                refreshed ? 'success' : 'error'
+            );
         }
         
         // Generate new strategy
@@ -2728,7 +2962,7 @@
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             toast.innerHTML = `
-                <span>${type === 'success' ? '✓' : '⚠️'}</span>
+                <span class="toast-icon">${icon(type === 'success' ? 'check' : 'alert', 'icon')}</span>
                 <span>${message}</span>
             `;
             

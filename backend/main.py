@@ -63,6 +63,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+frontend_assets_dir = Path(__file__).parent.parent / "frontend" / "assets"
+if frontend_assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,

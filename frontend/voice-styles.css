@@ -97,7 +97,12 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  font-size: 18px;
+}
+
+.voice-btn .icon,
+.send-btn .icon {
+  width: 18px;
+  height: 18px;
 }
 
 .voice-btn:hover {
@@ -136,7 +141,6 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  font-size: 18px;
 }
 
 .send-btn:hover {
