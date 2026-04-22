@@ -1321,6 +1321,9 @@ async def delete_content(content_id: str):
             (content_id,)
         )
 
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+
         content = dict(rows[0])
         resolved_filepath = resolve_content_filepath(content.get('filepath'))
 

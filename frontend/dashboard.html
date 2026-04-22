@@ -2713,7 +2713,7 @@
                 }
             });
         }
-        
+
         // Handle file selection
         function handleFileSelect(file) {
             selectedFile = file;
@@ -3013,7 +3013,7 @@
                         </div>
                         <div class="queue-actions">
                             ${item.status === 'pending' ? `
-                                <button class="action-btn primary" onclick="getRecommendations('${item.id}')" title="Get AI recommendations">
+                            <button class="action-btn primary" onclick="getRecommendations('${item.id}')" title="Get AI recommendations">
                                     ${icon('sparkles', 'icon icon-sm')}
                                 </button>
                             ` : ''}
@@ -3103,13 +3103,19 @@
                 const response = await fetch(`/api/content/${contentId}`, {
                     method: 'DELETE'
                 });
+                const data = await response.json().catch(() => ({}));
                 
                 if (response.ok) {
                     showToast('Content removed from queue');
-                    loadPendingContent();
-                    loadDashboardData();
+                    await loadPendingContent();
+                    await loadDashboardData();
+                    return;
                 }
+
+                console.error('Delete content failed:', data);
+                showToast(data.detail || 'Unable to delete content. Please try again.', 'error');
             } catch (err) {
+                console.error('Delete content error:', err);
                 showToast('Unable to delete content. Please try again.', 'error');
             }
         }
