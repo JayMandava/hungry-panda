@@ -93,17 +93,21 @@ class LLMClient:
             cls._session = None
     
     @classmethod
-    def _compute_file_hash(cls, filepath: str) -> Tuple[str, float]:
-        """Compute a stable hash for cache key: (file_hash, mtime)."""
+    def _compute_cache_key(cls, filepath: str) -> Tuple[str, float]:
+        """Compute cache key from file metadata (mtime, size, path hash).
+        
+        Note: This uses metadata (mtime + size + path) not content hash for speed.
+        Content hash would require reading the entire file; metadata check is instant.
+        """
         path = Path(filepath)
         if not path.exists():
             return ("", 0.0)
-        # Use mtime + file size for fast cache key without reading full file
+        # Use mtime + file size + path for cache key (fast metadata check)
         stat = path.stat()
         key = f"{stat.st_mtime}:{stat.st_size}:{filepath}"
-        # Compute hash of the key for compact storage
-        file_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
-        return (file_hash, stat.st_mtime)
+        # Hash the metadata key for compact storage
+        key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return (key_hash, stat.st_mtime)
     
     @classmethod
     def _get_cached_visual_analysis(cls, filepath: str, user_text: str = "") -> Optional[Dict[str, Any]]:
@@ -112,7 +116,7 @@ class LLMClient:
         CRITICAL: Recomputes text-dependent fields (contradicts_user_text) fresh
         from cached visual facts + current user_text. Never returns stale mismatch judgments.
         """
-        cache_key = cls._compute_file_hash(filepath)
+        cache_key = cls._compute_cache_key(filepath)
         if cache_key in cls._visual_analysis_cache:
             cls._visual_cache_hits += 1
             # Get cached visual facts (image-only analysis)
@@ -164,7 +168,7 @@ class LLMClient:
         CRITICAL: Strips text-dependent fields (contradicts_user_text, mismatch_note)
         before caching. Cache stores only visual facts about the image itself.
         """
-        cache_key = cls._compute_file_hash(filepath)
+        cache_key = cls._compute_cache_key(filepath)
         # Create vision-only copy (text-dependent fields computed at retrieval time)
         vision_only = {
             k: v for k, v in analysis.items()
