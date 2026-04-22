@@ -438,6 +438,16 @@ async def health_check():
     """Health check endpoint with inference metrics"""
     recommendation_stats = get_recommendation_stats() if ANALYZER_AVAILABLE else {}
     inference_metrics = get_inference_metrics() if ANALYZER_AVAILABLE else {}
+    
+    # P1: Add visual analysis cache stats if available
+    visual_cache_stats = {}
+    if ANALYZER_AVAILABLE:
+        try:
+            from integrations.llm_client import LLMClient
+            visual_cache_stats = LLMClient.get_visual_cache_stats()
+        except Exception:
+            pass
+    
     return {
         "status": "healthy",
         "version": "1.0.0",
@@ -446,6 +456,7 @@ async def health_check():
         "structured_rec_success_rate": recommendation_stats.get("structured_rec_success_rate"),
         "recommendation_stats": recommendation_stats,
         "inference_metrics": inference_metrics,
+        "visual_cache_stats": visual_cache_stats,
     }
 
 

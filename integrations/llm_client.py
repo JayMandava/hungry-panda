@@ -3,13 +3,14 @@ LLM Client for Hungry Panda
 Supports multiple providers: Fireworks AI (Kimi K2.5), OpenAI
 """
 import base64
+import hashlib
 import io
 import json
 import logging
 from pathlib import Path
 import re
 import subprocess
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import requests
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -52,11 +53,89 @@ class LLMClient:
     
     Primary: Fireworks AI (Kimi K2.5)
     Fallback: OpenAI
+    
+    Features:
+    - Persistent HTTP session for connection reuse (reduces latency on repeated calls)
+    - 2-call max enforcement for recommendation flow
     """
+    
+    # Class-level session for connection reuse across instances
+    _session: Optional[requests.Session] = None
+    
+    # Visual analysis cache: {(file_hash, mtime): analysis_result}
+    # P1: Cache visual analysis by file hash to avoid repeated vision calls
+    _visual_analysis_cache: Dict[Tuple[str, float], Dict[str, Any]] = {}
+    _visual_cache_hits: int = 0
+    _visual_cache_misses: int = 0
     
     def __init__(self, provider: Optional[str] = None):
         self.provider = provider or config.LLM_PROVIDER
         self._validate_config()
+        # Initialize session on first use
+        if LLMClient._session is None:
+            LLMClient._session = requests.Session()
+    
+    @classmethod
+    def get_session(cls) -> requests.Session:
+        """Get or create the shared HTTP session."""
+        if cls._session is None:
+            cls._session = requests.Session()
+        return cls._session
+    
+    @classmethod
+    def close_session(cls):
+        """Close the shared HTTP session. Call on shutdown."""
+        if cls._session is not None:
+            cls._session.close()
+            cls._session = None
+    
+    @classmethod
+    def _compute_file_hash(cls, filepath: str) -> Tuple[str, float]:
+        """Compute a stable hash for cache key: (file_hash, mtime)."""
+        path = Path(filepath)
+        if not path.exists():
+            return ("", 0.0)
+        # Use mtime + file size for fast cache key without reading full file
+        stat = path.stat()
+        key = f"{stat.st_mtime}:{stat.st_size}:{filepath}"
+        # Compute hash of the key for compact storage
+        file_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return (file_hash, stat.st_mtime)
+    
+    @classmethod
+    def _get_cached_visual_analysis(cls, filepath: str) -> Optional[Dict[str, Any]]:
+        """Get cached visual analysis if file hasn't changed."""
+        cache_key = cls._compute_file_hash(filepath)
+        if cache_key in cls._visual_analysis_cache:
+            cls._visual_cache_hits += 1
+            logger.info(f"Visual analysis cache HIT for {Path(filepath).name}")
+            return cls._visual_analysis_cache[cache_key]
+        cls._visual_cache_misses += 1
+        return None
+    
+    @classmethod
+    def _cache_visual_analysis(cls, filepath: str, analysis: Dict[str, Any]) -> None:
+        """Cache visual analysis result for this file."""
+        cache_key = cls._compute_file_hash(filepath)
+        cls._visual_analysis_cache[cache_key] = analysis
+        logger.info(f"Visual analysis cached for {Path(filepath).name}")
+    
+    @classmethod
+    def get_visual_cache_stats(cls) -> Dict[str, int]:
+        """Return visual analysis cache statistics."""
+        return {
+            "hits": cls._visual_cache_hits,
+            "misses": cls._visual_cache_misses,
+            "size": len(cls._visual_analysis_cache),
+            "hit_rate": round(cls._visual_cache_hits / max(cls._visual_cache_hits + cls._visual_cache_misses, 1), 2),
+        }
+    
+    @classmethod
+    def clear_visual_cache(cls):
+        """Clear the visual analysis cache."""
+        cls._visual_analysis_cache.clear()
+        cls._visual_cache_hits = 0
+        cls._visual_cache_misses = 0
     
     def _validate_config(self):
         """Validate LLM configuration"""
@@ -93,33 +172,23 @@ class LLMClient:
         if self.provider == "none":
             return self._template_caption(content_description, content_type, cuisine)
         
-        system_prompt = """You are a social media expert specializing in food and cooking content.
-Your captions are engaging, authentic, and drive engagement (likes, comments, saves).
-Keep captions concise (under 100 words), use emojis naturally, and include a hook.
-Never use generic phrases like "delicious" or "yummy" without context.
-Return only valid JSON in the shape {"caption": "string"}."""
+        # Compact prompt to reduce token payload
+        system_prompt = "Create engaging food captions. Return JSON: {\"caption\": \"text\"}."
+        
+        user_prompt = f"""Write an Instagram caption for {content_type} food.
 
-        user_prompt = f"""Create an Instagram caption for this {content_type} content:
-
-Description: {content_description}
+Content: {content_description}
 Cuisine: {cuisine or 'general'}
 Tone: {tone}
 
-Requirements:
-- Start with a hook that stops the scroll
-- Include 2-4 relevant emojis naturally
-- Add a question or call-to-action at the end
-- Keep it under 100 words
-- Make it personal and authentic
-
-Return exactly:
-{{"caption": "final caption text"}}"""
+- Hook first, 2-4 emojis, CTA at end, under 100 words
+- Return: {{"caption": "your caption here"}}"""
 
         try:
             response = self._call_llm(
                 system_prompt,
                 user_prompt,
-                max_tokens=450,
+                max_tokens=200,  # Reduced from 450: caption is ~100 words, ~150 tokens max
                 timeout=45,
                 json_mode=True,
             )
@@ -154,30 +223,22 @@ Return exactly:
         if self.provider == "none":
             return self._template_hashtags(content_type, cuisine, count)
         
-        system_prompt = """You are a hashtag optimization expert for Instagram food content.
-You understand which hashtags drive discovery vs engagement.
-Return only valid JSON in the shape {"hashtags": ["tag1", "tag2"]}."""
+        # Compact prompt to reduce token payload
+        system_prompt = f"Generate {count} food hashtags. Return JSON: {{\"hashtags\": [\"...\"]}}."
 
-        user_prompt = f"""Generate {count} optimized Instagram hashtags for this food content:
+        user_prompt = f"""Hashtags for {cuisine or 'food'} {content_type}.
 
-Description: {content_description}
-Type: {content_type}
-Cuisine: {cuisine or 'general'}
+Content: {content_description}
 
-Mix should include:
-- 5-7 high-volume hashtags (100K+ posts) for discovery
-- 8-10 niche hashtags (10K-100K) for targeted reach
-- 3-5 community/brand hashtags
-- 2-3 trending if applicable
+Mix: discovery (high-volume), niche (10K-100K), community. No # symbols.
 
-Return exactly:
-{{"hashtags": ["tag1", "tag2"]}}"""
+Return: {{"hashtags": ["tag1", "tag2", ...]}}"""
 
         try:
             response = self._call_llm(
                 system_prompt,
                 user_prompt,
-                max_tokens=700,
+                max_tokens=300,  # Reduced from 700: 20 hashtags ~150 tokens, safe margin at 300
                 timeout=45,
                 json_mode=True,
             )
@@ -228,17 +289,15 @@ Return exactly:
             visual_analysis=visual_analysis,
         )
         system_prompt = (
-            "You are an elite Instagram growth strategist for food, beverage, restaurant, cafe, and hotel brands. "
-            "Your job is to maximize reach, saves, shares, profile visits, and follows. "
-            "Use the provided visual analysis as the source of truth when it conflicts with the user text. "
-            "If the asset is ambiguous, say so explicitly and lower confidence. "
-            "Return only valid JSON. No markdown fences. No explanation text before or after the JSON."
+            "You are an Instagram growth strategist for food content. "
+            "Return only valid JSON. No markdown. Use visual analysis as truth when it conflicts with user text."
         )
 
+        # Tight token budget: structured output is ~1.2K tokens, 1.5K gives safe margin
         response = self._call_llm(
             system_prompt,
             strategy_prompt,
-            max_tokens=2000,
+            max_tokens=1500,  # Reduced from 2000: JSON contract is ~1.2K tokens
             timeout=60,
             json_mode=True,
         )
@@ -376,7 +435,9 @@ Response:"""
             payload["response_format"] = {"type": "json_object"}
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=timeout or 45)
+            # Use persistent session for connection reuse (P1 improvement)
+            session = self.get_session()
+            response = session.post(url, headers=headers, json=payload, timeout=timeout or 45)
             response.raise_for_status()
             data = response.json()
             return data['choices'][0]['message']['content']
@@ -420,58 +481,27 @@ Response:"""
         fallback_analysis: Optional[Dict[str, Any]],
         visual_analysis: Optional[Dict[str, Any]] = None,
     ) -> str:
-        fallback_text = json.dumps(fallback_analysis or {}, ensure_ascii=True)
-        visual_text = json.dumps(visual_analysis or {}, ensure_ascii=True)
-        return f"""Analyze this uploaded Instagram asset for growth strategy.
+        # Compact JSON encoding to reduce token count
+        fallback_text = json.dumps(fallback_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+        visual_text = json.dumps(visual_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+        
+        return f"""Analyze this Instagram asset for growth.
 
-Asset path: {Path(filepath).name}
-User caption: {user_caption or ""}
-Additional context: {context or ""}
-Fallback analysis: {fallback_text}
-Visual analysis: {visual_text}
+Asset: {Path(filepath).name}
+Caption: {user_caption or 'none'}
+Context: {context or 'none'}
+Visual: {visual_text}
+Fallback: {fallback_text}
 
-Requirements:
-- Use the visual analysis as the primary signal.
-- If the uploaded image clearly conflicts with the user text, trust the image first and explicitly call out the mismatch.
-- If the dish visually suggests breakfast/brunch/snack (for example dosa, pancakes, coffee, pastries), do not recommend dinner timing unless the provided text strongly supports dinner.
-- Make the two caption variants meaningfully different:
-  1. "Performance" = hook-first, save/share/follow oriented
-  2. "Story-led" = brand voice, memory, hospitality, or craft angle
-- Make the two hashtag mixes meaningfully different:
-  1. broader discovery
-  2. narrower intent/community reach
-- Suggest a realistic posting time with reasoning tied to the dish, craving window, audience behavior, and format.
-- Be specific about why this post could grow the account.
-- Confidence must be lower if the asset is ambiguous or if the text context is weak.
+Rules:
+- Trust visual over text if they conflict
+- Match posting time to meal type (breakfast→morning, etc.)
+- Two caption variants: "Performance" (hook-first) and "Story-led" (brand voice)
+- Two hashtag variants: "Broader Discovery" vs "Targeted Intent"
+- Lower confidence if asset is ambiguous
 
-Return JSON with exactly this shape:
-{{
-  "content_analysis": {{
-    "category": "recipe_tutorial | food_photography | beverage | restaurant_moment | hospitality | unknown",
-    "dish_detected": "string",
-    "meal_type": "breakfast | brunch | lunch | dinner | dessert/snack | beverage | unknown",
-    "cuisine_type": "string",
-    "format": "image | video",
-    "confidence": 0.0
-  }},
-  "caption_variants": [
-    {{"label": "Performance", "caption": "string", "why": "string"}},
-    {{"label": "Story-led", "caption": "string", "why": "string"}}
-  ],
-  "hashtag_variants": [
-    {{"label": "Broader Discovery", "hashtags": ["tag1"], "why": "string"}},
-    {{"label": "Targeted Intent", "hashtags": ["tag1"], "why": "string"}}
-  ],
-  "optimal_time": {{
-    "time": "HH:MM",
-    "reasoning": "string",
-    "timezone": "local",
-    "engagement_prediction": "low | medium | high"
-  }},
-  "strategy_notes": "string",
-  "confidence_score": 0.0,
-  "content_patterns": ["string"]
-}}"""
+Return JSON:
+{{"content_analysis":{{"category":"...","dish_detected":"...","meal_type":"...","cuisine_type":"...","format":"image|video","confidence":0.0}},"caption_variants":[{{"label":"Performance","caption":"...","why":"..."}},{{"label":"Story-led","caption":"...","why":"..."}}],"hashtag_variants":[{{"label":"Broader Discovery","hashtags":["..."],"why":"..."}},{{"label":"Targeted Intent","hashtags":["..."],"why":"..."}}],"optimal_time":{{"time":"HH:MM","reasoning":"...","timezone":"local","engagement_prediction":"low|medium|high"}},"strategy_notes":"...","confidence_score":0.0,"content_patterns":["..."]}}"""
 
     def _inspect_visual_asset(
         self,
@@ -479,7 +509,15 @@ Return JSON with exactly this shape:
         user_caption: Optional[str],
         context: Optional[str],
     ) -> Dict[str, Any]:
-        """Run a compact vision pass to understand the uploaded image before strategy generation."""
+        """Run a compact vision pass to understand the uploaded image before strategy generation.
+        
+        P1: Cached by file hash - repeated analysis of same file skips vision call.
+        """
+        # Check cache first (P1 improvement)
+        cached = self._get_cached_visual_analysis(filepath)
+        if cached is not None:
+            return cached
+        
         image_data_url = self._build_image_data_url(filepath)
         if not image_data_url:
             return {
@@ -524,7 +562,8 @@ Return JSON with exactly this shape:
             "If the image is not food-related, say so directly. "
             "Do not explain your reasoning. Return only the requested 8 tagged lines."
         )
-        response = self._call_llm(system_prompt, content_blocks, max_tokens=220, timeout=45)
+        # 8 tagged lines output ~80 tokens, 150 gives safe margin
+        response = self._call_llm(system_prompt, content_blocks, max_tokens=150, timeout=45)
         result = self._parse_visual_analysis(response, filepath)
 
         # NOTE: Second visual-detail pass REMOVED from live request path
@@ -532,6 +571,9 @@ Return JSON with exactly this shape:
         # The _inspect_visual_detail method is kept for potential future debug/deep-analysis mode.
         # Previously triggered when: food_present=True and confidence >= 0.7
 
+        # Cache successful visual analysis result (P1 improvement)
+        self._cache_visual_analysis(filepath, result)
+        
         return result
 
     def _inspect_visual_detail(
