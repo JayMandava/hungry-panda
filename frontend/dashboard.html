@@ -1878,8 +1878,14 @@
             }
 
             .upload-hero::after {
-                inset: 2px;
-                border-radius: calc(var(--radius-xl) - 2px);
+                inset: 3px;
+                border: none;
+                border-radius: calc(var(--radius-xl) - 3px);
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Crect x='1.5' y='1.5' width='97' height='97' rx='12' ry='12' fill='none' stroke='rgba(190,214,165,0.72)' stroke-width='2' stroke-dasharray='6 7' stroke-linecap='round'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: center;
+                background-size: 100% 100%;
+                opacity: 0.78;
             }
             
             .upload-icon-large {
