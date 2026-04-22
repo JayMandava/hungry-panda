@@ -2185,16 +2185,18 @@
                 font-size: var(--text-sm);
             }
             
-            /* Modal adjustments */
+            /* Modal adjustments - contained card with side gutters */
             .modal {
-                max-height: 85vh;
-                border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-                margin-top: auto;
+                max-height: 90vh;
+                border-radius: var(--radius-lg);
+                margin: auto;
+                width: calc(100% - var(--space-8));
+                max-width: 600px;
             }
-            
+
             .modal-overlay {
-                align-items: flex-end;
-                padding: 0;
+                align-items: center;
+                padding: var(--space-4);
             }
             
             .modal-header {
@@ -2866,8 +2868,9 @@
             `;
             
             modal.classList.add('show');
+            document.body.style.overflow = 'hidden'; // Lock body scroll
         }
-        
+
         // Select variant
         function selectVariant(element, type, index) {
             document.querySelectorAll(`#${type}Variants .variant-card`).forEach(c => c.classList.remove('selected'));
@@ -2888,6 +2891,7 @@
         // Close modal
         function closeModal() {
             document.getElementById('recommendationModal').classList.remove('show');
+            document.body.style.overflow = ''; // Unlock body scroll
         }
         
         // Schedule content
@@ -2937,23 +2941,37 @@
                 
                 // Update strategy
                 if (data.current_strategy) {
-                    document.getElementById('strategy-theme').textContent = 
+                    document.getElementById('strategy-theme').textContent =
                         data.current_strategy.content_theme || 'General Growth';
-                    
+
                     const hashtags = JSON.parse(data.current_strategy.recommended_hashtags || '{}');
                     const insights = [
                         'Focus on high-engagement food content',
                         'Post during peak hours: 6-8 PM',
                         'Use trending hashtags strategically'
                     ];
-                    
-                    document.getElementById('strategy-insights').innerHTML = 
+
+                    document.getElementById('strategy-insights').innerHTML =
                         insights.map(i => `
                             <li>
                                 <span class="insight-bullet">${icon('check', 'icon')}</span>
                                 <span>${i}</span>
                             </li>
                         `).join('');
+                } else {
+                    // Fallback when no strategy exists
+                    document.getElementById('strategy-theme').textContent = 'Ready to Grow';
+                    document.getElementById('strategy-description').textContent = 'Generate your first strategy to get personalized recommendations for your content.';
+                    document.getElementById('strategy-insights').innerHTML = `
+                        <li>
+                            <span class="insight-bullet">${icon('check', 'icon')}</span>
+                            <span>Upload content to get started</span>
+                        </li>
+                        <li>
+                            <span class="insight-bullet">${icon('check', 'icon')}</span>
+                            <span>Track competitors to learn from their success</span>
+                        </li>
+                    `;
                 }
                 
                 // Load other data
@@ -3043,12 +3061,12 @@
         function generateThumbnail(item) {
             const contentType = item.content_type || 'image';
             const isVideo = item.filename?.match(/\.(mp4|mov|quicktime)$/i);
-            
-            // If we have a filepath that could be displayed as image
-            if (item.filepath && !isVideo) {
+
+            // If we have a preview_url that could be displayed as image
+            if (item.preview_url && !isVideo) {
                 return `
                     <div class="queue-thumb ${isVideo ? 'type-video' : 'type-image'}">
-                        <img src="${item.filepath}" alt="" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <img src="${item.preview_url}" alt="" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="thumb-icon" style="display: none;">${getContentTypeIcon(contentType)}</div>
                         <div class="thumb-overlay"></div>
                         ${isVideo ? `<div class="video-indicator">${icon('play', 'icon')}</div>` : ''}

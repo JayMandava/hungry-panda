@@ -67,6 +67,11 @@ frontend_assets_dir = Path(__file__).parent.parent / "frontend" / "assets"
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
 
+# Mount uploads directory for web access
+uploads_dir = Path(config.UPLOADS_DIR)
+if uploads_dir.exists():
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -1129,7 +1134,7 @@ async def get_pending_content():
         rows = execute_query(
             "SELECT * FROM content WHERE status IN ('pending', 'scheduled') ORDER BY upload_time DESC"
         )
-        
+
         content_list = []
         for row in rows:
             item = dict(row)
@@ -1139,10 +1144,23 @@ async def get_pending_content():
                     item['hashtags'] = json.loads(item['hashtags'])
                 except json.JSONDecodeError:
                     item['hashtags'] = []
+
+            # Convert filepath to web-accessible preview URL
+            stored_filepath = item.get('filepath')
+            if stored_filepath:
+                # Extract just the filename from the path
+                filename = Path(stored_filepath).name
+                item['preview_url'] = f"/uploads/{filename}"
+            else:
+                item['preview_url'] = None
+
+            # Remove the raw filepath from response (security)
+            item.pop('filepath', None)
+
             content_list.append(item)
-        
+
         return {"pending": content_list}
-        
+
     except DatabaseError as e:
         logger.error(f"Database error fetching pending content: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch content")
