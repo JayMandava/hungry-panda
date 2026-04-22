@@ -38,7 +38,6 @@ env/
 *.db
 *.sqlite3
 project-context.db
-!design-refactor.db
 uploads/
 *.log
 
