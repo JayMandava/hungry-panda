@@ -9,6 +9,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import random
 import re
+import time
+from collections import deque
+from dataclasses import dataclass, field
 
 # Optional LLM integration
 try:
@@ -24,6 +27,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Recommendation outcome tracking
 RECOMMENDATION_STATS = {
     "total": 0,
     "structured_attempts": 0,
@@ -34,6 +38,115 @@ RECOMMENDATION_STATS = {
         "template": 0,
     },
 }
+
+# Per-stage timing metrics (rolling window of last 100 requests)
+@dataclass
+class StageTiming:
+    """Tracks timing for a single stage"""
+    name: str
+    durations: deque = field(default_factory=lambda: deque(maxlen=100))
+    count: int = 0
+    total_time: float = 0.0
+    
+    def record(self, duration_ms: float):
+        self.durations.append(duration_ms)
+        self.count += 1
+        self.total_time += duration_ms
+    
+    @property
+    def avg_ms(self) -> float:
+        if not self.durations:
+            return 0.0
+        return sum(self.durations) / len(self.durations)
+    
+    @property
+    def p95_ms(self) -> float:
+        if len(self.durations) < 20:
+            return self.avg_ms
+        sorted_durations = sorted(self.durations)
+        idx = int(len(sorted_durations) * 0.95)
+        return sorted_durations[min(idx, len(sorted_durations) - 1)]
+    
+    def to_dict(self) -> Dict:
+        return {
+            "avg_ms": round(self.avg_ms, 2),
+            "p95_ms": round(self.p95_ms, 2),
+            "count": self.count,
+            "total_ms": round(self.total_time, 2),
+        }
+
+
+# Global stage timing registry
+STAGE_TIMINGS: Dict[str, StageTiming] = {}
+LLM_CALL_COUNTS: Dict[str, int] = {
+    "visual_analysis": 0,
+    "structured_recommendation": 0,
+    "caption_generation": 0,
+    "hashtag_generation": 0,
+    "visual_detail": 0,
+}
+
+
+class StageTimer:
+    """Context manager for timing a stage"""
+    def __init__(self, stage_name: str):
+        self.stage_name = stage_name
+        self.start_time = None
+        self.duration_ms = None
+    
+    def __enter__(self):
+        self.start_time = time.perf_counter()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.duration_ms = (time.perf_counter() - self.start_time) * 1000
+        
+        # Record in stage timings
+        if self.stage_name not in STAGE_TIMINGS:
+            STAGE_TIMINGS[self.stage_name] = StageTiming(self.stage_name)
+        STAGE_TIMINGS[self.stage_name].record(self.duration_ms)
+        
+        # Log the timing
+        logger.info(
+            "Stage timing: %s took %.2fms",
+            self.stage_name,
+            self.duration_ms
+        )
+        return False  # Don't suppress exceptions
+
+
+def get_stage_timings() -> Dict[str, Dict]:
+    """Return all stage timing metrics"""
+    return {
+        name: timing.to_dict()
+        for name, timing in STAGE_TIMINGS.items()
+    }
+
+
+def get_llm_call_counts() -> Dict[str, int]:
+    """Return LLM call counts"""
+    return dict(LLM_CALL_COUNTS)
+
+
+def reset_llm_call_counts():
+    """Reset LLM call counts (for testing)"""
+    global LLM_CALL_COUNTS
+    LLM_CALL_COUNTS = {k: 0 for k in LLM_CALL_COUNTS}
+
+
+def increment_llm_call_count(call_type: str):
+    """Increment count for a specific LLM call type"""
+    if call_type in LLM_CALL_COUNTS:
+        LLM_CALL_COUNTS[call_type] += 1
+
+
+def get_inference_metrics() -> Dict:
+    """Return comprehensive inference metrics for health/debug endpoint"""
+    return {
+        "stage_timings": get_stage_timings(),
+        "llm_call_counts": get_llm_call_counts(),
+        "recommendation_stats": get_recommendation_stats(),
+    }
 
 # Food & cooking specific caption templates and strategies
 CAPTION_TEMPLATES = {
@@ -701,18 +814,22 @@ class ContentAnalyzer:
         strategy: str = "engagement",
         content_description: str = "",
         rng: Optional[random.Random] = None,
+        use_llm: bool = True,
     ) -> str:
         """
         Generate an optimized caption based on content type and strategy.
         Uses LLM if configured, otherwise falls back to templates.
+        
+        Args:
+            use_llm: If False, skip LLM and use templates directly (for fallback mode)
         """
         rng = rng or random.Random()
         meal_type = content_type.get("meal_type", "dinner")
         cuisine = content_type.get("cuisine_type", "homestyle")
         dish_name = content_type.get("dish_detected") or f"{cuisine} {meal_type}".strip()
         
-        # Try LLM first if available
-        if LLM_AVAILABLE:
+        # Try LLM first if available AND use_llm is True
+        if LLM_AVAILABLE and use_llm:
             try:
                 description = content_description or f"{dish_name} food"
                 return llm_generate_caption(
@@ -724,7 +841,7 @@ class ContentAnalyzer:
             except Exception as e:
                 logger.warning(f"LLM caption generation failed, using templates: {e}")
         
-        # Fall back to template-based generation
+        # Fall back to template-based generation (guaranteed local, no LLM)
         # Select template category based on strategy
         if strategy == "engagement":
             templates = CAPTION_TEMPLATES["engagement_hook"] + CAPTION_TEMPLATES["recipe_focus"]
@@ -754,14 +871,18 @@ class ContentAnalyzer:
         count: int = 20,
         content_description: str = "",
         rng: Optional[random.Random] = None,
+        use_llm: bool = True,
     ) -> List[str]:
         """
         Select optimal hashtags based on content type and current performance.
         Uses LLM if configured, otherwise falls back to template-based selection.
+        
+        Args:
+            use_llm: If False, skip LLM and use templates directly (for fallback mode)
         """
         rng = rng or random.Random()
-        # Try LLM first if available
-        if LLM_AVAILABLE:
+        # Try LLM first if available AND use_llm is True
+        if LLM_AVAILABLE and use_llm:
             try:
                 description = content_description or f"{content_type.get('cuisine_type', '')} {content_type.get('meal_type', 'food')}"
                 return llm_generate_hashtags(
@@ -773,7 +894,7 @@ class ContentAnalyzer:
             except Exception as e:
                 logger.warning(f"LLM hashtag generation failed, using templates: {e}")
         
-        # Fall back to template-based selection
+        # Fall back to template-based selection (guaranteed local, no LLM)
         selected = []
         
         # Get database stats for hashtag performance
@@ -972,8 +1093,12 @@ class ContentAnalyzer:
 
         return notes.strip()
 
-    def build_caption_variants(self, content_type: Dict, content_description: str, seed: str) -> List[Dict]:
-        """Build two caption variants with different tones."""
+    def build_caption_variants(self, content_type: Dict, content_description: str, seed: str, use_llm: bool = True) -> List[Dict]:
+        """Build two caption variants with different tones.
+        
+        Args:
+            use_llm: If False, use template-based generation only (for fallback mode)
+        """
         variant_specs = [
             ("Performance", "engagement"),
             ("Story-led", "story" if content_description else "process"),
@@ -990,6 +1115,7 @@ class ContentAnalyzer:
                         strategy=strategy,
                         content_description=content_description,
                         rng=rng,
+                        use_llm=use_llm,
                     ),
                     "why": (
                         "Uses a stronger hook to drive saves and comments."
@@ -1000,12 +1126,17 @@ class ContentAnalyzer:
             )
         return variants
 
-    def build_hashtag_variants(self, content_type: Dict, content_description: str, seed: str) -> List[Dict]:
-        """Build two hashtag mixes for discovery vs targeted reach."""
+    def build_hashtag_variants(self, content_type: Dict, content_description: str, seed: str, use_llm: bool = True) -> List[Dict]:
+        """Build two hashtag mixes for discovery vs targeted reach.
+        
+        Args:
+            use_llm: If False, use template-based generation only (for fallback mode)
+        """
         base_tags = self.select_hashtags(
             content_type,
             content_description=content_description,
             rng=self._get_rng(f"{seed}:hashtags:base"),
+            use_llm=use_llm,
         )
 
         cuisine = content_type.get("cuisine_type")
@@ -1068,7 +1199,8 @@ async def analyze_and_recommend(
     content_id: str, 
     filepath: str, 
     user_caption: Optional[str] = None,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    _request_metrics: Optional[Dict] = None,
 ) -> Dict:
     """
     Main entry point: Analyze content and return full recommendation
@@ -1078,66 +1210,125 @@ async def analyze_and_recommend(
         filepath: Path to the uploaded file
         user_caption: Optional user-provided caption
         context: Additional context about the content (dish description, recipe, story)
+        _request_metrics: Optional dict to return per-request metrics (for testing/debug)
     """
+    request_start = time.perf_counter()
+    request_metrics = {
+        "content_id": content_id,
+        "stages": {},
+        "llm_calls": 0,
+        "total_duration_ms": 0,
+    }
+    
     analyzer = ContentAnalyzer()
     seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
     description = context or user_caption or ""
     visual_analysis = None
 
+    # Stage 1: Media preprocessing (if any)
+    with StageTimer("media_preprocessing"):
+        # Preprocessing happens lazily in llm_analyze_visual_asset via _build_image_data_url
+        pass  # Timing captured in visual analysis stage
+
+    # Stage 2: Visual analysis (first LLM call)
     if LLM_AVAILABLE:
         try:
-            visual_analysis = llm_analyze_visual_asset(
-                filepath,
-                user_caption=user_caption,
-                context=context,
-            )
+            with StageTimer("visual_analysis"):
+                increment_llm_call_count("visual_analysis")
+                visual_analysis = llm_analyze_visual_asset(
+                    filepath,
+                    user_caption=user_caption,
+                    context=context,
+                )
+            request_metrics["llm_calls"] += 1
+            request_metrics["stages"]["visual_analysis"] = STAGE_TIMINGS["visual_analysis"].avg_ms
         except Exception as e:
             logger.warning(f"Visual analysis failed, continuing without image facts: {e}")
+            request_metrics["stages"]["visual_analysis"] = None
 
-    # Detect content type
-    content_type = analyzer.refine_content_type(filepath, user_caption, context, visual_analysis)
-    description = analyzer.build_visual_description(visual_analysis, user_caption, context) or description
+    # Stage 3: Content type detection (local, no LLM)
+    with StageTimer("content_type_detection"):
+        content_type = analyzer.refine_content_type(filepath, user_caption, context, visual_analysis)
+        description = analyzer.build_visual_description(visual_analysis, user_caption, context) or description
+    request_metrics["stages"]["content_type_detection"] = STAGE_TIMINGS["content_type_detection"].avg_ms
 
-    # Primary path: one structured LLM call for captions, hashtags, timing, and strategy
+    # Stage 4: Primary path - structured recommendation (second LLM call)
     if LLM_AVAILABLE:
         try:
-            llm_result = llm_generate_post_recommendation(
-                filepath,
-                user_caption=user_caption,
-                context=context,
-                fallback_analysis=dict(content_type),
-                visual_analysis=visual_analysis,
-            )
-            result = analyzer.normalize_llm_recommendation(content_id, filepath, user_caption, context, llm_result)
+            with StageTimer("structured_recommendation"):
+                increment_llm_call_count("structured_recommendation")
+                llm_result = llm_generate_post_recommendation(
+                    filepath,
+                    user_caption=user_caption,
+                    context=context,
+                    fallback_analysis=dict(content_type),
+                    visual_analysis=visual_analysis,
+                )
+            request_metrics["llm_calls"] += 1
+            request_metrics["stages"]["structured_recommendation"] = STAGE_TIMINGS["structured_recommendation"].avg_ms
+            
+            # Stage 5: Normalize recommendation (local processing)
+            with StageTimer("normalize_recommendation"):
+                result = analyzer.normalize_llm_recommendation(content_id, filepath, user_caption, context, llm_result)
+            request_metrics["stages"]["normalize_recommendation"] = STAGE_TIMINGS["normalize_recommendation"].avg_ms
+            
             record_recommendation_outcome("llm_structured", structured_attempted=True, structured_success=True)
+            
+            request_metrics["total_duration_ms"] = round((time.perf_counter() - request_start) * 1000, 2)
+            if _request_metrics is not None:
+                _request_metrics.update(request_metrics)
+            
+            logger.info(
+                "Request %s completed: llm_calls=%d, total=%.2fms, stages=%s",
+                content_id,
+                request_metrics["llm_calls"],
+                request_metrics["total_duration_ms"],
+                request_metrics["stages"],
+            )
             return result
         except Exception as e:
             logger.warning(f"Structured recommendation failed, falling back to separate calls: {e}")
+            request_metrics["stages"]["structured_recommendation"] = None
 
-    # Fallback: separate caption, hashtag, and timing calls
-    caption_variants = analyzer.build_caption_variants(content_type, description, seed)
-    hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed)
-    caption = caption_variants[0]["caption"]
-    hashtags = hashtag_variants[0]["hashtags"]
-    time_rec = analyzer.recommend_posting_time(content_type, description)
-    strategy_notes = analyzer.build_strategy_notes(content_type, visual_analysis, time_rec)
-    source = "llm_fallback" if LLM_AVAILABLE else "template"
-    confidence_payload = analyzer.score_recommendation_quality(
-        caption_variants,
-        hashtag_variants,
-        time_rec,
-        strategy_notes,
-        recommendation_source=source,
-    )
-    confidence = confidence_payload["score"]
-    thinking_sections = analyzer.build_thinking_sections(
-        content_type,
-        time_rec,
-        confidence,
-        strategy_notes,
-        confidence_payload["reasoning"],
-    )
+    # Stage 6: Fallback path - local-only generation (NO additional LLM calls)
+    # CRITICAL: use_llm=False ensures we don't make any additional LLM calls during fallback
+    with StageTimer("fallback_generation"):
+        caption_variants = analyzer.build_caption_variants(content_type, description, seed, use_llm=False)
+        hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed, use_llm=False)
+        caption = caption_variants[0]["caption"]
+        hashtags = hashtag_variants[0]["hashtags"]
+        time_rec = analyzer.recommend_posting_time(content_type, description)
+        strategy_notes = analyzer.build_strategy_notes(content_type, visual_analysis, time_rec)
+        source = "llm_fallback" if LLM_AVAILABLE else "template"
+        confidence_payload = analyzer.score_recommendation_quality(
+            caption_variants,
+            hashtag_variants,
+            time_rec,
+            strategy_notes,
+            recommendation_source=source,
+        )
+        confidence = confidence_payload["score"]
+        thinking_sections = analyzer.build_thinking_sections(
+            content_type,
+            time_rec,
+            confidence,
+            strategy_notes,
+            confidence_payload["reasoning"],
+        )
+    request_metrics["stages"]["fallback_generation"] = STAGE_TIMINGS["fallback_generation"].avg_ms
     record_recommendation_outcome(source, structured_attempted=LLM_AVAILABLE, structured_success=False)
+    
+    request_metrics["total_duration_ms"] = round((time.perf_counter() - request_start) * 1000, 2)
+    if _request_metrics is not None:
+        _request_metrics.update(request_metrics)
+    
+    logger.info(
+        "Request %s completed (fallback): llm_calls=%d, total=%.2fms, stages=%s",
+        content_id,
+        request_metrics["llm_calls"],
+        request_metrics["total_duration_ms"],
+        request_metrics["stages"],
+    )
 
     return {
         "content_id": content_id,

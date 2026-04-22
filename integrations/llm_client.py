@@ -515,18 +515,25 @@ Return JSON with exactly this shape:
         response = self._call_llm(system_prompt, content_blocks, max_tokens=220, timeout=45)
         result = self._parse_visual_analysis(response, filepath)
 
-        # Second descriptive pass for high-confidence food assets to deepen visual_summary
-        if result.get("food_present") is True and result.get("confidence", 0) >= 0.7:
-            detail = self._inspect_visual_detail(image_data_url, result)
-            if detail:
-                result["visual_summary"] = detail
+        # NOTE: Second visual-detail pass REMOVED from live request path
+        # This was adding a serial remote round trip that doesn't justify the latency cost.
+        # The _inspect_visual_detail method is kept for potential future debug/deep-analysis mode.
+        # Previously triggered when: food_present=True and confidence >= 0.7
 
         return result
 
     def _inspect_visual_detail(
         self, image_data_url: str, first_pass: Dict[str, Any]
     ) -> Optional[str]:
-        """Second vision pass: richer description for high-confidence food assets."""
+        """Second vision pass: richer description for high-confidence food assets.
+        
+        NOTE: This is NOT called in the standard request path. It is kept for:
+        1. Potential future debug/deep-analysis mode
+        2. Manual enrichment workflows
+        3. A/B testing visual description quality vs latency
+        
+        The standard path intentionally does NOT call this to maintain the 2-call max guarantee.
+        """
         dish = first_pass.get("dish_detected") or "the dish"
         content_blocks = [
             {
