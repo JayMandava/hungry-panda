@@ -93,6 +93,18 @@ async def startup_event():
         raise
 
 
+# P1: Cleanup on shutdown - close persistent HTTP session
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on shutdown"""
+    try:
+        from integrations.llm_client import LLMClient
+        LLMClient.close_session()
+        logger.info("HTTP session closed on shutdown")
+    except Exception as e:
+        logger.warning(f"Error closing HTTP session: {e}")
+
+
 # Pydantic Models
 class ContentUploadRequest(BaseModel):
     """Request model for content upload"""

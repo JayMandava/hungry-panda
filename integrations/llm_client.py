@@ -62,11 +62,14 @@ class LLMClient:
     # Class-level session for connection reuse across instances
     _session: Optional[requests.Session] = None
     
-    # Visual analysis cache: {(file_hash, mtime): analysis_result}
+    # Visual analysis cache: {(file_hash, mtime): vision_only_result}
     # P1: Cache visual analysis by file hash to avoid repeated vision calls
+    # CRITICAL: Only caches visual facts (food_present, dish, meal_type, etc.)
+    # Does NOT cache text-dependent fields (contradicts_user_text, mismatch_note)
     _visual_analysis_cache: Dict[Tuple[str, float], Dict[str, Any]] = {}
     _visual_cache_hits: int = 0
     _visual_cache_misses: int = 0
+    _visual_cache_max_size: int = 100  # Bounded cache for long-running server
     
     def __init__(self, provider: Optional[str] = None):
         self.provider = provider or config.LLM_PROVIDER
@@ -103,22 +106,77 @@ class LLMClient:
         return (file_hash, stat.st_mtime)
     
     @classmethod
-    def _get_cached_visual_analysis(cls, filepath: str) -> Optional[Dict[str, Any]]:
-        """Get cached visual analysis if file hasn't changed."""
+    def _get_cached_visual_analysis(cls, filepath: str, user_text: str = "") -> Optional[Dict[str, Any]]:
+        """Get cached visual analysis if file hasn't changed.
+        
+        CRITICAL: Recomputes text-dependent fields (contradicts_user_text) fresh
+        from cached visual facts + current user_text. Never returns stale mismatch judgments.
+        """
         cache_key = cls._compute_file_hash(filepath)
         if cache_key in cls._visual_analysis_cache:
             cls._visual_cache_hits += 1
-            logger.info(f"Visual analysis cache HIT for {Path(filepath).name}")
-            return cls._visual_analysis_cache[cache_key]
+            # Get cached visual facts (image-only analysis)
+            cached_vision = cls._visual_analysis_cache[cache_key]
+            # Recompute text-dependent fields fresh with current user_text
+            result = dict(cached_vision)
+            result["contradicts_user_text"] = cls._check_text_visual_mismatch(
+                result.get("dish_detected", ""),
+                result.get("meal_type", "unknown"),
+                user_text
+            )
+            logger.info(f"Visual analysis cache HIT for {Path(filepath).name} (mismatch recomputed)")
+            return result
         cls._visual_cache_misses += 1
         return None
     
     @classmethod
+    def _check_text_visual_mismatch(cls, dish_detected: str, meal_type: str, user_text: str) -> bool:
+        """Check if user text contradicts visual analysis.
+        
+        Simple heuristics: if user mentions a different dish or meal type than visual.
+        """
+        if not user_text:
+            return False
+        user_lower = user_text.lower()
+        mismatches = []
+        # Check dish mismatch
+        if dish_detected and dish_detected.lower() not in user_lower:
+            # Check if user mentioned any specific dish
+            dish_keywords = ["pizza", "pasta", "burger", "salad", "curry", "dosa", "sushi", "ramen", "taco", "burrito"]
+            user_dish = next((d for d in dish_keywords if d in user_lower), None)
+            if user_dish and user_dish != dish_detected.lower():
+                mismatches.append(f"visual={dish_detected}, text={user_dish}")
+        # Check meal type mismatch
+        if meal_type and meal_type != "unknown":
+            opposite_meals = {
+                "breakfast": ["dinner", "dessert"],
+                "dinner": ["breakfast", "brunch"],
+            }
+            opposites = opposite_meals.get(meal_type, [])
+            if any(m in user_lower for m in opposites):
+                mismatches.append(f"visual={meal_type}, text mentions {opposites}")
+        return len(mismatches) > 0
+    
+    @classmethod
     def _cache_visual_analysis(cls, filepath: str, analysis: Dict[str, Any]) -> None:
-        """Cache visual analysis result for this file."""
+        """Cache visual analysis result for this file.
+        
+        CRITICAL: Strips text-dependent fields (contradicts_user_text, mismatch_note)
+        before caching. Cache stores only visual facts about the image itself.
+        """
         cache_key = cls._compute_file_hash(filepath)
-        cls._visual_analysis_cache[cache_key] = analysis
-        logger.info(f"Visual analysis cached for {Path(filepath).name}")
+        # Create vision-only copy (text-dependent fields computed at retrieval time)
+        vision_only = {
+            k: v for k, v in analysis.items()
+            if k not in ("contradicts_user_text", "mismatch_note")
+        }
+        cls._visual_analysis_cache[cache_key] = vision_only
+        
+        # Bounded cache: evict oldest if at max size (simple LRU via dict ordering in Python 3.7+)
+        while len(cls._visual_analysis_cache) > cls._visual_cache_max_size:
+            cls._visual_analysis_cache.pop(next(iter(cls._visual_analysis_cache)))
+        
+        logger.info(f"Visual analysis cached for {Path(filepath).name} (vision-only fields, cache_size={len(cls._visual_analysis_cache)})")
     
     @classmethod
     def get_visual_cache_stats(cls) -> Dict[str, int]:
@@ -512,9 +570,13 @@ Return JSON:
         """Run a compact vision pass to understand the uploaded image before strategy generation.
         
         P1: Cached by file hash - repeated analysis of same file skips vision call.
+        CRITICAL: Cache only stores visual facts. Text-dependent fields recomputed fresh.
         """
+        user_text = f"{user_caption or ''} {context or ''}".strip()
+        
         # Check cache first (P1 improvement)
-        cached = self._get_cached_visual_analysis(filepath)
+        # Pass user_text so mismatch can be recomputed fresh (not cached)
+        cached = self._get_cached_visual_analysis(filepath, user_text=user_text)
         if cached is not None:
             return cached
         
