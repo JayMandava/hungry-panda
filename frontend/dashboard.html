@@ -126,21 +126,20 @@
             z-index: 0;
         }
 
-        /* Panda Hero Background - Positioned Top Right */
-        .panda-bg {
+         /* Premium Liquid Glass Nature Background */
+        .ambient-bg {
             position: fixed;
-            top: -50px;
-            right: -50px;
-            width: 400px;
-            height: 400px;
-            background-image: url('assets/panda-hero.png');
-            background-size: contain;
-            background-repeat: no-repeat;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('assets/bg-ambient-web.png');
+            background-size: cover;
             background-position: center;
-            opacity: 0.15;
+            background-repeat: no-repeat;
+            opacity: 0.6;
             pointer-events: none;
             z-index: 0;
-            filter: blur(2px);
         }
 
         /* Nature texture overlay */
@@ -2236,8 +2235,8 @@
     </style>
 </head>
 <body>
-    <!-- Panda Hero Background -->
-    <div class="panda-bg" aria-hidden="true"></div>
+     <!-- Premium Nature Ambient Background -->
+    <div class="ambient-bg" aria-hidden="true"></div>
 
     <!-- Header -->
     <header class="app-header">
