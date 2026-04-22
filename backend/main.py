@@ -44,7 +44,7 @@ from integrations.instagram_login import (
 
 # Import analyzer modules
 try:
-    from analyzer.content_engine import analyze_and_recommend, get_recommendation_stats
+    from analyzer.content_engine import analyze_and_recommend, get_recommendation_stats, get_inference_metrics
     from analyzer.competitor_tracker import (
         analyze_competitor,
         get_market_insights,
@@ -91,6 +91,18 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Startup error: {e}")
         raise
+
+
+# P1: Cleanup on shutdown - close persistent HTTP session
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on shutdown"""
+    try:
+        from integrations.llm_client import LLMClient
+        LLMClient.close_session()
+        logger.info("HTTP session closed on shutdown")
+    except Exception as e:
+        logger.warning(f"Error closing HTTP session: {e}")
 
 
 # Pydantic Models
@@ -435,8 +447,19 @@ async def serve_voice_styles():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with inference metrics"""
     recommendation_stats = get_recommendation_stats() if ANALYZER_AVAILABLE else {}
+    inference_metrics = get_inference_metrics() if ANALYZER_AVAILABLE else {}
+    
+    # P1: Add visual analysis cache stats if available
+    visual_cache_stats = {}
+    if ANALYZER_AVAILABLE:
+        try:
+            from integrations.llm_client import LLMClient
+            visual_cache_stats = LLMClient.get_visual_cache_stats()
+        except Exception:
+            pass
+    
     return {
         "status": "healthy",
         "version": "1.0.0",
@@ -444,7 +467,17 @@ async def health_check():
         "analyzer_available": ANALYZER_AVAILABLE,
         "structured_rec_success_rate": recommendation_stats.get("structured_rec_success_rate"),
         "recommendation_stats": recommendation_stats,
+        "inference_metrics": inference_metrics,
+        "visual_cache_stats": visual_cache_stats,
     }
+
+
+@app.get("/api/debug/inference-metrics")
+async def debug_inference_metrics():
+    """Debug endpoint for detailed inference timing and call counts"""
+    if not ANALYZER_AVAILABLE:
+        return {"error": "Analyzer not available"}
+    return get_inference_metrics()
 
 
 @app.get("/upload", response_class=HTMLResponse)

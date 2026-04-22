@@ -3,13 +3,14 @@ LLM Client for Hungry Panda
 Supports multiple providers: Fireworks AI (Kimi K2.5), OpenAI
 """
 import base64
+import hashlib
 import io
 import json
 import logging
 from pathlib import Path
 import re
 import subprocess
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import requests
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -52,11 +53,151 @@ class LLMClient:
     
     Primary: Fireworks AI (Kimi K2.5)
     Fallback: OpenAI
+    
+    Features:
+    - Persistent HTTP session for connection reuse (reduces latency on repeated calls)
+    - 2-call max enforcement for recommendation flow
     """
+    
+    # Class-level session for connection reuse across instances
+    _session: Optional[requests.Session] = None
+    
+    # Visual analysis cache: {(file_hash, mtime): vision_only_result}
+    # P1: Cache visual analysis by file hash to avoid repeated vision calls
+    # CRITICAL: Only caches visual facts (food_present, dish, meal_type, etc.)
+    # Does NOT cache text-dependent fields (contradicts_user_text, mismatch_note)
+    _visual_analysis_cache: Dict[Tuple[str, float], Dict[str, Any]] = {}
+    _visual_cache_hits: int = 0
+    _visual_cache_misses: int = 0
+    _visual_cache_max_size: int = 100  # Bounded cache for long-running server
     
     def __init__(self, provider: Optional[str] = None):
         self.provider = provider or config.LLM_PROVIDER
         self._validate_config()
+        # Initialize session on first use
+        if LLMClient._session is None:
+            LLMClient._session = requests.Session()
+    
+    @classmethod
+    def get_session(cls) -> requests.Session:
+        """Get or create the shared HTTP session."""
+        if cls._session is None:
+            cls._session = requests.Session()
+        return cls._session
+    
+    @classmethod
+    def close_session(cls):
+        """Close the shared HTTP session. Call on shutdown."""
+        if cls._session is not None:
+            cls._session.close()
+            cls._session = None
+    
+    @classmethod
+    def _compute_cache_key(cls, filepath: str) -> Tuple[str, float]:
+        """Compute cache key from file metadata (mtime, size, path hash).
+        
+        Note: This uses metadata (mtime + size + path) not content hash for speed.
+        Content hash would require reading the entire file; metadata check is instant.
+        """
+        path = Path(filepath)
+        if not path.exists():
+            return ("", 0.0)
+        # Use mtime + file size + path for cache key (fast metadata check)
+        stat = path.stat()
+        key = f"{stat.st_mtime}:{stat.st_size}:{filepath}"
+        # Hash the metadata key for compact storage
+        key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return (key_hash, stat.st_mtime)
+    
+    @classmethod
+    def _get_cached_visual_analysis(cls, filepath: str, user_text: str = "") -> Optional[Dict[str, Any]]:
+        """Get cached visual analysis if file hasn't changed.
+        
+        CRITICAL: Recomputes text-dependent fields (contradicts_user_text) fresh
+        from cached visual facts + current user_text. Never returns stale mismatch judgments.
+        """
+        cache_key = cls._compute_cache_key(filepath)
+        if cache_key in cls._visual_analysis_cache:
+            cls._visual_cache_hits += 1
+            # Get cached visual facts (image-only analysis)
+            cached_vision = cls._visual_analysis_cache[cache_key]
+            # Recompute text-dependent fields fresh with current user_text
+            result = dict(cached_vision)
+            result["contradicts_user_text"] = cls._check_text_visual_mismatch(
+                result.get("dish_detected", ""),
+                result.get("meal_type", "unknown"),
+                user_text
+            )
+            logger.info(f"Visual analysis cache HIT for {Path(filepath).name} (mismatch recomputed)")
+            return result
+        cls._visual_cache_misses += 1
+        return None
+    
+    @classmethod
+    def _check_text_visual_mismatch(cls, dish_detected: str, meal_type: str, user_text: str) -> bool:
+        """Check if user text contradicts visual analysis.
+        
+        Simple heuristics: if user mentions a different dish or meal type than visual.
+        """
+        if not user_text:
+            return False
+        user_lower = user_text.lower()
+        mismatches = []
+        # Check dish mismatch
+        if dish_detected and dish_detected.lower() not in user_lower:
+            # Check if user mentioned any specific dish
+            dish_keywords = ["pizza", "pasta", "burger", "salad", "curry", "dosa", "sushi", "ramen", "taco", "burrito"]
+            user_dish = next((d for d in dish_keywords if d in user_lower), None)
+            if user_dish and user_dish != dish_detected.lower():
+                mismatches.append(f"visual={dish_detected}, text={user_dish}")
+        # Check meal type mismatch
+        if meal_type and meal_type != "unknown":
+            opposite_meals = {
+                "breakfast": ["dinner", "dessert"],
+                "dinner": ["breakfast", "brunch"],
+            }
+            opposites = opposite_meals.get(meal_type, [])
+            if any(m in user_lower for m in opposites):
+                mismatches.append(f"visual={meal_type}, text mentions {opposites}")
+        return len(mismatches) > 0
+    
+    @classmethod
+    def _cache_visual_analysis(cls, filepath: str, analysis: Dict[str, Any]) -> None:
+        """Cache visual analysis result for this file.
+        
+        CRITICAL: Strips text-dependent fields (contradicts_user_text, mismatch_note)
+        before caching. Cache stores only visual facts about the image itself.
+        """
+        cache_key = cls._compute_cache_key(filepath)
+        # Create vision-only copy (text-dependent fields computed at retrieval time)
+        vision_only = {
+            k: v for k, v in analysis.items()
+            if k not in ("contradicts_user_text", "mismatch_note")
+        }
+        cls._visual_analysis_cache[cache_key] = vision_only
+        
+        # Bounded cache: evict oldest if at max size (simple LRU via dict ordering in Python 3.7+)
+        while len(cls._visual_analysis_cache) > cls._visual_cache_max_size:
+            cls._visual_analysis_cache.pop(next(iter(cls._visual_analysis_cache)))
+        
+        logger.info(f"Visual analysis cached for {Path(filepath).name} (vision-only fields, cache_size={len(cls._visual_analysis_cache)})")
+    
+    @classmethod
+    def get_visual_cache_stats(cls) -> Dict[str, int]:
+        """Return visual analysis cache statistics."""
+        return {
+            "hits": cls._visual_cache_hits,
+            "misses": cls._visual_cache_misses,
+            "size": len(cls._visual_analysis_cache),
+            "hit_rate": round(cls._visual_cache_hits / max(cls._visual_cache_hits + cls._visual_cache_misses, 1), 2),
+        }
+    
+    @classmethod
+    def clear_visual_cache(cls):
+        """Clear the visual analysis cache."""
+        cls._visual_analysis_cache.clear()
+        cls._visual_cache_hits = 0
+        cls._visual_cache_misses = 0
     
     def _validate_config(self):
         """Validate LLM configuration"""
@@ -93,33 +234,23 @@ class LLMClient:
         if self.provider == "none":
             return self._template_caption(content_description, content_type, cuisine)
         
-        system_prompt = """You are a social media expert specializing in food and cooking content.
-Your captions are engaging, authentic, and drive engagement (likes, comments, saves).
-Keep captions concise (under 100 words), use emojis naturally, and include a hook.
-Never use generic phrases like "delicious" or "yummy" without context.
-Return only valid JSON in the shape {"caption": "string"}."""
+        # Compact prompt to reduce token payload
+        system_prompt = "Create engaging food captions. Return JSON: {\"caption\": \"text\"}."
+        
+        user_prompt = f"""Write an Instagram caption for {content_type} food.
 
-        user_prompt = f"""Create an Instagram caption for this {content_type} content:
-
-Description: {content_description}
+Content: {content_description}
 Cuisine: {cuisine or 'general'}
 Tone: {tone}
 
-Requirements:
-- Start with a hook that stops the scroll
-- Include 2-4 relevant emojis naturally
-- Add a question or call-to-action at the end
-- Keep it under 100 words
-- Make it personal and authentic
-
-Return exactly:
-{{"caption": "final caption text"}}"""
+- Hook first, 2-4 emojis, CTA at end, under 100 words
+- Return: {{"caption": "your caption here"}}"""
 
         try:
             response = self._call_llm(
                 system_prompt,
                 user_prompt,
-                max_tokens=450,
+                max_tokens=200,  # Reduced from 450: caption is ~100 words, ~150 tokens max
                 timeout=45,
                 json_mode=True,
             )
@@ -154,30 +285,22 @@ Return exactly:
         if self.provider == "none":
             return self._template_hashtags(content_type, cuisine, count)
         
-        system_prompt = """You are a hashtag optimization expert for Instagram food content.
-You understand which hashtags drive discovery vs engagement.
-Return only valid JSON in the shape {"hashtags": ["tag1", "tag2"]}."""
+        # Compact prompt to reduce token payload
+        system_prompt = f"Generate {count} food hashtags. Return JSON: {{\"hashtags\": [\"...\"]}}."
 
-        user_prompt = f"""Generate {count} optimized Instagram hashtags for this food content:
+        user_prompt = f"""Hashtags for {cuisine or 'food'} {content_type}.
 
-Description: {content_description}
-Type: {content_type}
-Cuisine: {cuisine or 'general'}
+Content: {content_description}
 
-Mix should include:
-- 5-7 high-volume hashtags (100K+ posts) for discovery
-- 8-10 niche hashtags (10K-100K) for targeted reach
-- 3-5 community/brand hashtags
-- 2-3 trending if applicable
+Mix: discovery (high-volume), niche (10K-100K), community. No # symbols.
 
-Return exactly:
-{{"hashtags": ["tag1", "tag2"]}}"""
+Return: {{"hashtags": ["tag1", "tag2", ...]}}"""
 
         try:
             response = self._call_llm(
                 system_prompt,
                 user_prompt,
-                max_tokens=700,
+                max_tokens=300,  # Reduced from 700: 20 hashtags ~150 tokens, safe margin at 300
                 timeout=45,
                 json_mode=True,
             )
@@ -196,16 +319,28 @@ Return exactly:
         context: Optional[str] = None,
         fallback_analysis: Optional[Dict[str, Any]] = None,
         visual_analysis: Optional[Dict[str, Any]] = None,
+        _allow_internal_visual: bool = True,
     ) -> Dict[str, Any]:
         """
         Generate a structured, growth-focused recommendation for a post.
         Uses image understanding when the uploaded asset is a supported image.
         Pass pre-computed visual_analysis to avoid a redundant vision call.
+        
+        Args:
+            _allow_internal_visual: If False, raises error when visual_analysis is None
+                                   instead of making an internal call. Used by the
+                                   orchestration layer to enforce 2-call max guarantee.
         """
         if self.provider == "none":
             raise LLMError("LLM disabled - multimodal recommendation unavailable")
 
         if visual_analysis is None:
+            if not _allow_internal_visual:
+                raise LLMError(
+                    "visual_analysis is None but _allow_internal_visual=False. "
+                    "This would violate the 2-call max guarantee. "
+                    "The orchestration layer should have provided visual_analysis or skipped this path."
+                )
             visual_analysis = self._inspect_visual_asset(filepath, user_caption=user_caption, context=context)
 
         strategy_prompt = self._build_post_recommendation_prompt(
@@ -216,17 +351,15 @@ Return exactly:
             visual_analysis=visual_analysis,
         )
         system_prompt = (
-            "You are an elite Instagram growth strategist for food, beverage, restaurant, cafe, and hotel brands. "
-            "Your job is to maximize reach, saves, shares, profile visits, and follows. "
-            "Use the provided visual analysis as the source of truth when it conflicts with the user text. "
-            "If the asset is ambiguous, say so explicitly and lower confidence. "
-            "Return only valid JSON. No markdown fences. No explanation text before or after the JSON."
+            "You are an Instagram growth strategist for food content. "
+            "Return only valid JSON. No markdown. Use visual analysis as truth when it conflicts with user text."
         )
 
+        # Tight token budget: structured output is ~1.2K tokens, 1.5K gives safe margin
         response = self._call_llm(
             system_prompt,
             strategy_prompt,
-            max_tokens=2000,
+            max_tokens=1500,  # Reduced from 2000: JSON contract is ~1.2K tokens
             timeout=60,
             json_mode=True,
         )
@@ -239,10 +372,11 @@ Return exactly:
                 + "\n\nCRITICAL: Your previous response was not valid JSON. "
                 "Return ONLY the JSON object, starting with { and ending with }. No other text."
             )
+            # Retry with same tight budget (P1 consistency)
             response = self._call_llm(
                 system_prompt,
                 retry_prompt,
-                max_tokens=2000,
+                max_tokens=1500,  # Consistent with primary call (reduced from 2000)
                 timeout=60,
                 json_mode=True,
             )
@@ -364,7 +498,9 @@ Response:"""
             payload["response_format"] = {"type": "json_object"}
         
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=timeout or 45)
+            # Use persistent session for connection reuse (P1 improvement)
+            session = self.get_session()
+            response = session.post(url, headers=headers, json=payload, timeout=timeout or 45)
             response.raise_for_status()
             data = response.json()
             return data['choices'][0]['message']['content']
@@ -408,58 +544,27 @@ Response:"""
         fallback_analysis: Optional[Dict[str, Any]],
         visual_analysis: Optional[Dict[str, Any]] = None,
     ) -> str:
-        fallback_text = json.dumps(fallback_analysis or {}, ensure_ascii=True)
-        visual_text = json.dumps(visual_analysis or {}, ensure_ascii=True)
-        return f"""Analyze this uploaded Instagram asset for growth strategy.
+        # Compact JSON encoding to reduce token count
+        fallback_text = json.dumps(fallback_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+        visual_text = json.dumps(visual_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+        
+        return f"""Analyze this Instagram asset for growth.
 
-Asset path: {Path(filepath).name}
-User caption: {user_caption or ""}
-Additional context: {context or ""}
-Fallback analysis: {fallback_text}
-Visual analysis: {visual_text}
+Asset: {Path(filepath).name}
+Caption: {user_caption or 'none'}
+Context: {context or 'none'}
+Visual: {visual_text}
+Fallback: {fallback_text}
 
-Requirements:
-- Use the visual analysis as the primary signal.
-- If the uploaded image clearly conflicts with the user text, trust the image first and explicitly call out the mismatch.
-- If the dish visually suggests breakfast/brunch/snack (for example dosa, pancakes, coffee, pastries), do not recommend dinner timing unless the provided text strongly supports dinner.
-- Make the two caption variants meaningfully different:
-  1. "Performance" = hook-first, save/share/follow oriented
-  2. "Story-led" = brand voice, memory, hospitality, or craft angle
-- Make the two hashtag mixes meaningfully different:
-  1. broader discovery
-  2. narrower intent/community reach
-- Suggest a realistic posting time with reasoning tied to the dish, craving window, audience behavior, and format.
-- Be specific about why this post could grow the account.
-- Confidence must be lower if the asset is ambiguous or if the text context is weak.
+Rules:
+- Trust visual over text if they conflict
+- Match posting time to meal type (breakfast→morning, etc.)
+- Two caption variants: "Performance" (hook-first) and "Story-led" (brand voice)
+- Two hashtag variants: "Broader Discovery" vs "Targeted Intent"
+- Lower confidence if asset is ambiguous
 
-Return JSON with exactly this shape:
-{{
-  "content_analysis": {{
-    "category": "recipe_tutorial | food_photography | beverage | restaurant_moment | hospitality | unknown",
-    "dish_detected": "string",
-    "meal_type": "breakfast | brunch | lunch | dinner | dessert/snack | beverage | unknown",
-    "cuisine_type": "string",
-    "format": "image | video",
-    "confidence": 0.0
-  }},
-  "caption_variants": [
-    {{"label": "Performance", "caption": "string", "why": "string"}},
-    {{"label": "Story-led", "caption": "string", "why": "string"}}
-  ],
-  "hashtag_variants": [
-    {{"label": "Broader Discovery", "hashtags": ["tag1"], "why": "string"}},
-    {{"label": "Targeted Intent", "hashtags": ["tag1"], "why": "string"}}
-  ],
-  "optimal_time": {{
-    "time": "HH:MM",
-    "reasoning": "string",
-    "timezone": "local",
-    "engagement_prediction": "low | medium | high"
-  }},
-  "strategy_notes": "string",
-  "confidence_score": 0.0,
-  "content_patterns": ["string"]
-}}"""
+Return JSON:
+{{"content_analysis":{{"category":"...","dish_detected":"...","meal_type":"...","cuisine_type":"...","format":"image|video","confidence":0.0}},"caption_variants":[{{"label":"Performance","caption":"...","why":"..."}},{{"label":"Story-led","caption":"...","why":"..."}}],"hashtag_variants":[{{"label":"Broader Discovery","hashtags":["..."],"why":"..."}},{{"label":"Targeted Intent","hashtags":["..."],"why":"..."}}],"optimal_time":{{"time":"HH:MM","reasoning":"...","timezone":"local","engagement_prediction":"low|medium|high"}},"strategy_notes":"...","confidence_score":0.0,"content_patterns":["..."]}}"""
 
     def _inspect_visual_asset(
         self,
@@ -467,7 +572,19 @@ Return JSON with exactly this shape:
         user_caption: Optional[str],
         context: Optional[str],
     ) -> Dict[str, Any]:
-        """Run a compact vision pass to understand the uploaded image before strategy generation."""
+        """Run a compact vision pass to understand the uploaded image before strategy generation.
+        
+        P1: Cached by file hash - repeated analysis of same file skips vision call.
+        CRITICAL: Cache only stores visual facts. Text-dependent fields recomputed fresh.
+        """
+        user_text = f"{user_caption or ''} {context or ''}".strip()
+        
+        # Check cache first (P1 improvement)
+        # Pass user_text so mismatch can be recomputed fresh (not cached)
+        cached = self._get_cached_visual_analysis(filepath, user_text=user_text)
+        if cached is not None:
+            return cached
+        
         image_data_url = self._build_image_data_url(filepath)
         if not image_data_url:
             return {
@@ -512,21 +629,32 @@ Return JSON with exactly this shape:
             "If the image is not food-related, say so directly. "
             "Do not explain your reasoning. Return only the requested 8 tagged lines."
         )
-        response = self._call_llm(system_prompt, content_blocks, max_tokens=220, timeout=45)
+        # 8 tagged lines output ~80 tokens, 150 gives safe margin
+        response = self._call_llm(system_prompt, content_blocks, max_tokens=150, timeout=45)
         result = self._parse_visual_analysis(response, filepath)
 
-        # Second descriptive pass for high-confidence food assets to deepen visual_summary
-        if result.get("food_present") is True and result.get("confidence", 0) >= 0.7:
-            detail = self._inspect_visual_detail(image_data_url, result)
-            if detail:
-                result["visual_summary"] = detail
+        # NOTE: Second visual-detail pass REMOVED from live request path
+        # This was adding a serial remote round trip that doesn't justify the latency cost.
+        # The _inspect_visual_detail method is kept for potential future debug/deep-analysis mode.
+        # Previously triggered when: food_present=True and confidence >= 0.7
 
+        # Cache successful visual analysis result (P1 improvement)
+        self._cache_visual_analysis(filepath, result)
+        
         return result
 
     def _inspect_visual_detail(
         self, image_data_url: str, first_pass: Dict[str, Any]
     ) -> Optional[str]:
-        """Second vision pass: richer description for high-confidence food assets."""
+        """Second vision pass: richer description for high-confidence food assets.
+        
+        NOTE: This is NOT called in the standard request path. It is kept for:
+        1. Potential future debug/deep-analysis mode
+        2. Manual enrichment workflows
+        3. A/B testing visual description quality vs latency
+        
+        The standard path intentionally does NOT call this to maintain the 2-call max guarantee.
+        """
         dish = first_pass.get("dish_detected") or "the dish"
         content_blocks = [
             {
@@ -593,7 +721,14 @@ Return JSON with exactly this shape:
         }
 
     def _build_image_data_url(self, filepath: str) -> Optional[str]:
-        """Load an image file and return a JPEG data URL suitable for multimodal requests."""
+        """Load an image file and return a JPEG data URL suitable for multimodal requests.
+        
+        P1: Timing is captured in _prepare_visual_analysis_image for preprocessing,
+        and additional timing here for base64 encoding.
+        """
+        import time
+        start_time = time.perf_counter()
+        
         prepared_image = self._prepare_visual_analysis_image(filepath)
         if not prepared_image:
             return None
@@ -622,29 +757,48 @@ Return JSON with exactly this shape:
                     raise LLMError("Image is too large for Fireworks vision request")
 
                 encoded = base64.b64encode(payload).decode("utf-8")
-                return f"data:image/jpeg;base64,{encoded}"
+                result = f"data:image/jpeg;base64,{encoded}"
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(f"Image data URL built for {Path(filepath).name} ({elapsed_ms:.1f}ms)")
+                return result
         except (FileNotFoundError, UnidentifiedImageError, OSError) as exc:
-            logger.warning(f"Image preprocessing failed for {filepath}: {exc}")
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.warning(f"Image preprocessing failed for {filepath} ({elapsed_ms:.1f}ms): {exc}")
             return None
 
     def _prepare_visual_analysis_image(self, filepath: str) -> Optional[Path]:
-        """Return a normalized JPEG path for image/video analysis."""
+        """Return a normalized JPEG path for image/video analysis.
+        
+        P1: Caches normalized artifacts in .analysis-cache directory.
+        Reuses cached version if source mtime hasn't changed.
+        """
+        import time
+        start_time = time.perf_counter()
+        
         source_path = Path(filepath)
         suffix = source_path.suffix.lower()
         cache_dir = source_path.parent / ".analysis-cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         normalized_path = cache_dir / f"{source_path.stem}.analysis.jpg"
 
+        # Check for cached normalized artifact (P1: deterministic and lightweight)
         if normalized_path.exists() and normalized_path.stat().st_mtime >= source_path.stat().st_mtime:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Media preprocessing CACHE HIT for {source_path.name} ({elapsed_ms:.1f}ms)")
             return normalized_path
 
+        # Need to create normalized artifact
+        result = None
         if suffix in {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".ppm", ".webp", ".heic", ".heif"}:
-            return self._normalize_image_file(source_path, normalized_path)
-
-        if suffix in {".mov", ".mp4", ".m4v", ".avi"}:
-            return self._extract_video_frame(source_path, normalized_path)
-
-        return None
+            result = self._normalize_image_file(source_path, normalized_path)
+        elif suffix in {".mov", ".mp4", ".m4v", ".avi"}:
+            result = self._extract_video_frame(source_path, normalized_path)
+        
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        cache_status = "CREATED" if result else "FAILED"
+        logger.info(f"Media preprocessing {cache_status} for {source_path.name} ({elapsed_ms:.1f}ms)")
+        
+        return result
 
     def _normalize_image_file(self, source_path: Path, output_path: Path) -> Optional[Path]:
         """Normalize an image into a JPEG that can be sent to the vision model."""
