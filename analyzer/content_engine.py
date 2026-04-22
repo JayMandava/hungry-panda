@@ -1220,57 +1220,79 @@ async def analyze_and_recommend(
         "total_duration_ms": 0,
     }
     
+    # Track actual per-request stage durations (not rolling averages)
+    request_stage_durations: Dict[str, float] = {}
+    
     analyzer = ContentAnalyzer()
     seed = f"{content_id}:{filepath}:{user_caption or ''}:{context or ''}"
     description = context or user_caption or ""
     visual_analysis = None
 
+    # Helper to capture actual per-request duration
+    def capture_stage_duration(stage_name: str, start_time: float) -> float:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        request_stage_durations[stage_name] = duration_ms
+        return duration_ms
+
     # Stage 1: Media preprocessing (if any)
+    stage_start = time.perf_counter()
     with StageTimer("media_preprocessing"):
         # Preprocessing happens lazily in llm_analyze_visual_asset via _build_image_data_url
-        pass  # Timing captured in visual analysis stage
+        pass
+    request_metrics["stages"]["media_preprocessing"] = round(capture_stage_duration("media_preprocessing", stage_start), 2)
 
     # Stage 2: Visual analysis (first LLM call)
+    stage_start = time.perf_counter()
     if LLM_AVAILABLE:
         try:
             with StageTimer("visual_analysis"):
                 increment_llm_call_count("visual_analysis")
+                request_metrics["llm_calls"] += 1  # Count attempted call
                 visual_analysis = llm_analyze_visual_asset(
                     filepath,
                     user_caption=user_caption,
                     context=context,
                 )
-            request_metrics["llm_calls"] += 1
-            request_metrics["stages"]["visual_analysis"] = STAGE_TIMINGS["visual_analysis"].avg_ms
+            request_metrics["stages"]["visual_analysis"] = round(capture_stage_duration("visual_analysis", stage_start), 2)
         except Exception as e:
             logger.warning(f"Visual analysis failed, continuing without image facts: {e}")
             request_metrics["stages"]["visual_analysis"] = None
+            request_stage_durations["visual_analysis"] = round((time.perf_counter() - stage_start) * 1000, 2)
 
     # Stage 3: Content type detection (local, no LLM)
+    stage_start = time.perf_counter()
     with StageTimer("content_type_detection"):
         content_type = analyzer.refine_content_type(filepath, user_caption, context, visual_analysis)
         description = analyzer.build_visual_description(visual_analysis, user_caption, context) or description
-    request_metrics["stages"]["content_type_detection"] = STAGE_TIMINGS["content_type_detection"].avg_ms
+    request_metrics["stages"]["content_type_detection"] = round(capture_stage_duration("content_type_detection", stage_start), 2)
 
     # Stage 4: Primary path - structured recommendation (second LLM call)
-    if LLM_AVAILABLE:
+    # CRITICAL: Only proceed if visual_analysis succeeded. If visual_analysis is None,
+    # llm_generate_post_recommendation would internally call _inspect_visual_asset again,
+    # violating the 2-call max guarantee (we'd have: failed visual + internal visual + structured = 3 calls).
+    stage_start = time.perf_counter()
+    if LLM_AVAILABLE and visual_analysis is not None:
         try:
             with StageTimer("structured_recommendation"):
                 increment_llm_call_count("structured_recommendation")
+                request_metrics["llm_calls"] += 1  # Count attempted call
+                # Pass visual_analysis explicitly - never let generate_post_recommendation 
+                # make an internal visual call. This enforces the 2-call max.
                 llm_result = llm_generate_post_recommendation(
                     filepath,
                     user_caption=user_caption,
                     context=context,
                     fallback_analysis=dict(content_type),
-                    visual_analysis=visual_analysis,
+                    visual_analysis=visual_analysis,  # Never None here
+                    _allow_internal_visual=False,  # Enforce 2-call max - never re-enter vision
                 )
-            request_metrics["llm_calls"] += 1
-            request_metrics["stages"]["structured_recommendation"] = STAGE_TIMINGS["structured_recommendation"].avg_ms
+            request_metrics["stages"]["structured_recommendation"] = round(capture_stage_duration("structured_recommendation", stage_start), 2)
             
             # Stage 5: Normalize recommendation (local processing)
+            norm_start = time.perf_counter()
             with StageTimer("normalize_recommendation"):
                 result = analyzer.normalize_llm_recommendation(content_id, filepath, user_caption, context, llm_result)
-            request_metrics["stages"]["normalize_recommendation"] = STAGE_TIMINGS["normalize_recommendation"].avg_ms
+            request_metrics["stages"]["normalize_recommendation"] = round(capture_stage_duration("normalize_recommendation", norm_start), 2)
             
             record_recommendation_outcome("llm_structured", structured_attempted=True, structured_success=True)
             
@@ -1279,19 +1301,21 @@ async def analyze_and_recommend(
                 _request_metrics.update(request_metrics)
             
             logger.info(
-                "Request %s completed: llm_calls=%d, total=%.2fms, stages=%s",
+                "Request %s completed: llm_calls=%d, total=%.2fms, request_stage_durations=%s",
                 content_id,
                 request_metrics["llm_calls"],
                 request_metrics["total_duration_ms"],
-                request_metrics["stages"],
+                request_stage_durations,
             )
             return result
         except Exception as e:
             logger.warning(f"Structured recommendation failed, falling back to separate calls: {e}")
             request_metrics["stages"]["structured_recommendation"] = None
+            request_stage_durations["structured_recommendation"] = round((time.perf_counter() - stage_start) * 1000, 2)
 
     # Stage 6: Fallback path - local-only generation (NO additional LLM calls)
     # CRITICAL: use_llm=False ensures we don't make any additional LLM calls during fallback
+    fallback_start = time.perf_counter()
     with StageTimer("fallback_generation"):
         caption_variants = analyzer.build_caption_variants(content_type, description, seed, use_llm=False)
         hashtag_variants = analyzer.build_hashtag_variants(content_type, description, seed, use_llm=False)
@@ -1315,7 +1339,7 @@ async def analyze_and_recommend(
             strategy_notes,
             confidence_payload["reasoning"],
         )
-    request_metrics["stages"]["fallback_generation"] = STAGE_TIMINGS["fallback_generation"].avg_ms
+    request_metrics["stages"]["fallback_generation"] = round(capture_stage_duration("fallback_generation", fallback_start), 2)
     record_recommendation_outcome(source, structured_attempted=LLM_AVAILABLE, structured_success=False)
     
     request_metrics["total_duration_ms"] = round((time.perf_counter() - request_start) * 1000, 2)
@@ -1323,11 +1347,11 @@ async def analyze_and_recommend(
         _request_metrics.update(request_metrics)
     
     logger.info(
-        "Request %s completed (fallback): llm_calls=%d, total=%.2fms, stages=%s",
+        "Request %s completed (fallback): llm_calls=%d, total=%.2fms, request_stage_durations=%s",
         content_id,
         request_metrics["llm_calls"],
         request_metrics["total_duration_ms"],
-        request_metrics["stages"],
+        request_stage_durations,
     )
 
     return {

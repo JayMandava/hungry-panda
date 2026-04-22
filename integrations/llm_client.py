@@ -196,16 +196,28 @@ Return exactly:
         context: Optional[str] = None,
         fallback_analysis: Optional[Dict[str, Any]] = None,
         visual_analysis: Optional[Dict[str, Any]] = None,
+        _allow_internal_visual: bool = True,
     ) -> Dict[str, Any]:
         """
         Generate a structured, growth-focused recommendation for a post.
         Uses image understanding when the uploaded asset is a supported image.
         Pass pre-computed visual_analysis to avoid a redundant vision call.
+        
+        Args:
+            _allow_internal_visual: If False, raises error when visual_analysis is None
+                                   instead of making an internal call. Used by the
+                                   orchestration layer to enforce 2-call max guarantee.
         """
         if self.provider == "none":
             raise LLMError("LLM disabled - multimodal recommendation unavailable")
 
         if visual_analysis is None:
+            if not _allow_internal_visual:
+                raise LLMError(
+                    "visual_analysis is None but _allow_internal_visual=False. "
+                    "This would violate the 2-call max guarantee. "
+                    "The orchestration layer should have provided visual_analysis or skipped this path."
+                )
             visual_analysis = self._inspect_visual_asset(filepath, user_caption=user_caption, context=context)
 
         strategy_prompt = self._build_post_recommendation_prompt(
