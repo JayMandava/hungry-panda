@@ -654,7 +654,14 @@ Return JSON:
         }
 
     def _build_image_data_url(self, filepath: str) -> Optional[str]:
-        """Load an image file and return a JPEG data URL suitable for multimodal requests."""
+        """Load an image file and return a JPEG data URL suitable for multimodal requests.
+        
+        P1: Timing is captured in _prepare_visual_analysis_image for preprocessing,
+        and additional timing here for base64 encoding.
+        """
+        import time
+        start_time = time.perf_counter()
+        
         prepared_image = self._prepare_visual_analysis_image(filepath)
         if not prepared_image:
             return None
@@ -683,29 +690,48 @@ Return JSON:
                     raise LLMError("Image is too large for Fireworks vision request")
 
                 encoded = base64.b64encode(payload).decode("utf-8")
-                return f"data:image/jpeg;base64,{encoded}"
+                result = f"data:image/jpeg;base64,{encoded}"
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(f"Image data URL built for {Path(filepath).name} ({elapsed_ms:.1f}ms)")
+                return result
         except (FileNotFoundError, UnidentifiedImageError, OSError) as exc:
-            logger.warning(f"Image preprocessing failed for {filepath}: {exc}")
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.warning(f"Image preprocessing failed for {filepath} ({elapsed_ms:.1f}ms): {exc}")
             return None
 
     def _prepare_visual_analysis_image(self, filepath: str) -> Optional[Path]:
-        """Return a normalized JPEG path for image/video analysis."""
+        """Return a normalized JPEG path for image/video analysis.
+        
+        P1: Caches normalized artifacts in .analysis-cache directory.
+        Reuses cached version if source mtime hasn't changed.
+        """
+        import time
+        start_time = time.perf_counter()
+        
         source_path = Path(filepath)
         suffix = source_path.suffix.lower()
         cache_dir = source_path.parent / ".analysis-cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         normalized_path = cache_dir / f"{source_path.stem}.analysis.jpg"
 
+        # Check for cached normalized artifact (P1: deterministic and lightweight)
         if normalized_path.exists() and normalized_path.stat().st_mtime >= source_path.stat().st_mtime:
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Media preprocessing CACHE HIT for {source_path.name} ({elapsed_ms:.1f}ms)")
             return normalized_path
 
+        # Need to create normalized artifact
+        result = None
         if suffix in {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".ppm", ".webp", ".heic", ".heif"}:
-            return self._normalize_image_file(source_path, normalized_path)
-
-        if suffix in {".mov", ".mp4", ".m4v", ".avi"}:
-            return self._extract_video_frame(source_path, normalized_path)
-
-        return None
+            result = self._normalize_image_file(source_path, normalized_path)
+        elif suffix in {".mov", ".mp4", ".m4v", ".avi"}:
+            result = self._extract_video_frame(source_path, normalized_path)
+        
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        cache_status = "CREATED" if result else "FAILED"
+        logger.info(f"Media preprocessing {cache_status} for {source_path.name} ({elapsed_ms:.1f}ms)")
+        
+        return result
 
     def _normalize_image_file(self, source_path: Path, output_path: Path) -> Optional[Path]:
         """Normalize an image into a JPEG that can be sent to the vision model."""
