@@ -522,6 +522,73 @@ def _parse_ai_edit_decisions(ai_response: str, selected_assets: List[Dict], base
     
     return decisions
 
+
+def _get_video_source_duration(asset: Dict[str, Any]) -> Optional[float]:
+    """Return analyzed source duration for a video asset when available."""
+    if asset.get("media_type") != "video":
+        return None
+
+    analysis = asset.get("analysis", {})
+    visual = analysis.get("visual_facts", {})
+    raw_duration = visual.get("duration_seconds")
+    try:
+        duration = float(raw_duration)
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
+def _clamp_segment_duration(
+    asset: Dict[str, Any],
+    requested_duration: float,
+    selected_assets_count: int,
+    target_duration: int,
+) -> float:
+    """Clamp a segment duration to sane bounds while respecting long source videos."""
+    duration = max(1.0, float(requested_duration))
+    video_source_duration = _get_video_source_duration(asset)
+
+    if asset.get("media_type") != "video":
+        return min(duration, float(target_duration))
+
+    # Single long videos should produce a real reel-length segment, not a token 2s clip.
+    if selected_assets_count == 1 and video_source_duration:
+        duration = max(duration, min(video_source_duration, float(target_duration)))
+    elif video_source_duration:
+        duration = min(duration, video_source_duration)
+
+    return min(duration, float(target_duration))
+
+
+def _ensure_minimum_reel_duration(
+    segments: List[Dict[str, Any]],
+    selected_assets: List[Dict[str, Any]],
+    target_duration: int,
+    minimum_duration: float = 5.0,
+) -> None:
+    """Stretch the final segment when the plan is otherwise too short to be valid."""
+    current_total = sum(segment["duration"] for segment in segments)
+    if current_total >= minimum_duration or not segments:
+        return
+
+    remaining_budget = float(target_duration) - current_total
+    if remaining_budget <= 0:
+        return
+
+    last_segment = segments[-1]
+    last_asset = selected_assets[len(segments) - 1]
+    required_extension = minimum_duration - current_total
+    extension = min(required_extension, remaining_budget)
+
+    if last_asset.get("media_type") == "video":
+        source_duration = _get_video_source_duration(last_asset)
+        if source_duration is not None:
+            available_video_time = max(0.0, source_duration - last_segment["duration"])
+            extension = min(extension, available_video_time)
+
+    if extension > 0:
+        last_segment["duration"] = round(last_segment["duration"] + extension, 2)
+
 def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_key: str, target_duration: int = 30) -> Dict[str, Any]:
     """
     Generate a structured edit plan for the reel using AI-driven decisions.
@@ -592,6 +659,8 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
             # Videos can be shorter
             if media_type == "video":
                 duration = min(duration, 4.0)
+
+        duration = _clamp_segment_duration(asset, duration, len(selected_assets), target_duration)
         
         # Ensure we don't exceed target duration
         if current_time + duration > target_duration:
@@ -633,6 +702,8 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
         
         if current_time >= target_duration:
             break
+
+    _ensure_minimum_reel_duration(segments, selected_assets, target_duration)
     
     # Validate total duration
     total_duration = sum(s["duration"] for s in segments)
