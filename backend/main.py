@@ -56,6 +56,14 @@ except ImportError as e:
     logger.warning(f"Analyzer modules not available: {e}")
     ANALYZER_AVAILABLE = False
 
+# Import Reels Maker module
+try:
+    from backend.reels import router as reels_router
+    REELS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Reels Maker module not available: {e}")
+    REELS_AVAILABLE = False
+
 # FastAPI app
 app = FastAPI(
     title="Hungry Panda - Instagram Growth Agent",
@@ -71,6 +79,11 @@ if frontend_assets_dir.exists():
 uploads_dir = Path(config.UPLOADS_DIR)
 if uploads_dir.exists():
     app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+# Include Reels Maker router
+if REELS_AVAILABLE:
+    app.include_router(reels_router)
+    logger.info("Reels Maker module loaded")
 
 # CORS middleware
 app.add_middleware(
@@ -448,6 +461,15 @@ async def serve_voice_styles():
     if css_path.exists():
         return FileResponse(css_path, media_type="text/css")
     return HTMLResponse(content="/* CSS not found */", status_code=404)
+
+
+@app.get("/reels.html", response_class=HTMLResponse)
+async def serve_reels_page():
+    """Serve the Reel Maker page"""
+    reels_path = Path(__file__).parent.parent / "frontend" / "reels.html"
+    if reels_path.exists():
+        return HTMLResponse(content=reels_path.read_text())
+    return HTMLResponse(content="<h1>Reel Maker page not found</h1>", status_code=404)
 
 
 @app.get("/api/health")

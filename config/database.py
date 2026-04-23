@@ -25,6 +25,8 @@ def get_db_connection():
     try:
         conn = sqlite3.connect(config.DATABASE_PATH)
         conn.row_factory = sqlite3.Row
+        # Enable foreign key support for cascade deletes
+        conn.execute("PRAGMA foreign_keys = ON")
         yield conn
     except sqlite3.Error as e:
         logger.error(f"Database connection error: {e}")
@@ -141,6 +143,70 @@ def init_database():
             ('instagram_connected', 'false'),
             ('last_strategy_update', NULL),
             ('account_created', datetime('now'));
+        
+        -- Reel Maker tables: separate from content upload flow
+        
+        -- Reel projects table: stores reel creation projects
+        CREATE TABLE IF NOT EXISTS reel_projects (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            status TEXT DEFAULT 'draft',  -- draft, queued, analyzing, rendering, ready, failed, published
+            template_key TEXT DEFAULT 'dish_showcase',  -- dish_showcase, recipe_steps, ambience_montage, platter_reveal
+            target_duration_seconds INTEGER DEFAULT 30,
+            caption TEXT,
+            hashtags TEXT,  -- JSON array
+            final_output_path TEXT,
+            final_output_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_reel_projects_status ON reel_projects(status);
+        CREATE INDEX IF NOT EXISTS idx_reel_projects_created ON reel_projects(created_at DESC);
+        
+        -- Reel assets table: stores uploaded images/videos for a reel project
+        CREATE TABLE IF NOT EXISTS reel_assets (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES reel_projects(id) ON DELETE CASCADE,
+            source_path TEXT NOT NULL,
+            media_type TEXT NOT NULL,  -- image, video
+            sort_order INTEGER DEFAULT 0,
+            analysis_json TEXT,  -- Structured analysis: dish detection, quality scores, visual facts
+            selected BOOLEAN DEFAULT 1,  -- Whether planner selected this asset for render
+            preview_path TEXT,  -- Browser-safe preview thumbnail
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_reel_assets_project ON reel_assets(project_id);
+        CREATE INDEX IF NOT EXISTS idx_reel_assets_selected ON reel_assets(project_id, selected);
+        
+        -- Reel render jobs table: tracks async video rendering
+        CREATE TABLE IF NOT EXISTS reel_render_jobs (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES reel_projects(id) ON DELETE CASCADE,
+            status TEXT DEFAULT 'queued',  -- queued, analyzing, running, completed, failed
+            edit_plan_json TEXT,  -- Validated edit plan consumed by renderer
+            error_message TEXT,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_reel_render_jobs_project ON reel_render_jobs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_reel_render_jobs_status ON reel_render_jobs(status);
+        
+        -- Reel publish jobs table: tracks Instagram publishing attempts
+        CREATE TABLE IF NOT EXISTS reel_publish_jobs (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES reel_projects(id) ON DELETE CASCADE,
+            status TEXT DEFAULT 'queued',  -- queued, publishing, published, failed
+            external_media_id TEXT,  -- Instagram media/container id
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_reel_publish_jobs_project ON reel_publish_jobs(project_id);
     """
     
     try:

@@ -40,6 +40,7 @@ env/
 project-context.db
 !design-refactor.db
 uploads/
+ui-ideas/
 *.log
 
 # OS

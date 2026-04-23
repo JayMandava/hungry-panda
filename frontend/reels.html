@@ -1,0 +1,1979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reel Maker — Hungry Panda</title>
+    <link rel="stylesheet" href="voice-styles.css">
+    <style>
+        /* ========================================
+           REEL MAKER - PREMIUM GLASSMORPHISM
+           Phase 1: Foundation UI Shell
+           ======================================== */
+        
+        :root {
+            /* Brand Identity - Nature-Led Green System */
+            --brand-primary: #6e9a42;
+            --brand-primary-hover: #5a8335;
+            --brand-secondary: #8ab85a;
+            --brand-success: #22c55e;
+            --brand-info: #42a5f5;
+            --brand-warning: #f59e0b;
+            --brand-error: #ef4444;
+
+            /* Glassmorphism Surface System */
+            --bg-base: #f8faf6;
+            --bg-elevated: rgba(255, 255, 255, 0.75);
+            --bg-card: rgba(255, 255, 255, 0.70);
+            --bg-card-hover: rgba(255, 255, 255, 0.85);
+            --bg-input: rgba(255, 255, 255, 0.80);
+
+            /* Glass Border System */
+            --border-subtle: rgba(255, 255, 255, 0.5);
+            --border-default: rgba(110, 154, 66, 0.25);
+            --border-accent: rgba(110, 154, 66, 0.5);
+            --border-focus: rgba(110, 154, 66, 0.7);
+
+            /* Text Hierarchy */
+            --text-primary: #1a2e12;
+            --text-secondary: rgba(26, 46, 18, 0.7);
+            --text-tertiary: rgba(26, 46, 18, 0.5);
+            --text-muted: rgba(26, 46, 18, 0.35);
+            
+            /* Typography */
+            --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            
+            --text-xs: 11px;
+            --text-sm: 13px;
+            --text-base: 15px;
+            --text-lg: 18px;
+            --text-xl: 22px;
+            --text-2xl: 28px;
+            
+            --font-medium: 500;
+            --font-semibold: 600;
+            --font-bold: 700;
+            
+            /* Spacing */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --space-10: 40px;
+            --space-12: 48px;
+            
+            /* Radius */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+            
+            /* Effects */
+            --shadow-sm: 0 1px 2px rgba(110, 154, 66, 0.15);
+            --shadow-md: 0 4px 16px rgba(110, 154, 66, 0.2);
+            --shadow-lg: 0 8px 32px rgba(110, 154, 66, 0.25);
+            --shadow-glass: 0 8px 32px rgba(110, 154, 66, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-base: 250ms ease;
+        }
+        
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        body {
+            font-family: var(--font-display);
+            font-size: var(--text-base);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100vh;
+            background:
+                radial-gradient(ellipse 120% 80% at 20% 0%, rgba(110, 154, 66, 0.08), transparent 60%),
+                radial-gradient(ellipse 100% 60% at 80% 20%, rgba(138, 184, 90, 0.05), transparent 50%),
+                radial-gradient(ellipse 60% 40% at 50% 100%, rgba(34, 197, 94, 0.04), transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('assets/bg-rich-web.png');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.85;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Glass Card Base */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.6) 100%);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: var(--radius-xl);
+            box-shadow:
+                0 8px 32px rgba(110, 154, 66, 0.15),
+                0 2px 8px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9),
+                inset 0 -1px 0 rgba(110, 154, 66, 0.1);
+            transition: all var(--transition-base);
+        }
+
+        .glass-card:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.75) 100%);
+            border-color: rgba(110, 154, 66, 0.4);
+            box-shadow:
+                0 12px 48px rgba(110, 154, 66, 0.25),
+                0 4px 12px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 60px rgba(110, 154, 66, 0.15);
+        }
+
+        /* ========================================
+           HEADER
+           ======================================== */
+        
+        .app-header {
+            position: relative;
+            padding: var(--space-6) var(--space-8);
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-default);
+            z-index: 10;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+        }
+
+        .brand-icon img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .brand-text h1 {
+            font-size: var(--text-xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-text p {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-4);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+
+        .nav-link:hover {
+            color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .nav-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-5);
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(110, 154, 66, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.6);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: var(--border-accent);
+        }
+
+        /* ========================================
+           MAIN CONTAINER
+           ======================================== */
+        
+        .app-container {
+            position: relative;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-8);
+            z-index: 1;
+        }
+
+        /* ========================================
+           PAGE TITLE
+           ======================================== */
+        
+        .page-header {
+            margin-bottom: var(--space-8);
+        }
+
+        .page-title {
+            font-size: var(--text-2xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .page-subtitle {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+        }
+
+        /* ========================================
+           PROJECTS GRID
+           ======================================== */
+        
+        .projects-section {
+            margin-bottom: var(--space-8);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-5);
+        }
+
+        .section-title {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: var(--space-5);
+        }
+
+        .project-card {
+            padding: var(--space-5);
+            cursor: pointer;
+        }
+
+        .project-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: var(--space-4);
+        }
+
+        .project-card-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .project-title {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .project-status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: var(--font-medium);
+            text-transform: capitalize;
+        }
+
+        .status-draft { background: rgba(110, 154, 66, 0.12); color: var(--brand-primary); }
+        .status-queued { background: rgba(66, 165, 245, 0.12); color: var(--brand-info); }
+        .status-analyzing { background: rgba(245, 158, 11, 0.12); color: var(--brand-warning); }
+        .status-plan_ready { background: rgba(66, 165, 245, 0.12); color: var(--brand-info); }
+        .status-rendering { background: rgba(245, 158, 11, 0.15); color: var(--brand-warning); }
+        .status-ready { background: rgba(34, 197, 94, 0.12); color: var(--brand-success); }
+        .status-failed { background: rgba(239, 68, 68, 0.12); color: var(--brand-error); }
+        .status-published { background: rgba(110, 154, 66, 0.2); color: var(--brand-primary); }
+
+        .project-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .project-meta-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--text-sm);
+            color: var(--text-tertiary);
+        }
+
+        .project-meta-item svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(239, 68, 68, 0.18);
+            background: rgba(255, 255, 255, 0.65);
+            color: var(--brand-error);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .icon-btn:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .icon-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .icon-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .template-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: var(--space-1) var(--space-3);
+            background: rgba(110, 154, 66, 0.08);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: var(--font-medium);
+            color: var(--brand-primary);
+            margin-top: var(--space-3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: var(--space-12);
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto var(--space-5);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.15) 0%, rgba(138, 184, 90, 0.1) 100%);
+            border-radius: var(--radius-xl);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--brand-primary);
+        }
+
+        .empty-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .empty-text {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-5);
+        }
+
+        /* ========================================
+           MODAL - New Project
+           ======================================== */
+        
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 46, 18, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: var(--space-4);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+            backdrop-filter: blur(50px) saturate(180%);
+            -webkit-backdrop-filter: blur(50px) saturate(180%);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: var(--radius-xl);
+            box-shadow:
+                0 24px 80px rgba(110, 154, 66, 0.3),
+                0 8px 24px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modal-enter 0.3s ease;
+        }
+
+        @keyframes modal-enter {
+            from { opacity: 0; transform: scale(0.95) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: var(--space-6);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .modal-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: var(--space-6);
+        }
+
+        .form-group {
+            margin-bottom: var(--space-5);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--text-base);
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(110, 154, 66, 0.15);
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-3);
+        }
+
+        .template-option {
+            padding: var(--space-4);
+            background: var(--bg-input);
+            border: 2px solid var(--border-default);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .template-option:hover {
+            border-color: var(--border-accent);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .template-option.selected {
+            border-color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .template-option h4 {
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-1);
+        }
+
+        .template-option p {
+            font-size: var(--text-xs);
+            color: var(--text-tertiary);
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: var(--space-3);
+            padding: var(--space-4) var(--space-6) var(--space-6);
+        }
+
+        /* ========================================
+           PROJECT DETAIL VIEW
+           ======================================== */
+        
+        .detail-layout {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: var(--space-6);
+        }
+
+        @media (max-width: 900px) {
+            .detail-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Asset Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--border-accent);
+            border-radius: var(--radius-lg);
+            padding: var(--space-8);
+            text-align: center;
+            background: rgba(110, 154, 66, 0.03);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            background: rgba(110, 154, 66, 0.06);
+            border-color: var(--brand-primary);
+        }
+
+        .upload-zone.dragover {
+            background: rgba(110, 154, 66, 0.1);
+            border-color: var(--brand-primary);
+        }
+
+        .upload-zone svg {
+            width: 48px;
+            height: 48px;
+            color: var(--brand-primary);
+            margin-bottom: var(--space-4);
+        }
+
+        .upload-text {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .upload-hint {
+            font-size: var(--text-sm);
+            color: var(--text-tertiary);
+        }
+
+        /* Asset Grid */
+        .assets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: var(--space-3);
+            margin-top: var(--space-5);
+        }
+
+        .asset-item {
+            position: relative;
+            aspect-ratio: 9/16;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+        }
+
+        .asset-item img,
+        .asset-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .asset-remove {
+            position: absolute;
+            top: var(--space-2);
+            right: var(--space-2);
+            width: 24px;
+            height: 24px;
+            background: rgba(239, 68, 68, 0.9);
+            border: none;
+            border-radius: var(--radius-full);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .asset-item:hover .asset-remove {
+            opacity: 1;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: sticky;
+            top: var(--space-6);
+        }
+
+        .sidebar-card {
+            padding: var(--space-5);
+            margin-bottom: var(--space-5);
+        }
+
+        .sidebar-title {
+            font-size: var(--text-base);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-4);
+        }
+
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: var(--radius-full);
+            background: var(--text-muted);
+        }
+
+        .status-indicator.complete {
+            background: var(--brand-success);
+        }
+
+        .status-indicator.active {
+            background: var(--brand-warning);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: var(--space-4);
+            font-size: var(--text-base);
+        }
+
+        /* Preview Player */
+        .preview-player {
+            aspect-ratio: 9/16;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-4);
+        }
+
+        .preview-placeholder {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .preview-placeholder svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: var(--space-3);
+            opacity: 0.5;
+        }
+
+        /* Back Button */
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-5);
+            padding: var(--space-2) var(--space-3);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+
+        .back-btn:hover {
+            color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .back-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .detail-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--brand-error);
+            border: 1px solid rgba(239, 68, 68, 0.22);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.16);
+            border-color: rgba(239, 68, 68, 0.34);
+        }
+
+        /* Loading States */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(110, 154, 66, 0.1) 25%, rgba(110, 154, 66, 0.2) 50%, rgba(110, 154, 66, 0.1) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+            border-radius: var(--radius-md);
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Utility */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .app-container {
+                padding: var(--space-4);
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+                gap: var(--space-3);
+            }
+
+            .brand-text h1 {
+                font-size: var(--text-lg);
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .assets-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .modal {
+                max-height: 95vh;
+                margin: var(--space-3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="brand">
+                <div class="brand-icon">
+                    <img src="assets/panda-icon.png" alt="Panda">
+                </div>
+                <div class="brand-text">
+                    <h1>Reel Maker</h1>
+                    <p>Create Instagram-ready Reels from your photos</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12l9-9 9 9M5 10v10a2 2 0 002 2h10a2 2 0 002-2V10"/>
+                    </svg>
+                    Back to Dashboard
+                </a>
+                <button class="btn btn-primary" id="newProjectBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    New Reel
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-container">
+        <!-- Projects List View -->
+        <div id="projectsListView">
+            <div class="page-header">
+                <h2 class="page-title">Your Reel Projects</h2>
+                <p class="page-subtitle">Upload photos and videos, then generate beautiful Instagram Reels</p>
+            </div>
+
+            <section class="projects-section">
+                <div class="section-header">
+                    <h3 class="section-title">Recent Projects</h3>
+                </div>
+
+                <div id="projectsGrid" class="projects-grid">
+                    <!-- Projects will be loaded here -->
+                    <div class="skeleton" style="height: 160px;"></div>
+                    <div class="skeleton" style="height: 160px;"></div>
+                    <div class="skeleton" style="height: 160px;"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state hidden">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                            <circle cx="15" cy="15" r="2"/>
+                        </svg>
+                    </div>
+                    <h3 class="empty-title">No Reel Projects Yet</h3>
+                    <p class="empty-text">Create your first Reel by uploading photos and videos</p>
+                    <button class="btn btn-primary" id="emptyStateNewBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Create New Reel
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Project Detail View -->
+        <div id="projectDetailView" class="hidden">
+            <a href="#" class="back-btn" id="backToList">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Projects
+            </a>
+
+            <div class="detail-layout">
+                <div class="main-content">
+                    <div class="glass-card" style="padding: var(--space-6);">
+                        <div class="detail-header">
+                            <h2 id="detailTitle" class="page-title" style="margin-bottom: 0;">Project Title</h2>
+                            <div class="detail-actions">
+                                <button class="btn btn-danger" id="deleteProjectBtn" type="button">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 6h18"/>
+                                        <path d="M8 6V4h8v2"/>
+                                        <path d="M19 6l-1 14H6L5 6"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                    </svg>
+                                    Delete Project
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Zone -->
+                        <div class="upload-zone" id="uploadZone">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <path d="M17 8l-5-5-5 5"/>
+                                <path d="M12 3v12"/>
+                            </svg>
+                            <p class="upload-text">Drop photos & videos here</p>
+                            <p class="upload-hint">or click to browse (JPG, PNG, HEIC, MP4, MOV)</p>
+                            <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;">
+                        </div>
+
+                        <!-- Assets Grid -->
+                        <div id="assetsGrid" class="assets-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <aside class="sidebar">
+                    <!-- Status Card -->
+                    <div class="glass-card sidebar-card">
+                        <h3 class="sidebar-title">Generation Status</h3>
+                        <div class="status-list">
+                            <div class="status-item">
+                                <span class="status-indicator complete" id="statusAssets"></span>
+                                Assets uploaded
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusAnalysis"></span>
+                                AI Analysis
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusPlan"></span>
+                                Edit plan created
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusRender"></span>
+                                Video rendering
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Card -->
+                    <div class="glass-card sidebar-card">
+                        <h3 class="sidebar-title">Preview</h3>
+                        <div class="preview-player">
+                            <div class="preview-placeholder">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M3 9h18M9 21V9"/>
+                                    <circle cx="15" cy="15" r="2"/>
+                                </svg>
+                                <p>Generate to see preview</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary generate-btn" id="generateBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <span id="generateBtnText">Generate Reel</span>
+                        </button>
+                        <p id="generationStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; display: none;"></p>
+                    </div>
+
+                    <!-- Publish Card (Phase 4) -->
+                    <div class="glass-card sidebar-card" id="publishCard" style="display: none;">
+                        <h3 class="sidebar-title">Publish to Instagram</h3>
+                        
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 12px;">Caption</label>
+                            <textarea class="form-input" id="publishCaption" rows="3" placeholder="Add a caption for your Reel..." style="font-size: 13px; resize: none;"></textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 12px;">Hashtags (comma separated)</label>
+                            <input type="text" class="form-input" id="publishHashtags" placeholder="food, recipe, cooking" style="font-size: 13px;">
+                        </div>
+                        
+                        <button class="btn btn-primary generate-btn" id="publishBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Publish Reel
+                        </button>
+                        <p id="publishStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; display: none;"></p>
+                        
+                        <div id="instagramConnectPrompt" style="display: none; margin-top: 12px; padding: 10px; background: rgba(110, 154, 66, 0.1); border-radius: 8px; text-align: center;">
+                            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Connect Instagram to publish</p>
+                            <a href="/instagram/connect" target="_blank" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">Connect Instagram</a>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Project Modal -->
+    <div class="modal-overlay" id="newProjectModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Reel</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="projectTitle">Project Name</label>
+                    <input type="text" class="form-input" id="projectTitle" placeholder="e.g., Weekend Specials">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Choose a Template</label>
+                    <div class="template-grid" id="templateGrid">
+                        <!-- Templates loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelModal">Cancel</button>
+                <button class="btn btn-primary" id="createProjectBtn">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // REEL MAKER - UI Controller
+        // ========================================
+
+        const API_BASE = '/api/reels';
+        let currentProject = null;
+        let selectedTemplate = 'dish_showcase';
+        let templates = {};
+
+        // DOM Elements
+        const projectsListView = document.getElementById('projectsListView');
+        const projectDetailView = document.getElementById('projectDetailView');
+        const projectsGrid = document.getElementById('projectsGrid');
+        const emptyState = document.getElementById('emptyState');
+        const newProjectModal = document.getElementById('newProjectModal');
+        const templateGrid = document.getElementById('templateGrid');
+        const assetsGrid = document.getElementById('assetsGrid');
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        // ========================================
+        // Initialization
+        // ========================================
+
+        async function init() {
+            await loadTemplates();
+            await loadProjects();
+            setupEventListeners();
+        }
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch(`${API_BASE}/templates`);
+                templates = await response.json();
+                renderTemplateGrid();
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch(`${API_BASE}/projects`);
+                const data = await response.json();
+                renderProjects(data.projects);
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+                showEmptyState();
+            }
+        }
+
+        // ========================================
+        // Rendering
+        // ========================================
+
+        function renderTemplateGrid() {
+            templateGrid.innerHTML = Object.entries(templates).map(([key, template]) => `
+                <div class="template-option ${key === selectedTemplate ? 'selected' : ''}" data-key="${key}">
+                    <h4>${template.name}</h4>
+                    <p>${template.description}</p>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            templateGrid.querySelectorAll('.template-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    templateGrid.querySelectorAll('.template-option').forEach(t => t.classList.remove('selected'));
+                    el.classList.add('selected');
+                    selectedTemplate = el.dataset.key;
+                });
+            });
+        }
+
+        function renderProjects(projects) {
+            if (!projects || projects.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            projectsGrid.innerHTML = projects.map(project => `
+                <div class="glass-card project-card" data-id="${project.id}">
+                    <div class="project-card-header">
+                        <h3 class="project-title">${escapeHtml(project.title)}</h3>
+                        <div class="project-card-actions">
+                            <span class="project-status status-${project.status}">${project.status}</span>
+                            <button class="icon-btn project-delete" data-id="${project.id}" data-title="${escapeHtml(project.title)}" type="button" aria-label="Delete project">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18"/>
+                                    <path d="M8 6V4h8v2"/>
+                                    <path d="M19 6l-1 14H6L5 6"/>
+                                    <path d="M10 11v6M14 11v6"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <span class="template-badge">${templates[project.template_key]?.name || project.template_key}</span>
+                    <div class="project-meta">
+                        <span class="project-meta-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M3 8h18M8 4v16"/>
+                            </svg>
+                            ${formatDate(project.created_at)}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            projectsGrid.querySelectorAll('.project-card').forEach(card => {
+                card.addEventListener('click', () => openProject(card.dataset.id));
+            });
+
+            projectsGrid.querySelectorAll('.project-delete').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const { id, title } = button.dataset;
+                    await deleteProject(id, title, button);
+                });
+            });
+        }
+
+        function showEmptyState() {
+            projectsGrid.innerHTML = '';
+            emptyState.classList.remove('hidden');
+        }
+
+        function renderAssets(assets) {
+            if (!assets || assets.length === 0) {
+                assetsGrid.innerHTML = '';
+                return;
+            }
+
+            assetsGrid.innerHTML = assets.map(asset => {
+                // Use preview_url if available, otherwise show placeholder
+                const hasPreview = asset.preview_url && asset.preview_url.startsWith('/uploads/');
+                const mediaContent = hasPreview 
+                    ? (asset.media_type === 'video'
+                        ? `<video src="${asset.preview_url}" preload="metadata"></video>`
+                        : `<img src="${asset.preview_url}" alt="Asset">`)
+                    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(110,154,66,0.1),rgba(138,184,90,0.05));">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(110,154,66,0.5)" stroke-width="1.5">
+                            ${asset.media_type === 'video' 
+                                ? '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>'
+                                : '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'}
+                        </svg>
+                       </div>`;
+                return `
+                <div class="asset-item" data-id="${asset.id}">
+                    ${mediaContent}
+                    <button class="asset-remove" onclick="removeAsset('${asset.id}')">×</button>
+                </div>
+                `;
+            }).join('');
+
+            // Enable generate button if we have assets (Phase 1: shows Phase 2 notice when clicked)
+            const generateBtn = document.getElementById('generateBtn');
+            const hasAssets = assets.length > 0;
+            generateBtn.disabled = !hasAssets;
+            const generateBtnText = document.getElementById('generateBtnText');
+            if (generateBtnText) {
+                generateBtnText.textContent = hasAssets
+                    ? 'Generate Reel'
+                    : 'Upload Assets First';
+            }
+            
+            // Update status indicator
+            document.getElementById('statusAssets').classList.add('complete');
+        }
+
+        // ========================================
+        // Actions
+        // ========================================
+
+        async function openProject(projectId) {
+            try {
+                const response = await fetch(`${API_BASE}/projects/${projectId}`);
+                const data = await response.json();
+                
+                currentProject = data.project;
+                
+                // Update UI
+                document.getElementById('detailTitle').textContent = data.project.title;
+                renderAssets(data.assets);
+                updateStatusIndicators(data.project.status);
+                
+                // Update preview player
+                updatePreviewPlayer(data.project, data.latest_render);
+                
+                // Update generate button based on status
+                updateGenerateButton(data.project.status, data.assets.length);
+                
+                // Update publish UI (Phase 4) - check Instagram status
+                const instagramStatus = await checkInstagramStatus();
+                updatePublishUI(data.project, instagramStatus);
+                
+                // Switch views
+                projectsListView.classList.add('hidden');
+                projectDetailView.classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load project:', error);
+                alert('Failed to load project. Please try again.');
+            }
+        }
+
+        function updatePreviewPlayer(project, latestRender) {
+            const previewContainer = document.querySelector('.preview-player');
+            const status = project.status;
+            const outputUrl = project.final_output_url;
+            
+            // If video is rendered (Phase 3 complete), show video player
+            if (status === 'ready' && outputUrl) {
+                previewContainer.innerHTML = `
+                    <video controls autoplay muted loop style="width: 100%; height: 100%; object-fit: contain; border-radius: var(--radius-lg);">
+                        <source src="${outputUrl}" type="video/mp4">
+                        Your browser does not support video.
+                    </video>
+                `;
+            } else if (status === 'plan_ready') {
+                // Phase 2 complete, Phase 3 pending
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--brand-primary);">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <p style="color: var(--brand-primary);">Edit plan ready!</p>
+                        <p style="font-size: 11px;">Video rendering in progress...</p>
+                    </div>
+                `;
+            } else if (status === 'rendering') {
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation: spin 2s linear infinite; color: var(--brand-warning);">
+                            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                        </svg>
+                        <p>Rendering video...</p>
+                    </div>
+                `;
+            } else {
+                // Default placeholder
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                            <circle cx="15" cy="15" r="2"/>
+                        </svg>
+                        <p>Generate to see preview</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateGenerateButton(status, assetCount) {
+            const generateBtn = document.getElementById('generateBtn');
+            const hasAssets = assetCount > 0;
+            const defaultLabel = hasAssets ? 'Generate Reel' : 'Upload Assets First';
+            
+            if (status === 'ready') {
+                // Video already rendered - enable regenerate
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerate
+                `;
+                generateBtn.disabled = false;
+                // Change click handler to regenerate
+                generateBtn.onclick = () => regenerateReel();
+            } else if (status === 'plan_ready' || status === 'rendering') {
+                // Generation in progress
+                generateBtn.disabled = true;
+                generateBtn.onclick = null;
+            } else {
+                // Ready to generate
+                generateBtn.disabled = !hasAssets;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    <span id="generateBtnText">${defaultLabel}</span>
+                `;
+                generateBtn.onclick = null; // Use default click handler
+            }
+        }
+
+        async function regenerateReel() {
+            if (!currentProject) return;
+
+            const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('generationStatus');
+
+            // Confirm regeneration
+            if (!confirm('Regenerate this Reel? This will create a new version with the current template.')) {
+                return;
+            }
+
+            try {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerating...
+                `;
+                statusText.style.display = 'block';
+                statusText.textContent = 'Starting regeneration...';
+
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/regenerate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        target_duration_seconds: 30, 
+                        template_key: currentProject.template_key 
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Regeneration failed');
+                }
+
+                const data = await response.json();
+                
+                // Start polling for status
+                pollJobStatus(data.job_id);
+            } catch (error) {
+                console.error('Regeneration failed:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.style.color = 'var(--brand-error)';
+                
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerate
+                `;
+            }
+        }
+
+        async function deleteProject(projectId, projectTitle = 'this project', triggerButton = null) {
+            if (!projectId) return;
+
+            const confirmed = confirm(`Delete "${projectTitle}"? This will remove the project, assets, previews, and generated output.`);
+            if (!confirmed) return;
+
+            const originalButtonHtml = triggerButton ? triggerButton.innerHTML : null;
+
+            try {
+                if (triggerButton) {
+                    triggerButton.disabled = true;
+                    triggerButton.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                        </svg>
+                    `;
+                }
+
+                const response = await fetch(`${API_BASE}/projects/${projectId}`, {
+                    method: 'DELETE'
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(payload.detail || 'Delete failed');
+                }
+
+                if (currentProject && currentProject.id === projectId) {
+                    projectDetailView.classList.add('hidden');
+                    projectsListView.classList.remove('hidden');
+                    currentProject = null;
+                }
+
+                await loadProjects();
+            } catch (error) {
+                console.error('Delete project failed:', error);
+                alert(`Failed to delete project: ${error.message}`);
+                if (triggerButton) {
+                    triggerButton.disabled = false;
+                    triggerButton.innerHTML = originalButtonHtml;
+                }
+                return;
+            }
+        }
+
+        function updateStatusIndicators(status) {
+            const indicators = {
+                'draft': ['statusAssets'],
+                'queued': ['statusAssets', 'statusAnalysis'],
+                'analyzing': ['statusAssets', 'statusAnalysis'],
+                'plan_ready': ['statusAssets', 'statusAnalysis', 'statusPlan'],  // Phase 2 complete
+                'rendering': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender'],
+                'ready': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender'],  // Phase 3 complete
+                'failed': ['statusAssets'],
+                'published': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender']
+            };
+
+            const activeStatuses = indicators[status] || ['statusAssets'];
+            
+            document.querySelectorAll('.status-indicator').forEach(el => {
+                el.classList.remove('complete', 'active');
+                if (activeStatuses.includes(el.id)) {
+                    if (status === 'analyzing' && el.id === 'statusAnalysis') {
+                        el.classList.add('active');
+                    } else if (status === 'rendering' && el.id === 'statusRender') {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.add('complete');
+                    }
+                }
+            });
+        }
+
+        async function createProject() {
+            const title = document.getElementById('projectTitle').value.trim();
+            if (!title) {
+                alert('Please enter a project name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/projects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, template_key: selectedTemplate })
+                });
+
+                if (!response.ok) throw new Error('Failed to create project');
+
+                const data = await response.json();
+                closeModal();
+                openProject(data.project_id);
+                await loadProjects();
+            } catch (error) {
+                console.error('Failed to create project:', error);
+                alert('Failed to create project. Please try again.');
+            }
+        }
+
+        async function uploadFiles(files) {
+            if (!currentProject) return;
+
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            try {
+                uploadZone.style.opacity = '0.6';
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/assets`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+
+                const data = await response.json();
+                
+                // Refresh project data
+                openProject(currentProject.id);
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert('Failed to upload files. Please try again.');
+            } finally {
+                uploadZone.style.opacity = '1';
+            }
+        }
+
+        // Phase 2: Real generation with async processing
+        async function generateReel() {
+            if (!currentProject) return;
+
+            const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('generationStatus');
+
+            try {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    Starting...
+                `;
+                statusText.style.display = 'block';
+                statusText.textContent = 'Queueing analysis job...';
+
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        target_duration_seconds: 30, 
+                        template_key: currentProject.template_key 
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Generation failed');
+                }
+
+                const data = await response.json();
+                
+                // Start polling for status
+                pollJobStatus(data.job_id);
+            } catch (error) {
+                console.error('Generation failed:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.style.color = 'var(--brand-error)';
+                
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    Retry Generation
+                `;
+            }
+        }
+
+        async function pollJobStatus(jobId) {
+            if (!currentProject) return;
+
+            const statusText = document.getElementById('generationStatus');
+            const generateBtn = document.getElementById('generateBtn');
+
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/projects/${currentProject.id}/jobs/${jobId}`);
+                    const data = await response.json();
+                    
+                    updateStatusIndicators(data.status);
+                    
+                    // Update status message
+                    const statusMessages = {
+                        'queued': 'Waiting to start...',
+                        'analyzing': 'AI analyzing your assets...',
+                        'running': 'Creating edit plan...',
+                        'plan_ready': 'Edit plan ready! Phase 3 (video rendering) coming soon.',
+                        'completed': 'Video rendered successfully!',  // Phase 3
+                        'failed': 'Analysis failed: ' + (data.error_message || 'Unknown error')
+                    };
+                    statusText.textContent = statusMessages[data.status] || `Status: ${data.status}`;
+                    
+                    if (data.status === 'plan_ready' || data.status === 'completed') {
+                        const isPlanReady = data.status === 'plan_ready';
+                        generateBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            ${isPlanReady ? 'Analysis Complete' : 'Video Ready'}
+                        `;
+                        statusText.style.color = 'var(--brand-success)';
+                        // Refresh to show any updates
+                        openProject(currentProject.id);
+                    } else if (data.status === 'failed') {
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Retry Generation
+                        `;
+                        statusText.style.color = 'var(--brand-error)';
+                    } else {
+                        // Continue polling
+                        setTimeout(checkStatus, 2000);
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                    statusText.textContent = 'Checking status...';
+                    setTimeout(checkStatus, 5000);
+                }
+            };
+
+            checkStatus();
+        }
+
+        function removeAsset(assetId) {
+            // TODO: Implement asset removal
+            console.log('Remove asset:', assetId);
+        }
+
+        // ========================================
+        // Phase 4: Publishing
+        // ========================================
+
+        function updatePublishUI(project, instagramStatus) {
+            const publishCard = document.getElementById('publishCard');
+            const publishBtn = document.getElementById('publishBtn');
+            const connectPrompt = document.getElementById('instagramConnectPrompt');
+            
+            // Only show publish card if video is ready
+            if (project.status === 'ready' || project.status === 'published') {
+                publishCard.style.display = 'block';
+                
+                // Check Instagram connection
+                const isConnected = instagramStatus?.connected || false;
+                const canPublish = instagramStatus?.can_publish || false;
+                
+                if (!isConnected) {
+                    publishBtn.style.display = 'none';
+                    connectPrompt.style.display = 'block';
+                } else if (!canPublish) {
+                    publishBtn.disabled = true;
+                    publishBtn.innerHTML = 'Professional Account Required';
+                    connectPrompt.style.display = 'none';
+                } else {
+                    publishBtn.style.display = 'inline-flex';
+                    publishBtn.disabled = false;
+                    connectPrompt.style.display = 'none';
+                }
+                
+                // Update button if already published
+                if (project.status === 'published') {
+                    publishBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                        Published
+                    `;
+                    publishBtn.disabled = true;
+                }
+            } else {
+                publishCard.style.display = 'none';
+            }
+        }
+
+        async function checkInstagramStatus() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to check Instagram status:', error);
+                return null;
+            }
+        }
+
+        async function publishReel() {
+            if (!currentProject) return;
+
+            const publishBtn = document.getElementById('publishBtn');
+            const statusText = document.getElementById('publishStatus');
+            const caption = document.getElementById('publishCaption').value;
+            const hashtags = document.getElementById('publishHashtags').value
+                .split(',')
+                .map(h => h.trim())
+                .filter(h => h);
+
+            try {
+                publishBtn.disabled = true;
+                publishBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                    </svg>
+                    Publishing...
+                `;
+                statusText.style.display = 'block';
+                statusText.textContent = 'Queueing for publish...';
+
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/publish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        caption: caption,
+                        hashtags: hashtags,
+                        share_to_feed: true
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Publish failed');
+                }
+
+                const data = await response.json();
+                
+                // Poll for publish status
+                pollPublishStatus(data.publish_job_id);
+            } catch (error) {
+                console.error('Publish failed:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.style.color = 'var(--brand-error)';
+                
+                publishBtn.disabled = false;
+                publishBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    Publish Reel
+                `;
+            }
+        }
+
+        async function pollPublishStatus(jobId) {
+            if (!currentProject) return;
+
+            const statusText = document.getElementById('publishStatus');
+            const publishBtn = document.getElementById('publishBtn');
+
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/projects/${currentProject.id}/publish/${jobId}`);
+                    const data = await response.json();
+                    
+                    const statusMessages = {
+                        'queued': 'Waiting to publish...',
+                        'publishing': 'Uploading to Instagram...',
+                        'published': 'Published to Instagram!',
+                        'failed': 'Publish failed: ' + (data.error_message || 'Unknown error')
+                    };
+                    statusText.textContent = statusMessages[data.status] || `Status: ${data.status}`;
+                    
+                    if (data.status === 'published') {
+                        publishBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Published
+                        `;
+                        statusText.style.color = 'var(--brand-success)';
+                        // Refresh project data
+                        openProject(currentProject.id);
+                    } else if (data.status === 'failed') {
+                        publishBtn.disabled = false;
+                        publishBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Retry Publish
+                        `;
+                        statusText.style.color = 'var(--brand-error)';
+                    } else {
+                        setTimeout(checkStatus, 3000);
+                    }
+                } catch (error) {
+                    console.error('Publish status check failed:', error);
+                    setTimeout(checkStatus, 5000);
+                }
+            };
+
+            checkStatus();
+        }
+
+        // ========================================
+        // Event Listeners
+        // ========================================
+
+        function setupEventListeners() {
+            // Modal controls
+            document.getElementById('newProjectBtn').addEventListener('click', openModal);
+            document.getElementById('emptyStateNewBtn').addEventListener('click', openModal);
+            document.getElementById('cancelModal').addEventListener('click', closeModal);
+            document.getElementById('createProjectBtn').addEventListener('click', createProject);
+
+            // Close modal on overlay click
+            newProjectModal.addEventListener('click', (e) => {
+                if (e.target === newProjectModal) closeModal();
+            });
+
+            // Back button
+            document.getElementById('backToList').addEventListener('click', (e) => {
+                e.preventDefault();
+                projectDetailView.classList.add('hidden');
+                projectsListView.classList.remove('hidden');
+                currentProject = null;
+                loadProjects();
+            });
+
+            // Upload zone
+            uploadZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => uploadFiles(e.target.files));
+
+            // Drag and drop
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                uploadFiles(e.dataTransfer.files);
+            });
+
+            // Generate button - Phase 2: Enabled with real async processing
+            document.getElementById('generateBtn').addEventListener('click', generateReel);
+
+            // Publish button - Phase 4
+            document.getElementById('publishBtn').addEventListener('click', publishReel);
+
+            // Delete current project
+            document.getElementById('deleteProjectBtn').addEventListener('click', () => {
+                if (!currentProject) return;
+                deleteProject(currentProject.id, currentProject.title, document.getElementById('deleteProjectBtn'));
+            });
+        }
+
+        function openModal() {
+            newProjectModal.classList.add('active');
+            document.getElementById('projectTitle').value = '';
+            document.getElementById('projectTitle').focus();
+        }
+
+        function closeModal() {
+            newProjectModal.classList.remove('active');
+        }
+
+        // ========================================
+        // Utilities
+        // ========================================
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        // Add spin animation for loading
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
