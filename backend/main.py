@@ -2000,6 +2000,10 @@ async def facebook_instagram_oauth_finalize(request: FacebookInstagramFinalizeRe
         set_setting("facebook_instagram_business_account_id", selected_page["instagram_business_account_id"])
         set_setting("facebook_instagram_connected_at", datetime.utcnow().isoformat())
         
+        # Persist granted permissions (scopes) - required for publish readiness checks
+        required_scopes = FacebookInstagramAuthClient.REQUIRED_SCOPES
+        set_setting("facebook_instagram_permissions", ",".join(required_scopes))
+        
         # Clear legacy Instagram Login errors
         set_setting("instagram_error", "")
         

@@ -1069,12 +1069,27 @@ async def process_publish(project_id: str, job_id: str, video_url: str, caption:
         update_publish_job_status(job_id, "publishing")
         update_project_status(project_id, "publishing")
         
-        # Get Instagram credentials
-        access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
-        user_id = get_setting("instagram_user_id") or config.INSTAGRAM_USER_ID
+        # Get Instagram credentials - support both Facebook Login (new) and Instagram Login (legacy)
+        auth_flow = get_setting("instagram_auth_flow", "")
         
-        if not access_token or not user_id:
-            raise ValueError("Instagram not connected. Please connect Instagram first.")
+        if auth_flow == "facebook_login":
+            # Facebook Login for Business → Instagram flow (new)
+            access_token = get_setting("facebook_instagram_long_lived_token") or \
+                           get_setting("facebook_instagram_access_token")
+            user_id = get_setting("facebook_instagram_business_account_id")
+            
+            if not access_token or not user_id:
+                raise ValueError(
+                    "Facebook Instagram connection not complete. "
+                    "Missing access token or Instagram Business Account ID."
+                )
+        else:
+            # Legacy Instagram Login flow
+            access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
+            user_id = get_setting("instagram_user_id") or getattr(config, 'INSTAGRAM_USER_ID', None)
+            
+            if not access_token or not user_id:
+                raise ValueError("Instagram not connected. Please connect Instagram first.")
         
         # Create client and publish
         client = InstagramLoginClient(
@@ -1131,16 +1146,31 @@ async def publish_reel(project_id: str, request: PublishRequest, background_task
             detail="Reel not ready for publish. Generate video first."
         )
     
-    # Check Instagram connection
+    # Check Instagram connection - support both Facebook Login (new) and Instagram Login (legacy)
     from config.settings import config
-    access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
-    user_id = get_setting("instagram_user_id") or config.INSTAGRAM_USER_ID
+    auth_flow = get_setting("instagram_auth_flow", "")
     
-    if not access_token or not user_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Instagram not connected. Please connect your Instagram professional account first."
-        )
+    if auth_flow == "facebook_login":
+        # Facebook Login for Business flow (new)
+        access_token = get_setting("facebook_instagram_long_lived_token") or \
+                       get_setting("facebook_instagram_access_token")
+        user_id = get_setting("facebook_instagram_business_account_id")
+        
+        if not access_token or not user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Facebook Instagram connection not complete. Please reconnect your account."
+            )
+    else:
+        # Legacy Instagram Login flow
+        access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
+        user_id = get_setting("instagram_user_id") or getattr(config, 'INSTAGRAM_USER_ID', None)
+        
+        if not access_token or not user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Instagram not connected. Please connect your Instagram professional account first."
+            )
     
     # Build full video URL (must be publicly accessible for Instagram)
     video_url = project["final_output_url"]
