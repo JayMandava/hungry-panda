@@ -2103,10 +2103,60 @@ async def instagram_oauth_callback(
 
 @app.post("/api/instagram/test")
 async def instagram_test_connection(request: Request):
-    """Validate the stored Instagram token and return current profile details."""
+    """
+    Validate the stored Instagram connection and return current profile details.
+    Supports both Facebook Login (new) and Instagram Login (legacy) flows.
+    """
+    auth_flow = get_setting("instagram_auth_flow", "")
+    
+    # Facebook Login for Business flow (new)
+    if auth_flow == "facebook_login" and FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        fb_token = get_setting("facebook_instagram_long_lived_token") or \
+                   get_setting("facebook_instagram_access_token")
+        ig_business_id = get_setting("facebook_instagram_business_account_id")
+        page_id = get_setting("facebook_instagram_page_id")
+        page_name = get_setting("facebook_instagram_page_name")
+        
+        if not fb_token or not ig_business_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Facebook Instagram connection not fully configured. Missing token or account ID."
+            )
+        
+        try:
+            client = FacebookInstagramAuthClient()
+            is_valid = client.test_connection(ig_business_id, fb_token)
+            
+            if not is_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to verify Instagram Business Account access. Token may be expired."
+                )
+            
+            # Update last validated timestamp
+            set_setting("facebook_instagram_last_validated_at", datetime.utcnow().isoformat())
+            
+            return {
+                "connected": True,
+                "auth_flow": "facebook_login",
+                "page_id": page_id,
+                "page_name": page_name,
+                "instagram_business_account_id": ig_business_id,
+                "checked_at": datetime.utcnow().isoformat(),
+            }
+            
+        except FacebookInstagramAuthError as exc:
+            logger.error(f"Facebook Instagram test connection failed: {exc}")
+            set_setting("instagram_error", str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    
+    # Legacy Instagram Login flow
     access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
     if not access_token:
-        raise HTTPException(status_code=400, detail="No Instagram access token is configured.")
+        raise HTTPException(
+            status_code=400,
+            detail="No Instagram access token configured. Connect using Facebook Login or Legacy Instagram Login first."
+        )
 
     status = build_instagram_status(request)
     if not status["redirect_uri"]:
@@ -2134,6 +2184,7 @@ async def instagram_test_connection(request: Request):
 
         return {
             "connected": True,
+            "auth_flow": "instagram_login",
             "profile": profile,
             "publishing_limit": publishing_limit,
             "publishing_limit_error": publishing_limit_error,
@@ -2142,6 +2193,55 @@ async def instagram_test_connection(request: Request):
     except InstagramLoginError as exc:
         clear_instagram_connection(str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/instagram/disconnect")
+async def instagram_disconnect():
+    """
+    Disconnect Instagram connection.
+    Clears both Facebook Login (new) and Instagram Login (legacy) state.
+    """
+    auth_flow = get_setting("instagram_auth_flow", "")
+    
+    # Clear Facebook Login state if active
+    if auth_flow == "facebook_login":
+        facebook_keys = [
+            "instagram_auth_flow",
+            "facebook_instagram_access_token",
+            "facebook_instagram_long_lived_token",
+            "facebook_instagram_token_expires_in",
+            "facebook_instagram_page_id",
+            "facebook_instagram_page_name",
+            "facebook_instagram_page_access_token",
+            "facebook_instagram_business_account_id",
+            "facebook_instagram_connected_at",
+            "facebook_instagram_last_validated_at",
+        ]
+        for key in facebook_keys:
+            set_setting(key, "")
+    
+    # Clear legacy Instagram Login state
+    legacy_keys = [
+        "instagram_connected",
+        "instagram_access_token",
+        "instagram_token_type",
+        "instagram_token_expires_at",
+        "instagram_permissions",
+        "instagram_username",
+        "instagram_user_id",
+        "instagram_business_account_id",
+        "instagram_last_validated_at",
+    ]
+    for key in legacy_keys:
+        set_setting(key, "")
+    
+    # Clear any error message
+    set_setting("instagram_error", "")
+    
+    return {
+        "disconnected": True,
+        "previous_auth_flow": auth_flow or "unknown",
+    }
 
 
 @app.get("/api/config/profile")
