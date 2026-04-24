@@ -2218,6 +2218,7 @@ async def instagram_disconnect():
             "facebook_instagram_page_name",
             "facebook_instagram_page_access_token",
             "facebook_instagram_business_account_id",
+            "facebook_instagram_permissions",
             "facebook_instagram_connected_at",
             "facebook_instagram_last_validated_at",
         ]
