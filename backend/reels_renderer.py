@@ -10,6 +10,15 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
+from PIL import Image, ImageOps
+
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIF_RENDER_SUPPORT = True
+except ImportError:
+    HEIF_RENDER_SUPPORT = False
+
 from config.logging_config import logger
 from config.settings import config
 
@@ -103,9 +112,20 @@ class FFmpegRenderer:
                     diagnostics=diagnostics
                 )
             
-            # Step 2: Concatenate segments
-            logger.info(f"Concatenating {len(segment_files)} segments")
-            concat_success = self._concatenate_segments(segment_files, output_path, diagnostics)
+            # Step 2: Concatenate segments with transitions
+            logger.info(f"Concatenating {len(segment_files)} segments with transitions")
+            
+            # Build segment info with transitions for proper rendering
+            segment_info = []
+            for idx, segment in enumerate(segments):
+                if idx < len(segment_files):
+                    segment_info.append({
+                        "file": segment_files[idx],
+                        "transition": segment.get("transition", "hard_cut"),
+                        "duration": segment.get("duration", 3.0)
+                    })
+            
+            concat_success = self._concatenate_with_transitions(segment_info, output_path, diagnostics)
             
             if not concat_success:
                 return RenderResult(
@@ -183,6 +203,14 @@ class FFmpegRenderer:
         diagnostics: Dict
     ) -> bool:
         """Render an image segment with Ken Burns effect"""
+        render_source_path = source_path
+        temp_image_path: Optional[Path] = None
+
+        try:
+            render_source_path, temp_image_path = self._prepare_image_render_source(source_path)
+        except Exception as exc:
+            logger.error(f"Image segment preparation failed for {source_path}: {exc}")
+            return False
         
         # Ken Burns effect parameters
         ken_burns = effects.get("ken_burns", {})
@@ -214,7 +242,7 @@ class FFmpegRenderer:
         cmd = [
             'ffmpeg', '-y',
             '-loop', '1',
-            '-i', source_path,
+            '-i', render_source_path,
             '-vf', video_filter,
             '-c:v', self.TARGET_CODEC,
             '-pix_fmt', self.TARGET_PIXEL_FORMAT,
@@ -236,9 +264,36 @@ class FFmpegRenderer:
         
         if result.returncode != 0:
             logger.error(f"Image segment render failed: {result.stderr.decode()[:500]}")
+            if temp_image_path and temp_image_path.exists():
+                temp_image_path.unlink(missing_ok=True)
             return False
         
+        if temp_image_path and temp_image_path.exists():
+            temp_image_path.unlink(missing_ok=True)
         return True
+
+    def _prepare_image_render_source(self, source_path: str) -> Tuple[str, Optional[Path]]:
+        """Convert image sources that ffmpeg may not decode reliably into a temporary JPEG."""
+        source = Path(source_path)
+        suffix = source.suffix.lower()
+
+        if suffix not in {".heic", ".heif"}:
+            return source_path, None
+
+        if not HEIF_RENDER_SUPPORT:
+            raise RuntimeError("HEIF render support unavailable on server")
+
+        temp_image_path = self.temp_dir / f"render_{source.stem}_{os.urandom(4).hex()}.jpg"
+
+        with Image.open(source) as img:
+            img = ImageOps.exif_transpose(img)
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            elif img.mode == "L":
+                img = img.convert("RGB")
+            img.save(temp_image_path, format="JPEG", quality=95)
+
+        return str(temp_image_path), temp_image_path
     
     def _render_video_segment(
         self,
@@ -465,6 +520,135 @@ class FFmpegRenderer:
             return False
         
         return True
+    
+    def _concatenate_with_transitions(self, segment_info: List[Dict], output_path: str, diagnostics: Dict) -> bool:
+        """
+        Concatenate segments with real transitions using ffmpeg filter_complex.
+        Supports: hard_cut (plain join), crossfade/xfade (smooth transitions)
+        """
+        if len(segment_info) == 1:
+            # Single segment, just copy
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', segment_info[0]["file"],
+                '-c', 'copy',
+                '-movflags', '+faststart',
+                output_path
+            ]
+            diagnostics["ffmpeg_commands"].append(" ".join(cmd))
+            
+            result = subprocess.run(cmd, capture_output=True, timeout=120)
+            return result.returncode == 0
+        
+        # Check if all transitions are hard_cut (use simple concat)
+        all_hard_cut = all(seg.get("transition") == "hard_cut" for seg in segment_info)
+        if all_hard_cut:
+            logger.info("All segments use hard_cut - using simple concat demuxer")
+            segment_files = [s["file"] for s in segment_info]
+            return self._concatenate_segments(segment_files, output_path, diagnostics)
+        
+        # Multiple segments with smooth transitions - use filter_complex with xfade
+        try:
+            transition_duration = 0.5  # 0.5 second transitions
+            
+            # Build input files and filter_complex
+            inputs = []
+            filter_parts = []
+            
+            for idx, seg in enumerate(segment_info):
+                inputs.extend(['-i', seg["file"]])
+            
+            # Build filter_complex for xfade transitions
+            # Format: [0:v][1:v]xfade=transition=fade:duration=0.5:offset=2.5[vt1];
+            # [vt1][2:v]xfade=transition=fade:duration=0.5:offset=5.0[vt2]...
+            
+            current_offset = segment_info[0]["duration"] - transition_duration
+            filter_chain = []
+            
+            for i in range(len(segment_info) - 1):
+                transition = segment_info[i].get("transition", "hard_cut")
+                
+                # Map transition names to xfade transition types
+                xfade_transition = self._map_transition_type(transition)
+                
+                if i == 0:
+                    # First transition: [0:v][1:v] -> [vt1]
+                    filter_chain.append(
+                        f"[{i}:v][{i+1}:v]xfade=transition={xfade_transition}:"
+                        f"duration={transition_duration}:offset={current_offset}[vt{i}]"
+                    )
+                else:
+                    # Subsequent: [vt{i-1}][{i+1}:v] -> [vt{i}]
+                    prev_label = f"vt{i-1}" if i > 1 else "vt0"
+                    filter_chain.append(
+                        f"[{prev_label}][{i+1}:v]xfade=transition={xfade_transition}:"
+                        f"duration={transition_duration}:offset={current_offset}[vt{i}]"
+                    )
+                
+                # Update offset for next transition (subtract overlap)
+                if i < len(segment_info) - 2:
+                    current_offset += segment_info[i+1]["duration"] - transition_duration
+            
+            # Build final filter string
+            video_filter = ";".join(filter_chain)
+            final_video_label = f"vt{len(segment_info)-2}" if len(segment_info) > 2 else "vt0"
+            
+            # Add format and output
+            video_filter += f";[{final_video_label}]format=yuv420p[final]"
+            
+            cmd = [
+                'ffmpeg', '-y',
+                *inputs,
+                '-filter_complex', video_filter,
+                '-map', '[final]',
+                '-c:v', self.TARGET_CODEC,
+                '-pix_fmt', self.TARGET_PIXEL_FORMAT,
+                '-r', str(self.TARGET_FPS),
+                '-movflags', '+faststart',
+                '-preset', 'fast',
+                '-crf', '23',
+                output_path
+            ]
+            
+            diagnostics["ffmpeg_commands"].append(" ".join(cmd))
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=180  # Longer timeout for complex filter
+            )
+            
+            if result.returncode != 0:
+                stderr = result.stderr.decode()
+                logger.error(f"Transition concatenation failed: {stderr[:500]}")
+                
+                # Fallback: try simple concat without transitions
+                logger.info("Falling back to simple concat without transitions")
+                segment_files = [s["file"] for s in segment_info]
+                return self._concatenate_segments(segment_files, output_path, diagnostics)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Transition rendering failed: {e}")
+            # Fallback to simple concat
+            try:
+                segment_files = [s["file"] for s in segment_info]
+                return self._concatenate_segments(segment_files, output_path, diagnostics)
+            except:
+                return False
+    
+    def _map_transition_type(self, transition: str) -> str:
+        """Map template transition names to xfade transition types"""
+        transition_map = {
+            "hard_cut": "fade",  # xfade doesn't have hard cut, use minimal fade
+            "crossfade": "fade",
+            "fade": "fade",
+            "fade_in": "fade",
+            "smooth": "fade",
+            "zoom": "fade",  # Degrade zoom to fade as specified
+        }
+        return transition_map.get(transition, "fade")
     
     def _get_video_duration(self, video_path: str) -> float:
         """Get duration of rendered video"""

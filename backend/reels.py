@@ -200,7 +200,7 @@ class RenderJobInfo(BaseModel):
     created_at: str
 
 class GenerateRequest(BaseModel):
-    target_duration_seconds: int = Field(default=30, ge=15, le=60)
+    target_duration_seconds: int = Field(default=30, ge=30, le=60)
     template_key: Optional[str] = None
 
 class ProjectFullResponse(BaseModel):
@@ -562,6 +562,19 @@ async def create_project(request: CreateProjectRequest):
         title=request.title
     )
 
+def get_next_sort_order(project_id: str) -> int:
+    """Get the next sort_order for a project (append after existing assets)"""
+    try:
+        rows = execute_query(
+            "SELECT MAX(sort_order) as max_order FROM reel_assets WHERE project_id = ?",
+            (project_id,)
+        )
+        if rows and rows[0]["max_order"] is not None:
+            return rows[0]["max_order"] + 1
+        return 0
+    except DatabaseError:
+        return 0
+
 @router.post("/projects/{project_id}/assets")
 async def upload_assets(project_id: str, files: List[UploadFile] = File(...)):
     """Upload multiple images/videos to a Reel project"""
@@ -575,6 +588,9 @@ async def upload_assets(project_id: str, files: List[UploadFile] = File(...)):
     
     dirs = get_project_dirs(project_id)
     uploaded_assets = []
+    
+    # Get starting sort_order for this batch (append after existing)
+    next_sort_order = get_next_sort_order(project_id)
     
     for idx, file in enumerate(files):
         # Validate file type
@@ -599,8 +615,9 @@ async def upload_assets(project_id: str, files: List[UploadFile] = File(...)):
             # Generate browser-safe preview
             preview_path = generate_asset_preview(str(source_path), media_type, dirs["previews"])
             
-            # Add to database with preview
-            asset_id = add_asset_db(project_id, str(source_path), media_type, idx, preview_path)
+            # Add to database with sequential sort_order (append after existing assets)
+            sort_order = next_sort_order + idx
+            asset_id = add_asset_db(project_id, str(source_path), media_type, sort_order, preview_path)
             
             # Get preview URL for response
             preview_url = get_preview_url(preview_path)

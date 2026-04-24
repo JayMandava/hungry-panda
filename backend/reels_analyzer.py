@@ -391,44 +391,45 @@ def _score_reel_suitability(visual_facts: Dict, quality_scores: Dict) -> Dict[st
 def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> List[Dict]:
     """
     Select and rank assets for reel inclusion.
+    PRESERVES STRICT UPLOAD ORDER - does not reorder by score.
     Returns ordered list of selected assets with their roles.
     """
     if not assets:
         return []
     
-    # Filter to recommended assets only
+    # Sort by upload order (sort_order) - strict preservation
+    sorted_assets = sorted(assets, key=lambda x: x.get("sort_order", 0))
+    
+    # Filter to recommended assets only (but keep upload order)
     recommended = [
-        a for a in assets
+        a for a in sorted_assets
         if a.get("analysis_json", {}).get("reel_suitability", {}).get("recommended", True)
     ]
     
     if not recommended:
-        # Fall back to all assets if none recommended
-        recommended = assets
+        # Fall back to all assets if none recommended (still in upload order)
+        recommended = sorted_assets
     
-    # Sort by reel suitability score
-    scored = [
-        (a, a.get("analysis_json", {}).get("reel_suitability", {}).get("score", 0.5))
-        for a in recommended
-    ]
-    scored.sort(key=lambda x: x[1], reverse=True)
-    
-    # Assign roles based on position and score
+    # Assign roles based on upload order position (not by score)
     selected = []
-    for idx, (asset, score) in enumerate(scored[:8]):  # Max 8 assets
+    for idx, asset in enumerate(recommended[:8]):  # Max 8 assets
+        # Get score for reference (but don't use it for ordering)
+        score = asset.get("analysis_json", {}).get("reel_suitability", {}).get("score", 0.5)
+        
+        # Assign roles based on position in upload sequence
         role = "body"
-        if idx == 0 and score > 0.7:
-            role = "intro"
-        elif idx >= len(scored) - 2 and len(scored) > 2:
-            role = "outro"
+        if idx == 0:
+            role = "intro"  # First uploaded asset is intro
+        elif idx >= len(recommended) - 2 and len(recommended) > 2:
+            role = "outro"  # Last 1-2 assets are outro
         
         selected.append({
             "asset_id": asset["id"],
             "source_path": asset["source_path"],
             "media_type": asset["media_type"],
-            "sort_order": idx,
+            "sort_order": asset.get("sort_order", idx),
             "role": role,
-            "score": score,
+            "score": score,  # Kept for reference only
             "analysis": asset.get("analysis_json", {})
         })
     
@@ -564,9 +565,12 @@ def _ensure_minimum_reel_duration(
     segments: List[Dict[str, Any]],
     selected_assets: List[Dict[str, Any]],
     target_duration: int,
-    minimum_duration: float = 5.0,
+    minimum_duration: float = 30.0,
 ) -> None:
-    """Stretch the final segment when the plan is otherwise too short to be valid."""
+    """
+    Stretch ALL segments when the plan is too short to reach minimum 30s for Instagram.
+    Extends segments proportionally - images can extend freely, videos capped by source duration.
+    """
     current_total = sum(segment["duration"] for segment in segments)
     if current_total >= minimum_duration or not segments:
         return
@@ -575,19 +579,63 @@ def _ensure_minimum_reel_duration(
     if remaining_budget <= 0:
         return
 
-    last_segment = segments[-1]
-    last_asset = selected_assets[len(segments) - 1]
     required_extension = minimum_duration - current_total
-    extension = min(required_extension, remaining_budget)
-
-    if last_asset.get("media_type") == "video":
-        source_duration = _get_video_source_duration(last_asset)
-        if source_duration is not None:
-            available_video_time = max(0.0, source_duration - last_segment["duration"])
-            extension = min(extension, available_video_time)
-
-    if extension > 0:
-        last_segment["duration"] = round(last_segment["duration"] + extension, 2)
+    extension_budget = min(required_extension, remaining_budget)
+    
+    # Calculate how much each segment CAN be extended
+    extendable_room = []  # (segment_idx, current_duration, max_extendable)
+    total_extendable = 0.0
+    
+    for i, segment in enumerate(segments):
+        if i >= len(selected_assets):
+            break
+        asset = selected_assets[i]
+        current_dur = segment["duration"]
+        
+        if asset.get("media_type") == "video":
+            # Videos capped by source duration
+            source_duration = _get_video_source_duration(asset)
+            if source_duration is not None:
+                max_for_video = max(0.0, source_duration - current_dur)
+                extendable_room.append((i, current_dur, max_for_video))
+                total_extendable += max_for_video
+            else:
+                # Unknown source, allow some extension
+                extendable_room.append((i, current_dur, 5.0))
+                total_extendable += 5.0
+        else:
+            # Images can extend arbitrarily (Ken Burns can run longer)
+            # But set a reasonable max per image to avoid excessive still time
+            max_for_image = 15.0  # Allow images to stretch up to 15s each
+            extendable_room.append((i, current_dur, max_for_image))
+            total_extendable += max_for_image
+    
+    if total_extendable <= 0:
+        return  # Nothing can be extended
+    
+    # Distribute extension proportionally
+    extension_ratio = min(1.0, extension_budget / total_extendable)
+    
+    for seg_idx, current_dur, max_extendable in extendable_room:
+        extension = max_extendable * extension_ratio
+        if extension > 0.1:  # Only apply meaningful extensions
+            segments[seg_idx]["duration"] = round(current_dur + extension, 2)
+    
+    # Verify we reached minimum - if not, try one more aggressive pass
+    final_total = sum(s["duration"] for s in segments)
+    if final_total < minimum_duration and total_extendable > 0:
+        # Aggressive pass: use all remaining room
+        remaining_needed = minimum_duration - final_total
+        for seg_idx, current_dur, max_extendable in extendable_room:
+            current_extended = segments[seg_idx]["duration"]
+            already_added = current_extended - current_dur
+            remaining_room = max_extendable - already_added
+            if remaining_room > 0:
+                extra = min(remaining_room, remaining_needed)
+                segments[seg_idx]["duration"] = round(current_extended + extra, 2)
+                remaining_needed -= extra
+                if remaining_needed <= 0:
+                    break
 
 def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_key: str, target_duration: int = 30) -> Dict[str, Any]:
     """
@@ -669,8 +717,12 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
                 break
         
         # Determine transition (deterministic based on template)
+        # First segment transition depends on template style
         if idx == 0:
-            transition = "fade_in"
+            if template["transitions"] == "cut":
+                transition = "hard_cut"  # Clean start for cut templates
+            else:
+                transition = "fade_in"  # Smooth start for other templates
         elif template["transitions"] == "smooth":
             transition = "crossfade"
         elif template["transitions"] == "cut":
@@ -680,8 +732,9 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
         else:
             transition = "zoom"
         
-        # Build overlay text (AI-enhanced if available)
-        overlay = _generate_segment_overlay(role, asset, template_key, idx, ai_decisions[idx] if ai_decisions else None)
+        # Build overlay text - FINAL CTA ONLY
+        is_final_segment = (idx == len(selected_assets) - 1)
+        overlay = _generate_segment_overlay(role, asset, template_key, idx, ai_decisions[idx] if ai_decisions else None, is_final_segment)
         
         segment = {
             "segment_id": f"seg_{idx}_{uuid.uuid4().hex[:8]}",
@@ -728,68 +781,28 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
     return edit_plan
 
 
-def _generate_segment_overlay(role: str, asset: Dict, template_key: str, position: int, ai_decision: Optional[Dict] = None) -> Dict[str, Any]:
-    """Generate overlay text for a segment, enhanced by AI if available"""
-    visual = asset.get("analysis", {}).get("visual_facts", {})
-    dish = visual.get("dish_detected")
-    
-    # Check if AI provided overlay hints
-    ai_overlay_hint = None
-    if ai_decision and ai_decision.get("ai_notes"):
-        # Try to extract overlay text from AI notes
-        import re
-        notes = ai_decision["ai_notes"]
-        # Look for text/overlay/hook mentions
-        text_match = re.search(r'(?:text|overlay|hook|caption)["\':\s]+([^"\n]{3,50})["\']?', notes, re.IGNORECASE)
-        if text_match:
-            ai_overlay_hint = text_match.group(1).strip()
-    
-    if role == "intro":
-        # Use AI hint if available, otherwise fall back to template logic
-        if ai_overlay_hint:
-            text = ai_overlay_hint
-        elif template_key == "dish_showcase" and dish:
-            text = dish.title()
-        elif template_key == "recipe_steps":
-            text = "How it's made"
-        else:
-            text = "Watch this"
-        return {
-            "text": text,
-            "position": "center",
-            "style": "title",
-            "duration": 2.0
-        }
-    
-    elif role == "outro":
-        # Use AI hint if available
-        if ai_overlay_hint:
-            text = ai_overlay_hint
-        else:
-            text = "Follow for more"
-        return {
-            "text": text,
-            "position": "bottom",
-            "style": "cta",
-            "duration": 2.0
-        }
-    
-    else:
-        # Body segment - minimal text, use AI if suggested
-        if ai_overlay_hint and len(ai_overlay_hint) < 30:
-            return {
-                "text": ai_overlay_hint,
-                "position": "bottom",
-                "style": "subtle",
-                "duration": 1.5
-            }
-        # Otherwise no text
+def _generate_segment_overlay(role: str, asset: Dict, template_key: str, position: int, ai_decision: Optional[Dict] = None, is_final_segment: bool = False) -> Dict[str, Any]:
+    """
+    Generate overlay text for a segment.
+    RESTRICTED TO FINAL CTA ONLY - no text on intro/body segments.
+    Only the last segment shows 'Follow for more' CTA.
+    """
+    # Only show text on the final segment (outro/CTA)
+    if not is_final_segment:
         return {
             "text": "",
             "position": "none",
             "style": "none",
             "duration": 0
         }
+    
+    # Final segment CTA only
+    return {
+        "text": "Follow for more",
+        "position": "bottom",
+        "style": "cta",
+        "duration": 2.0
+    }
 
 
 def _get_segment_effects(media_type: str, role: str, template_key: str) -> Dict[str, Any]:
@@ -846,8 +859,8 @@ def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
     if total > target + 2:  # Allow 2 second tolerance
         return False, f"Total duration ({total}s) exceeds target ({target}s)"
     
-    if total < 5:
-        return False, f"Total duration ({total}s) too short for a reel"
+    if total < 30:
+        return False, f"Total duration ({total}s) below 30s minimum for Instagram Reels"
     
     return True, None
 

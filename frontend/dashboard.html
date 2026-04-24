@@ -271,6 +271,27 @@
             backdrop-filter: blur(8px);
         }
 
+        /* Toned-down status text for header bottom-right */
+        .status-subtle {
+            position: absolute;
+            bottom: 8px;
+            right: var(--space-6);
+            font-size: 11px;
+            color: var(--text-tertiary);
+            font-weight: var(--font-normal);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-subtle .status-dot {
+            width: 4px;
+            height: 4px;
+            background: var(--brand-success);
+            border-radius: 50%;
+            opacity: 0.7;
+        }
+
         .status-dot {
             width: 6px;
             height: 6px;
@@ -1954,6 +1975,13 @@
                 justify-content: flex-start;
                 gap: var(--space-3);
             }
+
+            .status-subtle {
+                position: static;
+                margin-top: var(--space-2);
+                margin-left: auto;
+                font-size: 10px;
+            }
             
             /* M2: Mobile Metrics - Compact layout */
             .metrics-section {
@@ -2399,10 +2427,12 @@
                     </svg>
                     Reel Maker
                 </a>
-                <span class="status-badge">
-                    <span class="status-dot"></span>
-                    System Online
-                </span>
+            </div>
+            
+            <!-- Toned-down status in bottom-right corner -->
+            <div class="status-subtle">
+                <span class="status-dot"></span>
+                System Online
             </div>
         </div>
     </header>
