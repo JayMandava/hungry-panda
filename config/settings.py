@@ -43,6 +43,12 @@ class Config:
     INSTAGRAM_REDIRECT_URI: Optional[str] = os.getenv("INSTAGRAM_REDIRECT_URI")
     INSTAGRAM_API_VERSION: str = os.getenv("INSTAGRAM_API_VERSION", "v25.0")
     
+    # Facebook Login for Business → Instagram (new auth flow)
+    # Falls back to INSTAGRAM_* if not explicitly set
+    FACEBOOK_APP_ID: Optional[str] = os.getenv("FACEBOOK_APP_ID")
+    FACEBOOK_APP_SECRET: Optional[str] = os.getenv("FACEBOOK_APP_SECRET")
+    FACEBOOK_INSTAGRAM_REDIRECT_URI: Optional[str] = os.getenv("FACEBOOK_INSTAGRAM_REDIRECT_URI")
+    
     # External APIs - LLM Configuration
     # OpenAI (legacy support)
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
