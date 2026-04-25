@@ -726,8 +726,11 @@ async def get_reel_recommendations(project_id: str):
         # Get visual analysis if available
         visual_analysis = None
         if video_asset.get("analysis_json"):
-            analysis = json.loads(video_asset["analysis_json"])
-            visual_analysis = analysis.get("visual_facts", {})
+            analysis = video_asset["analysis_json"]
+            # Handle both dict (already parsed) and string (needs parsing)
+            if isinstance(analysis, str):
+                analysis = json.loads(analysis)
+            visual_analysis = analysis.get("visual_facts", {}) if isinstance(analysis, dict) else {}
 
         # Call LLM for recommendation
         recommendation = generate_reel_recommendation(

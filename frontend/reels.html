@@ -1140,21 +1140,16 @@
                         <p id="generationStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; display: none;"></p>
                     </div>
 
-                    <!-- Recommendations Card (shows when ready) -->
-                    <div class="glass-card sidebar-card" id="recommendationsCard" style="display: none;">
-                        <h3 class="sidebar-title">AI Recommendations</h3>
-                        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">Get AI-powered caption, hashtags, and timing suggestions.</p>
-                        <button class="btn btn-primary" id="getRecommendationsBtn" style="width: 100%;">
+                    <!-- Publish Card (Phase 4) - Unified with recommendations -->
+                    <div class="glass-card sidebar-card" id="publishCard" style="display: none;">
+                        <h3 class="sidebar-title">Publish to Instagram</h3>
+
+                        <button class="btn btn-secondary" id="getRecommendationsBtn" style="width: 100%; margin-bottom: 12px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                             </svg>
-                            Get Recommendations
+                            Get AI Recommendations
                         </button>
-                    </div>
-
-                    <!-- Publish Card (Phase 4) -->
-                    <div class="glass-card sidebar-card" id="publishCard" style="display: none;">
-                        <h3 class="sidebar-title">Publish to Instagram</h3>
 
                         <div class="form-group" style="margin-bottom: 12px;">
                             <label class="form-label" style="font-size: 12px;">Caption</label>
@@ -1363,8 +1358,8 @@
                         : `<img src="${asset.preview_url}" alt="Asset">`)
                     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(110,154,66,0.1),rgba(138,184,90,0.05));">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(110,154,66,0.5)" stroke-width="1.5">
-                            ${asset.media_type === 'video' 
-                                ? '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>'
+                            ${asset.media_type === 'video'
+                                ? '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M10 10l4 2-4 2z"/><path d="M2 10h3M2 14h3M19 10h3M19 14h3"/>'
                                 : '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'}
                         </svg>
                        </div>`;
@@ -1813,13 +1808,11 @@
 
         function updatePublishUI(project, instagramStatus) {
             const publishCard = document.getElementById('publishCard');
-            const recommendationsCard = document.getElementById('recommendationsCard');
             const publishBtn = document.getElementById('publishBtn');
             const connectPrompt = document.getElementById('instagramConnectPrompt');
 
-            // Show recommendations and publish cards if video is ready
+            // Show publish card if video is ready
             if (project.status === 'ready' || project.status === 'published') {
-                recommendationsCard.style.display = 'block';
                 publishCard.style.display = 'block';
 
                 // Set up recommendations button
@@ -1874,10 +1867,10 @@
                     `;
                     publishBtn.disabled = true;
                     scheduleBtn.disabled = true;
-                    recBtn.disabled = true;
+                    const recBtn = document.getElementById('getRecommendationsBtn');
+                    if (recBtn) recBtn.disabled = true;
                 }
             } else {
-                recommendationsCard.style.display = 'none';
                 publishCard.style.display = 'none';
             }
         }
