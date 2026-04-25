@@ -87,6 +87,11 @@ frontend_assets_dir = Path(__file__).parent.parent / "frontend" / "assets"
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
 
+# Mount static directory for manifest and icons
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # Mount uploads directory for web access
 uploads_dir = Path(config.UPLOADS_DIR)
 if uploads_dir.exists():
