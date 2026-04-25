@@ -496,6 +496,11 @@
             stroke: currentColor;
         }
 
+        .icon-xs {
+            width: 12px;
+            height: 12px;
+        }
+
         .icon-sm {
             width: 14px;
             height: 14px;
@@ -633,152 +638,178 @@
            UPLOAD HERO - Liquid Glass (Consistent)
            ======================================== */
 
+        /* ========================================
+           UPLOAD HERO - Premium Hero Section
+           ======================================== */
+
         .upload-hero {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
-            backdrop-filter: blur(30px) saturate(160%);
-            -webkit-backdrop-filter: blur(30px) saturate(160%);
-            border: 2px solid rgba(255, 255, 255, 0.95);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 246, 0.88) 100%);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.98);
             border-radius: var(--radius-xl);
-            padding: var(--space-10) var(--space-8);
+            padding: var(--space-12) var(--space-8);
             text-align: center;
             cursor: pointer;
-            transition: all var(--transition-base);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
             box-shadow:
-                0 8px 32px rgba(110, 154, 66, 0.15),
-                0 2px 8px rgba(0, 0, 0, 0.04),
+                0 4px 24px rgba(110, 154, 66, 0.1),
+                0 1px 4px rgba(0, 0, 0, 0.02),
                 inset 0 1px 0 rgba(255, 255, 255, 1),
-                inset 0 -1px 0 rgba(110, 154, 66, 0.12);
+                0 0 0 1px rgba(110, 154, 66, 0.06);
         }
 
         .upload-hero::before {
             content: '';
             position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 50% 0%, rgba(110, 154, 66, 0.15) 0%, transparent 60%);
-            opacity: 0.6;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(180deg, rgba(110, 154, 66, 0.08) 0%, transparent 100%);
             pointer-events: none;
         }
 
         .upload-hero::after {
             content: '';
             position: absolute;
-            inset: 6px;
-            border: 2px dashed rgba(110, 154, 66, 0.4);
-            border-radius: calc(var(--radius-xl) - 6px);
+            inset: 12px;
+            border: 2px dashed rgba(110, 154, 66, 0.25);
+            border-radius: calc(var(--radius-xl) - 12px);
             pointer-events: none;
-            transition: all var(--transition-base);
-            opacity: 0.7;
-        }
-
-        .upload-hero:hover {
-            border-color: rgba(110, 154, 66, 0.5);
-            box-shadow:
-                0 12px 48px rgba(110, 154, 66, 0.25),
-                0 4px 16px rgba(0, 0, 0, 0.06),
-                inset 0 1px 0 rgba(255, 255, 255, 1),
-                0 0 60px rgba(110, 154, 66, 0.15);
-            transform: translateY(-3px);
-        }
-
-        .upload-hero.dragover {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(110, 154, 66, 0.15) 100%);
-            border-color: var(--brand-primary);
-        }
-
-        .upload-hero::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 50% 0%, rgba(110, 154, 66, 0.12) 0%, transparent 60%);
+            transition: all 0.3s ease;
             opacity: 0.5;
-            pointer-events: none;
-        }
-
-        .upload-hero::after {
-            content: '';
-            position: absolute;
-            inset: 4px;
-            border: 2px dashed var(--border-accent);
-            border-radius: calc(var(--radius-xl) - 4px);
-            pointer-events: none;
-            transition: all var(--transition-base);
-            opacity: 0.6;
         }
 
         .upload-hero:hover {
-            border-color: var(--border-accent);
-            box-shadow: var(--shadow-glow), var(--shadow-lg);
-            transform: translateY(-2px);
+            border-color: rgba(110, 154, 66, 0.4);
+            box-shadow:
+                0 16px 56px rgba(110, 154, 66, 0.2),
+                0 4px 16px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+            transform: translateY(-4px) scale(1.005);
         }
 
         .upload-hero:hover::after {
-            border-color: var(--brand-primary);
-            opacity: 1;
+            border-color: rgba(110, 154, 66, 0.45);
+            opacity: 0.8;
+            animation: border-dance 2s linear infinite;
+        }
+
+        @keyframes border-dance {
+            0% { stroke-dashoffset: 0; }
+            100% { stroke-dashoffset: 20; }
         }
 
         .upload-hero.dragover {
-            background: rgba(110, 154, 66, 0.08);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(110, 154, 66, 0.12) 100%);
             border-color: var(--brand-primary);
+            transform: translateY(-4px) scale(1.01);
         }
 
         .upload-hero.dragover::after {
-            border-color: var(--brand-success);
+            border-color: var(--brand-primary);
+            border-style: solid;
             opacity: 1;
         }
 
         .upload-hero-content {
             position: relative;
             z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .upload-icon-large {
-            width: 88px;
-            height: 88px;
-            margin: 0 auto var(--space-5);
-            background: linear-gradient(135deg, rgba(110, 154, 66, 0.25) 0%, rgba(138, 184, 90, 0.12) 100%);
-            border: 1px solid var(--border-accent);
+            width: 96px;
+            height: 96px;
+            margin: 0 auto var(--space-6);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.2) 0%, rgba(138, 184, 90, 0.1) 100%);
+            border: 2px solid rgba(110, 154, 66, 0.25);
             border-radius: var(--radius-xl);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: var(--shadow-glow), var(--shadow-md);
-            animation: gentle-pulse 4s ease-in-out infinite;
             color: var(--brand-primary);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .upload-icon-large::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: calc(var(--radius-xl) + 4px);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.3), transparent, rgba(138, 184, 90, 0.3));
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .upload-hero:hover .upload-icon-large {
+            transform: scale(1.08);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.3) 0%, rgba(138, 184, 90, 0.15) 100%);
+            border-color: rgba(110, 154, 66, 0.4);
+            box-shadow: 0 8px 32px rgba(110, 154, 66, 0.25);
+        }
+
+        .upload-hero:hover .upload-icon-large::before {
+            opacity: 1;
+            animation: rotate 4s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .upload-icon-large svg {
-            width: 44px;
-            height: 44px;
+            width: 48px;
+            height: 48px;
+            transition: transform 0.3s ease;
         }
 
-        @keyframes gentle-pulse {
-            0%, 100% {
-                transform: scale(1);
-                box-shadow: var(--shadow-glow), var(--shadow-md);
-            }
-            50% {
-                transform: scale(1.03);
-                box-shadow: 0 8px 32px rgba(110, 154, 66, 0.3);
-            }
+        .upload-hero:hover .upload-icon-large svg {
+            transform: translateY(-2px);
         }
-        
+
         .upload-hero h3 {
-            font-size: var(--text-xl);
-            font-weight: var(--font-semibold);
+            font-size: var(--text-2xl);
+            font-weight: var(--font-bold);
+            margin-bottom: var(--space-3);
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .upload-hero .hero-subtitle {
+            font-size: var(--text-lg);
+            color: var(--text-secondary);
+            font-weight: var(--font-medium);
             margin-bottom: var(--space-2);
         }
-        
-        .upload-hero p {
+
+        .upload-hero .hero-description {
             color: var(--text-tertiary);
-            font-size: var(--text-base);
-            margin-bottom: var(--space-5);
+            font-size: var(--text-sm);
+            margin-bottom: var(--space-6);
+            max-width: 360px;
         }
-        
+
         .upload-formats {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) var(--space-4);
+            background: rgba(110, 154, 66, 0.08);
+            border: 1px solid rgba(110, 154, 66, 0.15);
+            border-radius: var(--radius-full);
             font-size: var(--text-xs);
             color: var(--text-muted);
+            font-weight: var(--font-medium);
         }
         
         /* Context Input */
@@ -968,291 +999,515 @@
             gap: var(--space-3);
         }
 
+        /* ========================================
+           QUEUE REDESIGN - Premium Editorial Style
+           ======================================== */
+
         .queue-item {
-            display: flex;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: var(--space-4);
             padding: var(--space-4);
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.65) 100%);
-            backdrop-filter: blur(20px) saturate(140%);
-            -webkit-backdrop-filter: blur(20px) saturate(140%);
-            border: 2px solid rgba(255, 255, 255, 0.9);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.78) 100%);
+            backdrop-filter: blur(24px) saturate(160%);
+            -webkit-backdrop-filter: blur(24px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.95);
             border-radius: var(--radius-lg);
-            transition: all var(--transition-fast);
-            animation: queueItemEnter 0.35s ease backwards;
-            animation-delay: calc(var(--item-index, 0) * 45ms);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: queueItemEnter 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+            animation-delay: calc(var(--item-index, 0) * 60ms);
             box-shadow:
-                0 4px 16px rgba(110, 154, 66, 0.12),
-                0 1px 4px rgba(0, 0, 0, 0.03),
-                inset 0 1px 0 rgba(255, 255, 255, 1),
-                inset 0 -1px 0 rgba(110, 154, 66, 0.08);
+                0 2px 8px rgba(110, 154, 66, 0.06),
+                0 1px 2px rgba(0, 0, 0, 0.02),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+            position: relative;
+        }
+
+        .queue-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: linear-gradient(180deg, var(--brand-primary), var(--brand-secondary));
+            border-radius: 0 2px 2px 0;
+            transition: height 0.25s ease;
+            opacity: 0.8;
         }
 
         .queue-item:hover {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 100%);
-            border-color: rgba(110, 154, 66, 0.4);
-            transform: translateX(4px) translateY(-1px);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.9) 100%);
+            border-color: rgba(110, 154, 66, 0.3);
+            transform: translateY(-2px);
             box-shadow:
-                0 8px 24px rgba(110, 154, 66, 0.2),
-                0 2px 8px rgba(0, 0, 0, 0.05),
-                inset 0 1px 0 rgba(255, 255, 255, 1),
-                0 0 24px rgba(110, 154, 66, 0.12);
+                0 12px 32px rgba(110, 154, 66, 0.14),
+                0 4px 8px rgba(0, 0, 0, 0.04),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+        }
+
+        .queue-item:hover::before {
+            height: 60%;
         }
 
         @keyframes queueItemEnter {
             from {
                 opacity: 0;
-                transform: translateY(10px);
+                transform: translateY(16px) scale(0.98);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translateY(0) scale(1);
             }
         }
 
+        /* Enhanced Thumbnail */
         .queue-thumb {
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
-            border: 2px solid rgba(255, 255, 255, 0.95);
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, rgba(248, 250, 246, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+            border: 2px solid rgba(255, 255, 255, 0.98);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
             flex-shrink: 0;
             overflow: hidden;
             position: relative;
             box-shadow:
-                0 2px 8px rgba(110, 154, 66, 0.15),
-                inset 0 0 0 1px rgba(110, 154, 66, 0.2);
+                0 2px 6px rgba(110, 154, 66, 0.12),
+                inset 0 0 0 1px rgba(110, 154, 66, 0.15);
+            transition: all 0.25s ease;
+        }
+
+        .queue-item:hover .queue-thumb {
+            transform: scale(1.05);
+            box-shadow:
+                0 4px 12px rgba(110, 154, 66, 0.2),
+                inset 0 0 0 1px rgba(110, 154, 66, 0.25);
         }
 
         .queue-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: var(--radius-md);
+            border-radius: calc(var(--radius-md) - 2px);
         }
 
         .queue-thumb .thumb-icon {
-            opacity: 0.78;
+            opacity: 0.6;
             color: var(--brand-primary);
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: opacity 0.2s ease;
+        }
+
+        .queue-item:hover .queue-thumb .thumb-icon {
+            opacity: 0.85;
         }
 
         .queue-thumb .thumb-icon svg {
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
         }
 
         .queue-thumb .thumb-overlay {
             position: absolute;
             inset: 0;
-            background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
-            border-radius: var(--radius-md);
+            background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.25) 100%);
+            border-radius: calc(var(--radius-md) - 2px);
         }
 
-        /* Content type specific icons - Green theme */
+        /* Content type specific with distinctive gradients */
         .queue-thumb.type-image {
-            background: linear-gradient(135deg, rgba(110, 154, 66, 0.15) 0%, rgba(110, 154, 66, 0.05) 100%);
-            border-color: var(--border-accent);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.12) 0%, rgba(138, 184, 90, 0.06) 100%);
+        }
+
+        .queue-thumb.type-image .thumb-icon {
+            color: var(--brand-primary);
         }
 
         .queue-thumb.type-video {
-            background: linear-gradient(135deg, rgba(138, 184, 90, 0.15) 0%, rgba(138, 184, 90, 0.05) 100%);
-            border-color: rgba(138, 184, 90, 0.3);
+            background: linear-gradient(135deg, rgba(66, 165, 245, 0.1) 0%, rgba(100, 181, 246, 0.05) 100%);
+            border-color: rgba(66, 165, 245, 0.3);
+        }
+
+        .queue-thumb.type-video .thumb-icon {
+            color: var(--brand-info);
+        }
+
+        .queue-thumb.type-reel {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(244, 114, 182, 0.05) 100%);
+            border-color: rgba(236, 72, 153, 0.3);
+        }
+
+        .queue-thumb.type-reel .thumb-icon {
+            color: #ec4899;
         }
         
+        /* Restructured Meta Layout */
         .queue-meta {
-            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
             min-width: 0;
+            padding-left: var(--space-2);
+        }
+
+        .queue-meta-top {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
         }
         
         .queue-filename {
-            font-size: var(--text-base);
-            font-weight: var(--font-medium);
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
             color: var(--text-primary);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            letter-spacing: -0.01em;
         }
-        
-        .queue-details {
+
+        .queue-meta-bottom {
             display: flex;
             align-items: center;
-            gap: var(--space-2);
-            margin-top: var(--space-1);
+            gap: var(--space-3);
             font-size: var(--text-xs);
-            color: var(--text-muted);
+            color: var(--text-tertiary);
         }
-        
-        .status-pill {
+
+        .queue-meta-bottom span {
             display: inline-flex;
             align-items: center;
             gap: var(--space-1);
-            padding: var(--space-1) var(--space-2);
+        }
+        
+        /* Refined Status Pills */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
             border-radius: var(--radius-full);
-            font-size: var(--text-xs);
-            font-weight: var(--font-medium);
-            backdrop-filter: blur(4px);
+            font-size: 10px;
+            font-weight: var(--font-semibold);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            backdrop-filter: blur(8px);
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .status-pill::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
         }
 
         .status-pill.pending {
-            background: rgba(250, 204, 21, 0.12);
-            border: 1px solid rgba(250, 204, 21, 0.25);
-            color: #facc15;
+            background: rgba(251, 191, 36, 0.12);
+            border-color: rgba(251, 191, 36, 0.3);
+            color: #d97706;
+        }
+
+        .status-pill.pending::before {
+            background: #fbbf24;
+            box-shadow: 0 0 6px #fbbf24;
         }
 
         .status-pill.scheduled {
-            background: rgba(59, 130, 246, 0.12);
-            border: 1px solid rgba(59, 130, 246, 0.25);
-            color: #60a5fa;
+            background: rgba(96, 165, 250, 0.12);
+            border-color: rgba(96, 165, 250, 0.3);
+            color: #2563eb;
+        }
+
+        .status-pill.scheduled::before {
+            background: #60a5fa;
+            box-shadow: 0 0 6px #60a5fa;
         }
 
         .status-pill.posted {
-            background: rgba(110, 154, 66, 0.15);
-            border: 1px solid var(--border-accent);
+            background: rgba(110, 154, 66, 0.12);
+            border-color: rgba(110, 154, 66, 0.35);
             color: var(--brand-primary);
         }
 
+        .status-pill.posted::before {
+            background: var(--brand-primary);
+            box-shadow: 0 0 6px var(--brand-primary);
+        }
+
+        /* Enhanced Actions with Clearer Hierarchy */
         .queue-actions {
             display: flex;
             align-items: center;
-            gap: var(--space-2);
+            gap: var(--space-1);
+            padding-left: var(--space-2);
         }
 
         .action-btn {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--bg-card);
-            border: 1px solid var(--border-subtle);
+            background: transparent;
+            border: 1px solid transparent;
             border-radius: var(--radius-md);
             color: var(--text-tertiary);
             cursor: pointer;
-            transition: all var(--transition-fast);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .action-btn svg {
             width: 16px;
             height: 16px;
+            transition: transform 0.2s ease;
         }
 
         .action-btn:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-default);
-            color: var(--text-primary);
-            transform: scale(1.05);
+            background: rgba(110, 154, 66, 0.08);
+            border-color: rgba(110, 154, 66, 0.2);
+            color: var(--brand-primary);
         }
 
-        .action-btn.primary:hover {
+        .action-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn.primary {
             background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%);
             border-color: var(--brand-primary);
             color: white;
-            box-shadow: var(--shadow-glow);
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .action-btn.primary:hover {
+            background: linear-gradient(135deg, var(--brand-primary-hover) 0%, #4a7029 100%);
+            border-color: var(--brand-primary-hover);
+            box-shadow:
+                0 4px 14px rgba(110, 154, 66, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .action-btn.danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #dc2626;
+        }
+
+        /* Video indicator overlay */
+        .video-indicator {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .video-indicator svg {
+            width: 10px;
+            height: 10px;
+            margin-left: 1px;
         }
         
         /* ========================================
-           STRATEGY PANEL - Liquid Glass (Consistent)
+           STRATEGY PANEL - Premium Editorial Style
            ======================================== */
 
         .strategy-section {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.65) 100%);
-            backdrop-filter: blur(30px) saturate(160%);
-            -webkit-backdrop-filter: blur(30px) saturate(160%);
-            border: 2px solid rgba(255, 255, 255, 0.9);
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 250, 246, 0.88) 100%);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.95);
+            border-radius: var(--radius-xl);
+            position: relative;
+            overflow: hidden;
             box-shadow:
-                0 8px 32px rgba(110, 154, 66, 0.15),
-                0 2px 8px rgba(0, 0, 0, 0.04),
+                0 8px 32px rgba(110, 154, 66, 0.12),
+                0 2px 8px rgba(0, 0, 0, 0.03),
                 inset 0 1px 0 rgba(255, 255, 255, 1),
-                inset 0 -1px 0 rgba(110, 154, 66, 0.15);
+                0 0 0 1px rgba(110, 154, 66, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .strategy-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary), transparent);
+            opacity: 0.6;
         }
 
         .strategy-section:hover {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.78) 100%);
-            border-color: rgba(110, 154, 66, 0.4);
+            transform: translateY(-2px);
             box-shadow:
-                0 12px 48px rgba(110, 154, 66, 0.22),
-                0 4px 12px rgba(0, 0, 0, 0.06),
+                0 16px 48px rgba(110, 154, 66, 0.18),
+                0 4px 12px rgba(0, 0, 0, 0.04),
                 inset 0 1px 0 rgba(255, 255, 255, 1),
-                0 0 60px rgba(110, 154, 66, 0.15);
+                0 0 0 1px rgba(110, 154, 66, 0.12);
+        }
+
+        .strategy-section .section-body {
+            padding: var(--space-6);
         }
 
         .strategy-header {
             display: flex;
             align-items: center;
             gap: var(--space-3);
-            margin-bottom: var(--space-4);
+            margin-bottom: var(--space-5);
         }
 
         .strategy-badge {
-            padding: var(--space-1) var(--space-3);
-            background: rgba(110, 154, 66, 0.15);
-            border: 1px solid var(--border-accent);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.12) 0%, rgba(138, 184, 90, 0.08) 100%);
+            border: 1px solid rgba(110, 154, 66, 0.25);
             border-radius: var(--radius-full);
-            font-size: var(--text-xs);
+            font-size: 10px;
             font-weight: var(--font-semibold);
             color: var(--brand-primary);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            box-shadow: 0 0 12px rgba(110, 154, 66, 0.15);
+            letter-spacing: 0.08em;
+        }
+
+        .strategy-badge::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: var(--brand-primary);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--brand-primary);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
         }
 
         .strategy-title {
             font-size: var(--text-xl);
-            font-weight: var(--font-semibold);
+            font-weight: var(--font-bold);
             color: var(--text-primary);
+            letter-spacing: -0.02em;
+            line-height: 1.3;
+            margin-bottom: var(--space-3);
         }
 
         .strategy-description {
-            font-size: var(--text-base);
-            color: var(--text-secondary);
-            line-height: 1.6;
+            font-size: var(--text-sm);
+            color: var(--text-tertiary);
+            line-height: 1.7;
             margin-bottom: var(--space-5);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid rgba(110, 154, 66, 0.1);
         }
 
         .insight-list {
             list-style: none;
             margin-bottom: var(--space-5);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
         }
 
         .insight-list li {
             display: flex;
             align-items: flex-start;
             gap: var(--space-3);
-            padding: var(--space-3) 0;
-            border-bottom: 1px solid var(--border-subtle);
+            padding: var(--space-3) var(--space-3);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(248, 250, 246, 0.4) 100%);
+            border: 1px solid rgba(110, 154, 66, 0.15);
+            border-radius: var(--radius-md);
             font-size: var(--text-sm);
             color: var(--text-secondary);
+            transition: all 0.2s ease;
         }
 
-        .insight-list li:last-child {
-            border-bottom: none;
+        .insight-list li:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 246, 0.7) 100%);
+            border-color: rgba(110, 154, 66, 0.25);
+            transform: translateX(4px);
         }
 
         .insight-bullet {
-            width: 22px;
-            height: 22px;
-            background: rgba(110, 154, 66, 0.15);
-            border: 1px solid var(--border-accent);
-            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.15) 0%, rgba(138, 184, 90, 0.1) 100%);
+            border: 1px solid rgba(110, 154, 66, 0.3);
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            margin-top: 2px;
+            margin-top: 1px;
             color: var(--brand-primary);
-            box-shadow: 0 0 8px rgba(110, 154, 66, 0.2);
         }
 
         .insight-bullet svg {
             width: 12px;
             height: 12px;
+        }
+
+        .strategy-cta {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%);
+            border: none;
+            border-radius: var(--radius-md);
+            color: white;
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            box-shadow:
+                0 4px 12px rgba(110, 154, 66, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .strategy-cta:hover {
+            background: linear-gradient(135deg, var(--brand-primary-hover) 0%, #4a7029 100%);
+            transform: translateY(-1px);
+            box-shadow:
+                0 6px 20px rgba(110, 154, 66, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .strategy-cta svg {
+            width: 16px;
+            height: 16px;
         }
         
         /* ========================================
@@ -2507,14 +2762,16 @@
                                 <div class="upload-icon-large" aria-hidden="true">
                                     <svg class="icon icon-2xl"><use href="assets/ui-icons.svg#camera"></use></svg>
                                 </div>
-                                <h3>Upload Your Food Content</h3>
-                                <p>Drop photos or videos here, or click to browse</p>
+                                <h3>Share Your Food Story</h3>
+                                <p class="hero-subtitle">Drop photos or videos to get AI-powered recommendations</p>
+                                <p class="hero-description">Upload your culinary creations and our AI will analyze them to suggest optimal captions, hashtags, and posting times for maximum engagement.</p>
                                 <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,video/mp4,video/quicktime" style="display: none;">
                                 <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                                    <svg class="icon icon-sm" style="margin-right: var(--space-2);"><use href="assets/ui-icons.svg#send-up"></use></svg>
                                     Select File
                                 </button>
-                                <p class="upload-formats" style="margin-top: var(--space-4);">
-                                    JPG, PNG, HEIC (iPhone), MP4 — Max 50MB
+                                <p class="upload-formats" style="margin-top: var(--space-6);">
+                                    JPG, PNG, HEIC, MP4 — Max 50MB
                                 </p>
                             </div>
                         </div>
@@ -2607,7 +2864,8 @@
                                 <span>Generating recommendations...</span>
                             </li>
                         </ul>
-                        <button class="btn btn-primary" style="width: 100%;" onclick="generateNewStrategy()">
+                        <button class="strategy-cta" onclick="generateNewStrategy()">
+                            <svg class="icon"><use href="assets/ui-icons.svg#sparkles"></use></svg>
                             Generate New Strategy
                         </button>
                     </div>
@@ -3150,14 +3408,18 @@
                 
                 queue.innerHTML = filtered.map((item, index) => {
                     const thumbHtml = generateThumbnail(item);
+                    const fileExt = item.filename?.split('.').pop()?.toUpperCase() || '';
                     return `
                     <div class="queue-item" style="--item-index: ${index};">
                         ${thumbHtml}
                         <div class="queue-meta">
-                            <div class="queue-filename">${item.filename}</div>
-                            <div class="queue-details">
+                            <div class="queue-meta-top">
                                 <span class="status-pill ${item.status}">${item.status}</span>
-                                <span>${new Date(item.upload_time).toLocaleDateString()}</span>
+                                <div class="queue-filename">${item.filename}</div>
+                            </div>
+                            <div class="queue-meta-bottom">
+                                <span>${icon('clock', 'icon icon-xs')}${new Date(item.upload_time).toLocaleDateString()}</span>
+                                <span>${fileExt}</span>
                             </div>
                         </div>
                         <div class="queue-actions">
@@ -3166,7 +3428,7 @@
                                     ${icon('sparkles', 'icon icon-sm')}
                                 </button>
                             ` : ''}
-                            <button class="action-btn" onclick="deleteContent('${item.id}')" title="Delete">
+                            <button class="action-btn danger" onclick="deleteContent('${item.id}')" title="Delete">
                                 ${icon('trash', 'icon icon-sm')}
                             </button>
                         </div>
@@ -3192,32 +3454,48 @@
         function generateThumbnail(item) {
             const contentType = item.content_type || 'image';
             const isVideo = item.filename?.match(/\.(mp4|mov|quicktime)$/i);
+            const isReel = item.content_type === 'reel' || item.filename?.match(/\.(reel|mp4)$/i) && item.is_reel;
+            
+            // Determine type class for styling
+            let typeClass = 'type-image';
+            if (isReel) typeClass = 'type-reel';
+            else if (isVideo) typeClass = 'type-video';
+            else if (contentType) typeClass = `type-${contentType}`;
 
             // If we have a preview_url that could be displayed as image
             if (item.preview_url && !isVideo) {
                 return `
-                    <div class="queue-thumb ${isVideo ? 'type-video' : 'type-image'}">
+                    <div class="queue-thumb ${typeClass}">
                         <img src="${item.preview_url}" alt="" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="thumb-icon" style="display: none;">${getContentTypeIcon(contentType)}</div>
+                        <div class="thumb-icon" style="display: none;">${getContentTypeIcon(contentType, isReel)}</div>
                         <div class="thumb-overlay"></div>
-                        ${isVideo ? `<div class="video-indicator">${icon('play', 'icon')}</div>` : ''}
+                        ${isVideo || isReel ? `<div class="video-indicator">${icon('play', 'icon icon-xs')}</div>` : ''}
                     </div>
                 `;
             }
             
             // Fallback to icon based on content type
-            const icon = getContentTypeIcon(contentType);
-            const typeClass = contentType ? `type-${contentType}` : '';
+            const thumbIcon = getContentTypeIcon(contentType, isReel);
             
             return `
                 <div class="queue-thumb ${typeClass}">
-                    <div class="thumb-icon">${icon}</div>
+                    <div class="thumb-icon">${thumbIcon}</div>
+                    ${isVideo || isReel ? `<div class="video-indicator">${icon('play', 'icon icon-xs')}</div>` : ''}
                 </div>
             `;
         }
         
         // Get icon based on content type
-        function getContentTypeIcon(contentType) {
+        function getContentTypeIcon(contentType, isReel = false) {
+            if (isReel || contentType === 'reel') {
+                return icon('sparkles', 'icon icon-md');
+            }
+            if (contentType === 'video') {
+                return icon('video', 'icon icon-md');
+            }
+            if (contentType === 'image') {
+                return icon('image', 'icon icon-md');
+            }
             return icon('utensils', 'icon icon-md');
         }
         
