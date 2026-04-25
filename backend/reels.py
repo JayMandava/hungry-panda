@@ -1058,6 +1058,7 @@ def get_publish_job_db(job_id: str) -> Optional[Dict]:
 async def process_publish(project_id: str, job_id: str, video_url: str, caption: str, share_to_feed: bool):
     """Background task to publish Reel to Instagram"""
     from integrations.instagram_login import InstagramLoginClient, InstagramLoginError
+    from integrations.facebook_instagram_login import FacebookInstagramAuthClient, FacebookInstagramAuthError
     from config.settings import config
     import time
     
@@ -1083,6 +1084,16 @@ async def process_publish(project_id: str, job_id: str, video_url: str, caption:
                     "Facebook Instagram connection not complete. "
                     "Missing access token or Instagram Business Account ID."
                 )
+            
+            # Use Facebook-login-aware client with graph.facebook.com endpoints
+            client = FacebookInstagramAuthClient()
+            result = client.publish_reel(
+                instagram_business_account_id=str(user_id),
+                access_token=access_token,
+                video_url=video_url,
+                caption=caption,
+                share_to_feed=share_to_feed,
+            )
         else:
             # Legacy Instagram Login flow
             access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
@@ -1090,21 +1101,21 @@ async def process_publish(project_id: str, job_id: str, video_url: str, caption:
             
             if not access_token or not user_id:
                 raise ValueError("Instagram not connected. Please connect Instagram first.")
-        
-        # Create client and publish
-        client = InstagramLoginClient(
-            app_id=config.INSTAGRAM_APP_ID,
-            app_secret=config.INSTAGRAM_APP_SECRET,
-            redirect_uri=config.INSTAGRAM_REDIRECT_URI or "",
-        )
-        
-        result = client.publish_reel(
-            user_id=str(user_id),
-            access_token=access_token,
-            video_url=video_url,
-            caption=caption,
-            share_to_feed=share_to_feed,
-        )
+            
+            # Use legacy InstagramLoginClient with graph.instagram.com endpoints
+            client = InstagramLoginClient(
+                app_id=config.INSTAGRAM_APP_ID,
+                app_secret=config.INSTAGRAM_APP_SECRET,
+                redirect_uri=config.INSTAGRAM_REDIRECT_URI or "",
+            )
+            
+            result = client.publish_reel(
+                user_id=str(user_id),
+                access_token=access_token,
+                video_url=video_url,
+                caption=caption,
+                share_to_feed=share_to_feed,
+            )
         
         # Update success
         media_id = result.get("id")
@@ -1117,7 +1128,7 @@ async def process_publish(project_id: str, job_id: str, video_url: str, caption:
         
         logger.info(f"Publish complete for project {project_id}, Instagram media ID: {media_id}")
         
-    except InstagramLoginError as e:
+    except (InstagramLoginError, FacebookInstagramAuthError) as e:
         logger.error(f"Instagram publish failed for project {project_id}: {e}")
         update_publish_job_status(job_id, "failed", error_message=str(e))
         update_project_status(project_id, "failed")

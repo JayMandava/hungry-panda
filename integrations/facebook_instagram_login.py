@@ -165,6 +165,80 @@ class FacebookInstagramAuthClient:
         except FacebookInstagramAuthError:
             return False
     
+    def publish_reel(
+        self,
+        instagram_business_account_id: str,
+        access_token: str,
+        video_url: str,
+        caption: str,
+        share_to_feed: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Publish a Reel to Instagram using Facebook Login auth flow.
+        
+        Uses graph.facebook.com endpoints (not graph.instagram.com).
+        """
+        import time
+        
+        # Step 1: Create media container
+        media_url = f"{self.GRAPH_URL}/{instagram_business_account_id}/media"
+        
+        media_params = {
+            "access_token": access_token,
+            "media_type": "REELS",
+            "video_url": video_url,
+            "caption": caption,
+            "share_to_feed": "true" if share_to_feed else "false",
+        }
+        
+        response = requests.post(media_url, params=media_params, timeout=30)
+        media_result = self._parse_response(response)
+        
+        creation_id = media_result.get("id")
+        if not creation_id:
+            raise FacebookInstagramAuthError(
+                f"Failed to create media container: {media_result}"
+            )
+        
+        # Step 2: Wait for processing (Instagram requires this)
+        max_wait = 60  # seconds
+        wait_interval = 2  # seconds
+        elapsed = 0
+        
+        status_url = f"{self.GRAPH_URL}/{creation_id}"
+        
+        while elapsed < max_wait:
+            time.sleep(wait_interval)
+            elapsed += wait_interval
+            
+            status_response = requests.get(
+                status_url,
+                params={"access_token": access_token, "fields": "status_code"},
+                timeout=30
+            )
+            status_result = self._parse_response(status_response)
+            
+            status_code = status_result.get("status_code", "")
+            if status_code == "FINISHED":
+                break
+            elif status_code == "ERROR":
+                raise FacebookInstagramAuthError(
+                    f"Media processing failed: {status_result}"
+                )
+        
+        # Step 3: Publish the media
+        publish_url = f"{self.GRAPH_URL}/{instagram_business_account_id}/media_publish"
+        
+        publish_params = {
+            "access_token": access_token,
+            "creation_id": creation_id,
+        }
+        
+        publish_response = requests.post(publish_url, params=publish_params, timeout=30)
+        publish_result = self._parse_response(publish_response)
+        
+        return publish_result
+    
     def _parse_response(self, response: requests.Response) -> Dict[str, Any]:
         """Parse API response and handle errors"""
         try:
