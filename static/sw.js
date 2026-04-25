@@ -3,7 +3,7 @@
  * Basic caching strategy for PWA support
  */
 
-const CACHE_NAME = 'hungry-panda-v1';
+const CACHE_NAME = 'hungry-panda-v2-2026-04-25';
 const STATIC_ASSETS = [
   '/',
   '/dashboard.html',
@@ -31,7 +31,15 @@ self.addEventListener('install', (event) => {
         console.log('Cache install failed:', err);
       })
   );
+  // Force activation - skip waiting phase
   self.skipWaiting();
+});
+
+// Message event - handle skip waiting from client
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Activate event - clean up old caches

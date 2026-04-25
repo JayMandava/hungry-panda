@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#6e9a42">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Reel Maker — Hungry Panda</title>
-    <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="voice-styles.css">
+    <link rel="manifest" href="/static/manifest.json?v=2">
+    <link rel="stylesheet" href="voice-styles.css?v=2026-04-25">
     <style>
         /* ========================================
            REEL MAKER - PREMIUM GLASSMORPHISM
@@ -2448,10 +2451,37 @@
             navigator.serviceWorker.register('/static/sw.js')
                 .then((registration) => {
                     console.log('Service Worker registered:', registration);
+
+                    // Check for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('Service Worker update found:', newWorker);
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New version available - force refresh
+                                console.log('New version available, reloading...');
+                                window.location.reload();
+                            }
+                        });
+                    });
+
+                    // Check if there's a new version waiting
+                    if (registration.waiting) {
+                        console.log('New version waiting, reloading...');
+                        window.location.reload();
+                    }
                 })
                 .catch((error) => {
                     console.log('Service Worker registration failed:', error);
                 });
+
+            // Listen for messages from Service Worker
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data === 'SKIP_WAITING') {
+                    window.location.reload();
+                }
+            });
         }
     </script>
 
