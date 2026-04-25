@@ -217,6 +217,22 @@ def init_database():
         );
 
         CREATE INDEX IF NOT EXISTS idx_reel_recommendations_project ON reel_recommendations(project_id);
+
+        -- Scheduled reel posts table: tracks reels scheduled for future publishing
+        CREATE TABLE IF NOT EXISTS scheduled_reel_posts (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES reel_projects(id) ON DELETE CASCADE,
+            caption TEXT,
+            hashtags TEXT,  -- JSON array
+            scheduled_time TIMESTAMP NOT NULL,
+            status TEXT DEFAULT 'pending',  -- pending, published, cancelled, failed
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            published_at TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_reel_posts_project ON scheduled_reel_posts(project_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_reel_posts_time ON scheduled_reel_posts(scheduled_time);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_reel_posts_status ON scheduled_reel_posts(status);
     """
     
     try:

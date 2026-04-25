@@ -809,6 +809,100 @@ async def update_project(project_id: str, request: UpdateProjectRequest):
         raise HTTPException(status_code=500, detail="Failed to update project")
 
 
+class ScheduleReelRequest(BaseModel):
+    caption: str
+    hashtags: List[str]
+    scheduled_time: Optional[str] = Field(None, description="ISO timestamp for scheduling")
+
+
+class ScheduleReelResponse(BaseModel):
+    status: str
+    schedule_id: str
+    project_id: str
+    scheduled_time: str
+
+
+@router.post("/projects/{project_id}/schedule", response_model=ScheduleReelResponse)
+async def schedule_reel(project_id: str, request: ScheduleReelRequest):
+    """
+    Schedule a reel for future publishing.
+    Stores caption, hashtags, and scheduled time for later publishing.
+    """
+    # Verify project exists and is ready
+    project = get_project_db(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project["status"] not in ["ready", "published"]:
+        raise HTTPException(status_code=400, detail="Reel must be rendered before scheduling")
+
+    # Use provided time or default to tomorrow at optimal time (6 PM)
+    scheduled_time = request.scheduled_time
+    if not scheduled_time:
+        scheduled_time = (datetime.now() + timedelta(days=1)).replace(
+            hour=18, minute=0, second=0, microsecond=0
+        ).isoformat()
+
+    # Validate time is in the future
+    try:
+        schedule_dt = datetime.fromisoformat(scheduled_time)
+        if schedule_dt < datetime.now():
+            raise HTTPException(status_code=400, detail="Scheduled time must be in the future")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_time format")
+
+    # Create schedule entry
+    schedule_id = str(uuid.uuid4())
+    hashtags_str = json.dumps(request.hashtags)
+
+    try:
+        execute_insert(
+            """INSERT INTO scheduled_reel_posts (id, project_id, caption, hashtags, scheduled_time, status)
+               VALUES (?, ?, ?, ?, ?, 'pending')""",
+            (schedule_id, project_id, request.caption, hashtags_str, scheduled_time)
+        )
+
+        # Also update the project with the caption/hashtags for reference
+        execute_insert(
+            "UPDATE reel_projects SET caption = ?, hashtags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (request.caption, hashtags_str, project_id)
+        )
+
+        logger.info(f"Reel scheduled: {schedule_id} for project {project_id} at {scheduled_time}")
+
+        return ScheduleReelResponse(
+            status="scheduled",
+            schedule_id=schedule_id,
+            project_id=project_id,
+            scheduled_time=scheduled_time
+        )
+
+    except DatabaseError as e:
+        logger.error(f"Failed to schedule reel {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to schedule reel")
+
+
+@router.get("/projects/{project_id}/schedule")
+async def get_reel_schedule(project_id: str):
+    """Get scheduled posts for a reel project"""
+    try:
+        result = execute_query(
+            """SELECT id, scheduled_time, status FROM scheduled_reel_posts
+               WHERE project_id = ? AND status = 'pending'
+               ORDER BY scheduled_time""",
+            (project_id,)
+        )
+        return {
+            "project_id": project_id,
+            "scheduled_posts": [
+                {"schedule_id": r["id"], "scheduled_time": r["scheduled_time"], "status": r["status"]}
+                for r in result
+            ]
+        }
+    except DatabaseError:
+        return {"project_id": project_id, "scheduled_posts": []}
+
+
 def update_render_job_status(job_id: str, status: str, error_message: Optional[str] = None):
     """Update render job status and timestamps"""
     try:

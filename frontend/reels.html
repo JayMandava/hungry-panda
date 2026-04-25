@@ -2064,7 +2064,7 @@
             }, 500);
         }
 
-        // Schedule reel (placeholder - full implementation would need schedule endpoint)
+        // Schedule reel for future publishing
         async function scheduleReel(projectId) {
             const caption = document.getElementById('publishCaption').value;
             const hashtags = document.getElementById('publishHashtags').value
@@ -2077,17 +2077,53 @@
                 return;
             }
 
-            // Store caption/hashtags to project
+            const scheduleBtn = document.getElementById('scheduleBtn');
+            scheduleBtn.disabled = true;
+            scheduleBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite; margin-right: 8px;">
+                    <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                </svg>
+                Scheduling...
+            `;
+
             try {
-                await fetch(`${API_BASE}/projects/${projectId}/update`, {
+                const response = await fetch(`${API_BASE}/projects/${projectId}/schedule`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ caption, hashtags })
                 });
 
-                alert('Caption and hashtags saved. Full scheduling coming soon!');
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to schedule');
+                }
+
+                const data = await response.json();
+                const scheduledTime = new Date(data.scheduled_time).toLocaleString();
+
+                alert(`Reel scheduled successfully!\n\nIt will be published on ${scheduledTime}.\n\nYou can view and manage scheduled posts in your dashboard.`);
+
+                // Reset button
+                scheduleBtn.disabled = false;
+                scheduleBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                        <path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                    Schedule Post
+                `;
             } catch (error) {
-                console.error('Failed to save:', error);
+                console.error('Failed to schedule:', error);
+                alert('Failed to schedule reel: ' + error.message);
+
+                scheduleBtn.disabled = false;
+                scheduleBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                        <path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                    Schedule Post
+                `;
             }
         }
 
