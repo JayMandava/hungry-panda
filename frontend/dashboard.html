@@ -1165,12 +1165,12 @@
         }
 
         .queue-thumb.type-video {
-            background: linear-gradient(135deg, rgba(66, 165, 245, 0.1) 0%, rgba(100, 181, 246, 0.05) 100%);
-            border-color: rgba(66, 165, 245, 0.3);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.15) 0%, rgba(138, 184, 90, 0.08) 100%);
+            border-color: rgba(110, 154, 66, 0.35);
         }
 
         .queue-thumb.type-video .thumb-icon {
-            color: var(--brand-info);
+            color: var(--brand-primary);
         }
 
         .queue-thumb.type-reel {
@@ -3211,6 +3211,11 @@
                             <div class="time-badge">${icon('clock', 'icon icon-sm')}${rec.optimal_time?.time || '6:00 PM'}</div>
                             <div class="time-reasoning">${rec.optimal_time?.reasoning || 'Peak engagement time for maximum reach'}</div>
                         </div>
+                        <div class="schedule-time-picker" style="margin-top: var(--space-3);">
+                            <label style="font-size: var(--text-xs); color: var(--text-muted); display: block; margin-bottom: var(--space-1);">Schedule for:</label>
+                            <input type="datetime-local" id="scheduleTimePicker" class="form-input" style="font-size: var(--text-sm);"
+                                value="${new Date(Date.now() + 86400000).toISOString().slice(0, 16)}">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
@@ -3264,7 +3269,8 @@
             const caption = document.getElementById('selectedCaption')?.textContent || '';
             const hashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip.selected'))
                 .map(c => c.dataset.hashtag);
-            
+            const scheduledTime = document.getElementById('scheduleTimePicker')?.value || null;
+
             try {
                 const response = await fetch(`/api/content/${contentId}/schedule`, {
                     method: 'POST',
@@ -3272,7 +3278,7 @@
                     body: JSON.stringify({
                         final_caption: caption,
                         final_hashtags: hashtags,
-                        scheduled_time: null
+                        scheduled_time: scheduledTime ? new Date(scheduledTime).toISOString() : null
                     })
                 });
                 
@@ -3514,7 +3520,7 @@
                 return icon('sparkles', 'icon icon-md');
             }
             if (contentType === 'video') {
-                return icon('video', 'icon icon-md');
+                return icon('utensils', 'icon icon-md');
             }
             if (contentType === 'image') {
                 return icon('image', 'icon icon-md');
