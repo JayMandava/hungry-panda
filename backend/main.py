@@ -155,6 +155,12 @@ class ContentScheduleRequest(BaseModel):
     scheduled_time: Optional[str] = Field(None, description="When to post (ISO format)")
 
 
+class ContentPublishRequest(BaseModel):
+    """Request model for immediate publishing content"""
+    final_caption: str = Field(..., description="Final caption for the post")
+    final_hashtags: List[str] = Field(default_factory=list, description="Final hashtags")
+
+
 class CompetitorAddRequest(BaseModel):
     """Request model for adding competitor"""
     username: str = Field(..., min_length=1, description="Instagram username to track")
@@ -1482,6 +1488,152 @@ async def schedule_content(content_id: str, schedule_data: ContentScheduleReques
     except Exception as e:
         logger.error(f"Scheduling error: {e}")
         raise HTTPException(status_code=500, detail=f"Scheduling failed: {str(e)}")
+
+
+@app.post("/api/content/{content_id}/publish", response_model=Dict[str, str])
+async def publish_content(content_id: str, publish_data: ContentPublishRequest):
+    """
+    Publish content immediately to Instagram.
+
+    - **content_id**: ID of the content to publish
+    - **final_caption**: Caption to use for the post
+    - **final_hashtags**: List of hashtags to include
+
+    Returns the external post ID from Instagram on success.
+    """
+    try:
+        # Validate content exists and get filepath
+        rows = execute_query(
+            "SELECT id, filepath, status FROM content WHERE id = ?",
+            (content_id,)
+        )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        content_status = rows[0]["status"]
+        if content_status == "posted":
+            raise HTTPException(status_code=400, detail="Content already posted")
+
+        # Check Instagram connection readiness
+        from integrations.facebook_instagram_login import FacebookInstagramAuthClient, FacebookInstagramAuthError
+        from integrations.instagram_login import InstagramLoginClient, InstagramLoginError
+
+        auth_flow = get_setting("instagram_auth_flow", "")
+        
+        if auth_flow == "facebook_login":
+            # Facebook Login flow
+            access_token = get_setting("facebook_instagram_long_lived_token") or \
+                           get_setting("facebook_instagram_access_token")
+            user_id = get_setting("facebook_instagram_business_account_id")
+            
+            if not access_token or not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Instagram not connected. Please connect your Instagram business account first."
+                )
+            
+            # Use Facebook auth client for publishing
+            client = FacebookInstagramAuthClient()
+        else:
+            # Legacy Instagram Login flow
+            access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
+            user_id = get_setting("instagram_user_id") or getattr(config, 'INSTAGRAM_USER_ID', None)
+            
+            if not access_token or not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Instagram not connected. Please connect your Instagram account first."
+                )
+            
+            # Use legacy client
+            status = build_instagram_status(None)
+            client = InstagramLoginClient.from_redirect_uri(status.get("redirect_uri", ""))
+
+        # Build public URL for the media
+        base_url = get_setting("reels_public_base_url", "")
+        if not base_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Public URL not configured. Please set reels_public_base_url in settings."
+            )
+
+        # Resolve filepath to public URL
+        filepath = rows[0]["filepath"]
+        if filepath:
+            filename = filepath.split("/")[-1]
+            media_url = f"{base_url.rstrip('/')}/uploads/{filename}"
+        else:
+            raise HTTPException(status_code=400, detail="Content has no media file")
+
+        # Build caption with hashtags
+        caption = publish_data.final_caption
+        if publish_data.final_hashtags:
+            hashtag_str = " ".join([f"#{h}" for h in publish_data.final_hashtags])
+            caption = f"{caption}\n\n{hashtag_str}".strip()
+
+        # Publish to Instagram
+        try:
+            if auth_flow == "facebook_login":
+                result = client.publish_reel(
+                    instagram_business_account_id=str(user_id),
+                    access_token=access_token,
+                    video_url=media_url,
+                    caption=caption,
+                    share_to_feed=True
+                )
+            else:
+                result = client.publish_reel(
+                    user_id=str(user_id),
+                    access_token=access_token,
+                    video_url=media_url,
+                    caption=caption,
+                    share_to_feed=True
+                )
+            
+            external_id = result.get("id")
+            if not external_id:
+                raise HTTPException(status_code=500, detail="Publish succeeded but no external ID returned")
+
+        except (FacebookInstagramAuthError, InstagramLoginError) as e:
+            logger.error(f"Instagram publish failed: {e}")
+            raise HTTPException(status_code=400, detail=f"Instagram publish failed: {str(e)}")
+
+        # Update content to posted status
+        posted_time = datetime.utcnow().isoformat()
+        execute_insert(
+            """
+            UPDATE content
+            SET status = 'posted', 
+                posted_time = ?, 
+                caption = ?, 
+                hashtags = ?,
+                external_id = ?
+            WHERE id = ?
+            """,
+            (
+                posted_time,
+                publish_data.final_caption,
+                json.dumps(publish_data.final_hashtags),
+                external_id,
+                content_id
+            )
+        )
+
+        logger.info(f"Content published: {content_id}, external_id: {external_id}")
+
+        return {
+            "status": "posted",
+            "content_id": content_id,
+            "external_id": external_id,
+            "posted_time": posted_time
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Publishing error: {e}")
+        raise HTTPException(status_code=500, detail=f"Publishing failed: {str(e)}")
 
 
 @app.delete("/api/content/{content_id}", response_model=Dict[str, str])

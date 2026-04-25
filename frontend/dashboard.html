@@ -2898,6 +2898,9 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
+                    <button class="btn btn-success" onclick="publishNow('${data.content_id}')" id="publishNowBtn">
+                        ${icon('send', 'icon icon-sm')} Publish Now
+                    </button>
                     <button class="btn btn-primary" onclick="scheduleContent('${data.content_id}')">
                         ${icon('calendar', 'icon icon-sm')} Schedule Post
                     </button>
@@ -2960,6 +2963,47 @@
                 }
             } catch (err) {
                 showToast('Unable to schedule post. Please try again.', 'error');
+            }
+        }
+        
+        // Publish content immediately
+        async function publishNow(contentId) {
+            const caption = document.getElementById('selectedCaption')?.textContent || '';
+            const selectedHashtags = Array.from(document.querySelectorAll('.hashtag-chip.selected'))
+                .map(chip => chip.dataset.hashtag);
+            
+            // Disable button to prevent double-click
+            const btn = document.getElementById('publishNowBtn');
+            btn.disabled = true;
+            btn.textContent = 'Publishing...';
+            
+            try {
+                const response = await fetch(`/api/content/${contentId}/publish`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        final_caption: caption,
+                        final_hashtags: selectedHashtags
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('Post published successfully!', 'success');
+                    closeModal();
+                    loadContentQueue();
+                    loadDashboardData();
+                } else {
+                    const errorMsg = result.detail || result.message || 'Failed to publish';
+                    showToast(errorMsg, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = `${icon('send', 'icon icon-sm')} Publish Now`;
+                }
+            } catch (error) {
+                showToast('Unable to publish post. Please try again.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = `${icon('send', 'icon icon-sm')} Publish Now`;
             }
         }
         
