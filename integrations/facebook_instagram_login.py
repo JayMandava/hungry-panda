@@ -207,6 +207,7 @@ class FacebookInstagramAuthClient:
         
         status_url = f"{self.GRAPH_URL}/{creation_id}"
         
+        final_status = ""
         while elapsed < max_wait:
             time.sleep(wait_interval)
             elapsed += wait_interval
@@ -218,13 +219,20 @@ class FacebookInstagramAuthClient:
             )
             status_result = self._parse_response(status_response)
             
-            status_code = status_result.get("status_code", "")
-            if status_code == "FINISHED":
+            final_status = status_result.get("status_code", "")
+            if final_status == "FINISHED":
                 break
-            elif status_code == "ERROR":
+            elif final_status == "ERROR":
                 raise FacebookInstagramAuthError(
                     f"Media processing failed: {status_result}"
                 )
+        
+        # If we timed out without reaching FINISHED, fail with clear error
+        if final_status != "FINISHED":
+            raise FacebookInstagramAuthError(
+                f"Media processing timeout: Video is still processing after {max_wait}s. "
+                f"Last status: {final_status}. Try publishing again later."
+            )
         
         # Step 3: Publish the media
         publish_url = f"{self.GRAPH_URL}/{instagram_business_account_id}/media_publish"
