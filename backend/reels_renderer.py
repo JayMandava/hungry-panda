@@ -739,17 +739,18 @@ class FFmpegRenderer:
         
         # Calculate extension needed
         if duration and duration < 30.0:
-            # Need to extend - use apad filter for audio and tpad for video
+            # Need to extend - use tpad for video and add silent audio
+            # Input has no audio (rendered with -an), so use anullsrc
             pad_duration = 30.0 - duration
             
             cmd = [
                 'ffmpeg', '-y',
                 '-i', input_path,
+                '-f', 'lavfi', '-i', f'anullsrc=r=44100:cl=stereo:d={pad_duration + duration}',  # Silent audio for full duration
                 '-filter_complex',
-                f'[0:v]tpad=stop_mode=clone:stop_duration={pad_duration}[v];'
-                f'[0:a]apad=pad_dur={pad_duration}[a]',
+                f'[0:v]tpad=stop_mode=clone:stop_duration={pad_duration}[v]',
                 '-map', '[v]',
-                '-map', '[a]',
+                '-map', '1:a',  # Use audio from anullsrc
                 '-c:v', self.TARGET_CODEC,
                 '-pix_fmt', self.TARGET_PIXEL_FORMAT,
                 '-r', str(self.TARGET_FPS),

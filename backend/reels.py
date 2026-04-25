@@ -824,17 +824,18 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
                 logger.warning(f"Output validation failed for project {project_id}: {validation.get('errors', [])}")
                 validation_passed = False
         
+        # Phase 5: Track render metrics
+        render_duration_ms = (time.time() - render_start_time) * 1000
+        
         # Only mark ready if validation passed
         if validation_passed:
             update_render_job_status(job_id, "completed")
             update_project_status(project_id, "ready")
+            update_reels_metrics("render", status="completed", duration_ms=render_duration_ms)
         else:
             update_render_job_status(job_id, "failed", f"Output validation failed: {validation.get('errors', [])}")
             update_project_status(project_id, "failed")
-        
-        # Phase 5: Track render metrics
-        render_duration_ms = (time.time() - render_start_time) * 1000
-        update_reels_metrics("render", status="completed", duration_ms=render_duration_ms)
+            update_reels_metrics("render", status="failed", duration_ms=render_duration_ms)
         
         logger.info(f"Phase 3 complete for project {project_id} - video rendered: {output_path}")
         
