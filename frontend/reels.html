@@ -1409,6 +1409,11 @@
 
                         <!-- Post-generation actions -->
                         <div id="postGenerateActions" style="display: none; margin-top: 12px;">
+                            <!-- Context input for AI recommendations -->
+                            <div id="reelContextInput" style="margin-bottom: 12px;">
+                                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Describe your reel (helps AI recommendations)</label>
+                                <input type="text" id="reelContextText" class="form-input" style="font-size: 13px; margin-bottom: 8px;" placeholder="e.g., Crispy dosa preparation with chutney...">
+                            </div>
                             <button class="btn btn-secondary" id="getRecommendationsBtn" style="width: 100%; margin-bottom: 8px;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
                                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
@@ -2110,9 +2115,14 @@
             `;
 
             try {
+                // Get context from input if provided
+                const contextInput = document.getElementById('reelContextText');
+                const context = contextInput ? contextInput.value.trim() : '';
+
                 const response = await fetch(`${API_BASE}/projects/${projectId}/recommendations`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ context: context })
                 });
 
                 if (!response.ok) {
@@ -2220,7 +2230,6 @@
                 ${hashtagHtml}
                 ${reelSpecificHtml}
                 ${timeHtml}
-                ${data.strategy_notes ? `<p style="font-size: 12px; color: var(--text-secondary); font-style: italic; margin-top: 16px;">${data.strategy_notes}</p>` : ''}
             `;
 
             // Pre-select first options
@@ -2236,15 +2245,16 @@
 
             // Check Instagram status and update publish button
             checkInstagramStatus().then(status => {
+                const sendIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>`;
                 if (status.connected && status.can_publish) {
                     publishBtn.disabled = false;
-                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Publish Now`;
+                    publishBtn.innerHTML = `${sendIcon} Publish Now`;
                 } else if (status.connected) {
                     publishBtn.disabled = true;
-                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Professional Account Required`;
+                    publishBtn.innerHTML = `${sendIcon} Professional Account Required`;
                 } else {
                     publishBtn.disabled = true;
-                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Connect Instagram to Publish`;
+                    publishBtn.innerHTML = `${sendIcon} Connect Instagram to Publish`;
                 }
             });
 
@@ -2283,7 +2293,12 @@
             } catch (error) {
                 alert('Failed to schedule: ' + error.message);
                 btn.disabled = false;
-                btn.innerHTML = `${icon('calendar', 'icon icon-sm')} Schedule Reel`;
+                btn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                    Schedule Reel
+                `;
             }
         }
 
@@ -2542,8 +2557,18 @@
                 <!-- Content loaded dynamically -->
             </div>
             <div class="modal-actions recommendation-section" style="--section-index: 5;">
-                <button class="btn btn-primary" id="modalScheduleBtn">${icon('calendar', 'icon icon-sm')} Schedule Reel</button>
-                <button class="btn btn-secondary" id="modalPublishBtn" disabled>Connect Instagram to Publish</button>
+                <button class="btn btn-primary" id="modalScheduleBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                    Schedule Reel
+                </button>
+                <button class="btn btn-secondary" id="modalPublishBtn" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                    Connect Instagram to Publish
+                </button>
                 <button class="btn btn-secondary" onclick="closeRecommendationModal()">Save for Later</button>
             </div>
         </div>

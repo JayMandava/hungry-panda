@@ -678,8 +678,11 @@ class ReelRecommendationResponse(BaseModel):
     recommendation_id: str
 
 
+class RecommendationRequest(BaseModel):
+    context: Optional[str] = None
+
 @router.post("/projects/{project_id}/recommendations", response_model=ReelRecommendationResponse)
-async def get_reel_recommendations(project_id: str):
+async def get_reel_recommendations(project_id: str, request: RecommendationRequest = None):
     """
     Generate AI recommendations for a reel project.
     Analyzes the first selected video asset and returns caption variants,
@@ -721,7 +724,9 @@ async def get_reel_recommendations(project_id: str):
 
     try:
         filepath = video_asset["source_path"]
-        context = project.get("title", "")
+        # Use user-provided context if available, otherwise fall back to project title
+        user_context = request.context if request and request.context else ""
+        context = user_context or project.get("title", "")
 
         # Get visual analysis if available
         visual_analysis = None
