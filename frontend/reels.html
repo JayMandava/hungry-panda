@@ -1579,66 +1579,79 @@
                 return;
             }
 
-            // Render analysis for each asset
-            const analysisItems = analyzedAssets.slice(0, 3).map(asset => {
-                const analysis = asset.analysis_json || {};
-                const visualFacts = analysis.visual_facts || {};
-                const suitability = analysis.reel_suitability || {};
-                const scores = analysis.quality_scores || {};
+            // Separate selected vs analyzed-only assets
+            const selectedAssets = analyzedAssets.filter(a => a.selected);
+            const otherAssets = analyzedAssets.filter(a => !a.selected);
 
-                const dishName = visualFacts.dish_detected || visualFacts.primary_subject || 'Content';
-                const confidence = Math.round((visualFacts.confidence || 0.7) * 100);
-                const isFood = visualFacts.is_food_content !== false;
-                const role = suitability.role || 'support';
-                const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
-                const qualityScore = Math.round((scores.overall || 0.75) * 100);
+            // Render selected assets first (these are used in the reel)
+            let analysisItems = '';
 
-                // Score color based on value
-                let scoreColor = 'var(--brand-primary)';
-                if (qualityScore >= 85) scoreColor = '#22c55e';
-                else if (qualityScore < 60) scoreColor = '#f59e0b';
-
-                return `
-                    <div class="analysis-item">
-                        <div class="analysis-label">${isFood ? 'Dish Detected' : 'Subject'}</div>
-                        <div class="analysis-value">${dishName}</div>
-                        <div class="analysis-score">
-                            <div class="score-bar">
-                                <div class="score-fill" style="width: ${qualityScore}%; background: ${scoreColor};"></div>
-                            </div>
-                            <span class="score-value" style="color: ${scoreColor};">${qualityScore}%</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                            <span style="font-size: 11px; color: var(--text-muted);">Suggested role: <strong style="color: var(--text-secondary);">${roleLabel}</strong></span>
-                            <span style="font-size: 11px; color: var(--text-muted);">Confidence: ${confidence}%</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            // Add project-level summary if available
-            let projectSummary = '';
-            if (project.edit_plan) {
-                const plan = typeof project.edit_plan === 'string'
-                    ? JSON.parse(project.edit_plan)
-                    : project.edit_plan;
-
-                if (plan && plan.segments && plan.segments.length > 0) {
-                    const totalDuration = plan.segments.reduce((sum, seg) => sum + (seg.duration || 5), 0);
-                    projectSummary = `
-                        <div class="analysis-item" style="background: rgba(110, 154, 66, 0.08); border-color: rgba(110, 154, 66, 0.2);">
-                            <div class="analysis-label">Edit Plan</div>
-                            <div class="analysis-value">${plan.segments.length} segments · ~${Math.round(totalDuration)}s total</div>
-                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                                Template: <strong style="color: var(--text-secondary);">${plan.template || 'auto'}</strong>
-                                ${plan.pacing ? `· Pacing: ${plan.pacing}` : ''}
-                            </div>
-                        </div>
-                    `;
-                }
+            if (selectedAssets.length > 0) {
+                analysisItems += selectedAssets.slice(0, 3).map(asset => renderAnalysisItem(asset, true)).join('');
             }
 
-            container.innerHTML = projectSummary + analysisItems;
+            // If we have room, show other analyzed assets (not selected)
+            const remainingSlots = 3 - Math.min(selectedAssets.length, 3);
+            if (remainingSlots > 0 && otherAssets.length > 0) {
+                analysisItems += otherAssets.slice(0, remainingSlots).map(asset => renderAnalysisItem(asset, false)).join('');
+            }
+
+            container.innerHTML = analysisItems;
+        }
+
+        // Helper to render a single analysis item
+        function renderAnalysisItem(asset, isSelected) {
+            const analysis = asset.analysis_json || {};
+            const visualFacts = analysis.visual_facts || {};
+            const suitability = analysis.reel_suitability || {};
+            const scores = analysis.quality_scores || {};
+
+            const dishName = visualFacts.dish_detected || visualFacts.primary_subject || 'Content';
+            const confidence = Math.round((visualFacts.confidence || 0.7) * 100);
+            const isFood = visualFacts.is_food_content !== false;
+            const role = suitability.role || 'support';
+            const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+            const qualityScore = Math.round((scores.overall || 0.75) * 100);
+
+            // Score color based on value
+            let scoreColor = 'var(--brand-primary)';
+            if (qualityScore >= 85) scoreColor = '#22c55e';
+            else if (qualityScore < 60) scoreColor = '#f59e0b';
+
+            // Different styling for selected vs non-selected
+            const selectedClass = isSelected ? 'analysis-item-selected' : '';
+            const selectedBadge = isSelected
+                ? `<span style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; background: rgba(110, 154, 66, 0.15); border: 1px solid rgba(110, 154, 66, 0.3); border-radius: 10px; font-size: 9px; font-weight: 600; color: var(--brand-primary); text-transform: uppercase; letter-spacing: 0.05em;">
+                     <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                         <path d="M20 6L9 17l-5-5"/>
+                     </svg>
+                     Used in Reel
+                   </span>`
+                : `<span style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; background: rgba(150, 150, 150, 0.1); border: 1px solid rgba(150, 150, 150, 0.2); border-radius: 10px; font-size: 9px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Analyzed</span>`;
+
+            const itemStyle = isSelected
+                ? 'background: rgba(255, 255, 255, 0.9); border-color: rgba(110, 154, 66, 0.35); box-shadow: 0 2px 8px rgba(110, 154, 66, 0.1);'
+                : '';
+
+            return `
+                <div class="analysis-item ${selectedClass}" style="${itemStyle}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <div class="analysis-label">${isFood ? 'Dish Detected' : 'Subject'}</div>
+                        ${selectedBadge}
+                    </div>
+                    <div class="analysis-value">${dishName}</div>
+                    <div class="analysis-score">
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: ${qualityScore}%; background: ${scoreColor};"></div>
+                        </div>
+                        <span class="score-value" style="color: ${scoreColor};">${qualityScore}%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                        <span style="font-size: 11px; color: var(--text-muted);">Role: <strong style="color: var(--text-secondary);">${roleLabel}</strong></span>
+                        <span style="font-size: 11px; color: var(--text-muted);">Confidence: ${confidence}%</span>
+                    </div>
+                </div>
+            `;
         }
 
         function updatePreviewPlayer(project, latestRender) {
