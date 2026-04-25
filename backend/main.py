@@ -248,7 +248,7 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
         # Must match REQUIRED_SCOPES in FacebookInstagramAuthClient exactly
         required_permissions = [
             "instagram_basic",
-            "instagram_content_publishing",
+            "instagram_content_publish",
             "pages_read_engagement",
             "business_management",
             "pages_show_list",

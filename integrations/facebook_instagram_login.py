@@ -32,11 +32,11 @@ class FacebookInstagramAuthClient:
     
     # Required scopes for Instagram publishing via Facebook Login
     # Must exactly match Meta dashboard registered permissions:
-    # instagram_basic, instagram_content_publishing, pages_read_engagement,
+    # instagram_basic, instagram_content_publish, pages_read_engagement,
     # business_management, pages_show_list
     REQUIRED_SCOPES = [
         "instagram_basic",
-        "instagram_content_publishing",
+        "instagram_content_publish",
         "pages_read_engagement",
         "business_management",
         "pages_show_list",
