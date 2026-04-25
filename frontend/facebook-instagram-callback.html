@@ -258,5 +258,18 @@
         // Run on page load
         document.addEventListener('DOMContentLoaded', finalizeAuth);
     </script>
+    
+    <!-- Service Worker Registration for PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker registered:', registration);
+                })
+                .catch((error) => {
+                    console.log('Service Worker registration failed:', error);
+                });
+        }
+    </script>
 </body>
 </html>
