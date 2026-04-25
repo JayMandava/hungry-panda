@@ -2737,9 +2737,27 @@
         }
         
         // Initialize on load
+        // Global state for publish readiness
+        let instagramCanPublish = false;
+        
+        // Check Instagram publish readiness
+        async function checkPublishReadiness() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                const status = await response.json();
+                instagramCanPublish = status.can_publish === true;
+                return instagramCanPublish;
+            } catch (err) {
+                console.error('Failed to check publish readiness:', err);
+                instagramCanPublish = false;
+                return false;
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardData();
             setupUploadHandlers();
+            checkPublishReadiness(); // Check on load
         });
         
         // Setup upload handlers
@@ -2915,9 +2933,15 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
+                    ${instagramCanPublish ? `
                     <button class="btn btn-success" onclick="publishNow('${data.content_id}')" id="publishNowBtn">
                         ${icon('send', 'icon icon-sm')} Publish Now
                     </button>
+                    ` : `
+                    <button class="btn btn-success" disabled title="Connect Instagram to publish">
+                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
+                    </button>
+                    `}
                     <button class="btn btn-primary" onclick="scheduleContent('${data.content_id}')">
                         ${icon('calendar', 'icon icon-sm')} Schedule Post
                     </button>
