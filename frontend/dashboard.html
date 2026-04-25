@@ -1386,17 +1386,6 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .strategy-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary), transparent);
-            opacity: 0.6;
-        }
-
         .strategy-section:hover {
             transform: translateY(-2px);
             box-shadow:
@@ -3225,19 +3214,19 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
-                    ${instagramCanPublish ? `
-                    <button class="btn btn-success" onclick="publishNow('${data.content_id}')" id="publishNowBtn">
-                        ${icon('send', 'icon icon-sm')} Publish Now
-                    </button>
-                    ` : `
-                    <button class="btn btn-success" disabled title="Connect Instagram to publish">
-                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
-                    </button>
-                    `}
                     <button class="btn btn-primary" onclick="scheduleContent('${data.content_id}')">
                         ${icon('calendar', 'icon icon-sm')} Schedule Post
                     </button>
-                    <button class="btn btn-secondary" onclick="closeModal()">
+                    ${instagramCanPublish ? `
+                    <button class="btn btn-secondary" onclick="publishNow('${data.content_id}')" id="publishNowBtn">
+                        ${icon('send', 'icon icon-sm')} Publish Now
+                    </button>
+                    ` : `
+                    <button class="btn btn-secondary" disabled title="Connect Instagram to publish">
+                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
+                    </button>
+                    `}
+                    <button class="btn btn-ghost" onclick="closeModal()">
                         Save for Later
                     </button>
                 </div>
