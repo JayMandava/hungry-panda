@@ -10,7 +10,14 @@ const STATIC_ASSETS = [
   '/reels.html',
   '/voice-styles.css',
   '/static/manifest.json',
-  '/static/icons/icon.svg'
+  '/static/icons/icon-72x72.png',
+  '/static/icons/icon-96x96.png',
+  '/static/icons/icon-128x128.png',
+  '/static/icons/icon-144x144.png',
+  '/static/icons/icon-152x152.png',
+  '/static/icons/icon-192x192.png',
+  '/static/icons/icon-384x384.png',
+  '/static/icons/icon-512x512.png'
 ];
 
 // Install event - cache static assets
@@ -99,8 +106,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Hungry Panda';
   const options = {
     body: data.body || 'New notification',
-    icon: '/static/icons/icon.svg',
-    badge: '/static/icons/icon.svg',
+    icon: '/static/icons/icon-192x192.png',
+    badge: '/static/icons/icon-72x72.png',
     tag: data.tag || 'default'
   };
   
