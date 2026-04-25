@@ -2191,9 +2191,11 @@
 
             // Build hashtags HTML - clickable for selection
             const hashtags = rec.suggested_hashtags || (rec.hashtag_variants?.[0]?.hashtags) || [];
-            const hashtagHtml = hashtags.slice(0, 15).map((tag, index) =>
-                `<span class="hashtag-chip selected" data-hashtag="${tag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${tag}</span>`
-            ).join('');
+            const hashtagHtml = hashtags.slice(0, 15).map((tag, index) => {
+                // Strip leading # if present to avoid double hashtags
+                const cleanTag = tag.startsWith('#') ? tag.substring(1) : tag;
+                return `<span class="hashtag-chip selected" data-hashtag="${cleanTag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${cleanTag}</span>`;
+            }).join('');
 
             content.innerHTML = `
                 <div class="recommendation-section" style="--section-index: 0;">
@@ -2224,21 +2226,13 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
-                    <button class="btn btn-primary" id="modalScheduleBtn">
-                        ${icon('calendar', 'icon icon-sm')} Schedule Reel
-                    </button>
+                    <button class="btn btn-primary" id="modalScheduleBtn">${icon('calendar', 'icon icon-sm')} Schedule Reel</button>
                     ${instagramCanPublish ? `
-                    <button class="btn btn-secondary" id="modalPublishBtn">
-                        ${icon('send', 'icon icon-sm')} Publish Now
-                    </button>
+                    <button class="btn btn-secondary" id="modalPublishBtn">${icon('send', 'icon icon-sm')} Publish Now</button>
                     ` : `
-                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">
-                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
-                    </button>
+                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)</button>
                     `}
-                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">
-                        Save for Later
-                    </button>
+                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">Save for Later</button>
                 </div>
             `;
 
