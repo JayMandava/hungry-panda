@@ -247,6 +247,49 @@ class FacebookInstagramAuthClient:
         
         return publish_result
     
+    def publish_image(
+        self,
+        instagram_business_account_id: str,
+        access_token: str,
+        image_url: str,
+        caption: str,
+    ) -> Dict[str, Any]:
+        """
+        Publish a single image to Instagram using Facebook Login auth flow.
+        
+        Uses graph.facebook.com endpoints.
+        """
+        # Step 1: Create media container for image
+        media_url = f"{self.GRAPH_URL}/{instagram_business_account_id}/media"
+        
+        media_params = {
+            "access_token": access_token,
+            "image_url": image_url,
+            "caption": caption,
+        }
+        
+        response = requests.post(media_url, params=media_params, timeout=30)
+        media_result = self._parse_response(response)
+        
+        creation_id = media_result.get("id")
+        if not creation_id:
+            raise FacebookInstagramAuthError(
+                f"Failed to create media container: {media_result}"
+            )
+        
+        # Step 2: Publish the media (images don't require processing wait)
+        publish_url = f"{self.GRAPH_URL}/{instagram_business_account_id}/media_publish"
+        
+        publish_params = {
+            "access_token": access_token,
+            "creation_id": creation_id,
+        }
+        
+        publish_response = requests.post(publish_url, params=publish_params, timeout=30)
+        publish_result = self._parse_response(publish_response)
+        
+        return publish_result
+    
     def _parse_response(self, response: requests.Response) -> Dict[str, Any]:
         """Parse API response and handle errors"""
         try:

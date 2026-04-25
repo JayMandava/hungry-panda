@@ -1680,6 +1680,23 @@
                 inset 0 1px 0 rgba(255, 255, 255, 1),
                 0 0 16px rgba(110, 154, 66, 0.15);
             transform: translateY(-1px);
+            cursor: pointer;
+        }
+
+        .modal-hashtags .hashtag-chip.selected {
+            background: linear-gradient(145deg, rgba(110, 154, 66, 0.9) 0%, rgba(110, 154, 66, 0.75) 100%);
+            border-color: rgba(110, 154, 66, 0.95);
+            color: white;
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-hashtags .hashtag-chip.selected:hover {
+            background: linear-gradient(145deg, rgba(110, 154, 66, 0.95) 0%, rgba(110, 154, 66, 0.85) 100%);
+            box-shadow:
+                0 4px 12px rgba(110, 154, 66, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
         }
 
         /* Optimal time display - Green Theme */
@@ -2868,10 +2885,10 @@
                 `;
             }
             
-            // Build hashtags HTML
+            // Build hashtags HTML - clickable for selection
             const hashtags = rec.suggested_hashtags || [];
             const hashtagHtml = hashtags.slice(0, 15).map((tag, index) =>
-                `<span class="hashtag-chip" style="--chip-index: ${index};">#${tag}</span>`
+                `<span class="hashtag-chip selected" data-hashtag="${tag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${tag}</span>`
             ).join('');
             
             content.innerHTML = `
@@ -2940,7 +2957,8 @@
         // Schedule content
         async function scheduleContent(contentId) {
             const caption = document.getElementById('selectedCaption')?.textContent || '';
-            const hashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip')).map(c => c.textContent.replace('#', ''));
+            const hashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip.selected'))
+                .map(c => c.dataset.hashtag);
             
             try {
                 const response = await fetch(`/api/content/${contentId}/schedule`, {
@@ -2969,7 +2987,7 @@
         // Publish content immediately
         async function publishNow(contentId) {
             const caption = document.getElementById('selectedCaption')?.textContent || '';
-            const selectedHashtags = Array.from(document.querySelectorAll('.hashtag-chip.selected'))
+            const selectedHashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip.selected'))
                 .map(chip => chip.dataset.hashtag);
             
             // Disable button to prevent double-click
@@ -2992,7 +3010,7 @@
                 if (response.ok) {
                     showToast('Post published successfully!', 'success');
                     closeModal();
-                    loadContentQueue();
+                    loadPendingContent();
                     loadDashboardData();
                 } else {
                     const errorMsg = result.detail || result.message || 'Failed to publish';
@@ -3005,6 +3023,11 @@
                 btn.disabled = false;
                 btn.innerHTML = `${icon('send', 'icon icon-sm')} Publish Now`;
             }
+        }
+        
+        // Toggle hashtag selection
+        function toggleHashtag(chip) {
+            chip.classList.toggle('selected');
         }
         
         // Load dashboard data

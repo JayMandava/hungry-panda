@@ -1566,6 +1566,10 @@ async def publish_content(content_id: str, publish_data: ContentPublishRequest):
         else:
             raise HTTPException(status_code=400, detail="Content has no media file")
 
+        # Detect media type from filename
+        is_video = any(filepath.lower().endswith(ext) for ext in ['.mp4', '.mov', '.quicktime', '.avi', '.mkv'])
+        is_image = any(filepath.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'])
+
         # Build caption with hashtags
         caption = publish_data.final_caption
         if publish_data.final_hashtags:
@@ -1574,22 +1578,46 @@ async def publish_content(content_id: str, publish_data: ContentPublishRequest):
 
         # Publish to Instagram
         try:
-            if auth_flow == "facebook_login":
-                result = client.publish_reel(
-                    instagram_business_account_id=str(user_id),
-                    access_token=access_token,
-                    video_url=media_url,
-                    caption=caption,
-                    share_to_feed=True
-                )
+            if is_video:
+                # Publish as video/Reel
+                if auth_flow == "facebook_login":
+                    result = client.publish_reel(
+                        instagram_business_account_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+                else:
+                    result = client.publish_reel(
+                        user_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+            elif is_image:
+                # Publish as image
+                if auth_flow == "facebook_login":
+                    result = client.publish_image(
+                        instagram_business_account_id=str(user_id),
+                        access_token=access_token,
+                        image_url=media_url,
+                        caption=caption,
+                    )
+                else:
+                    # Legacy flow - use InstagramLoginClient for images too
+                    # Note: Legacy client may need image support added
+                    result = client.publish_reel(
+                        user_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+                    logger.warning("Legacy auth flow: attempting to publish image as video - may fail")
             else:
-                result = client.publish_reel(
-                    user_id=str(user_id),
-                    access_token=access_token,
-                    video_url=media_url,
-                    caption=caption,
-                    share_to_feed=True
-                )
+                raise HTTPException(status_code=400, detail=f"Unsupported media type: {filepath}")
             
             external_id = result.get("id")
             if not external_id:
