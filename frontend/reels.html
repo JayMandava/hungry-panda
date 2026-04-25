@@ -2226,13 +2226,21 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
-                    <button class="btn btn-primary" id="modalScheduleBtn">${icon('calendar', 'icon icon-sm')} Schedule Reel</button>
+                    <button class="btn btn-primary" id="modalScheduleBtn">
+                        ${icon('calendar', 'icon icon-sm')} Schedule Reel
+                    </button>
                     ${instagramCanPublish ? `
-                    <button class="btn btn-secondary" id="modalPublishBtn">${icon('send', 'icon icon-sm')} Publish Now</button>
+                    <button class="btn btn-secondary" id="modalPublishBtn">
+                        ${icon('send', 'icon icon-sm')} Publish Now
+                    </button>
                     ` : `
-                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)</button>
+                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">
+                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
+                    </button>
                     `}
-                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">Save for Later</button>
+                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">
+                        Save for Later
+                    </button>
                 </div>
             `;
 
