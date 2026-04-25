@@ -508,7 +508,8 @@
             padding: var(--space-4);
         }
 
-        .modal-overlay.active {
+        .modal-overlay.active,
+        .modal-overlay.show {
             display: flex;
         }
 
@@ -1463,14 +1464,11 @@
         let selectedTemplate = 'dish_showcase';
         let templates = {};
 
-        // Icon helper function
-        function icon(name, className = '') {
-            const icons = {
-                calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-                send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>',
-                clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'
-            };
-            return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[name] || ''}</svg>`;
+        // Icon helper function - matches dashboard exactly
+        const iconSprite = 'assets/ui-icons.svg';
+        function icon(name, className = 'icon', hidden = true) {
+            const ariaHidden = hidden ? 'true' : 'false';
+            return `<svg class="${className}" aria-hidden="${ariaHidden}"><use href="${iconSprite}#${name}"></use></svg>`;
         }
 
         // DOM Elements
@@ -1492,6 +1490,7 @@
             await loadTemplates();
             await loadProjects();
             setupEventListeners();
+            checkPublishReadiness(); // Check on load - matches dashboard
         }
 
         async function loadTemplates() {
@@ -2147,25 +2146,42 @@
             }
         }
 
-        // Show recommendation modal - matches dashboard design system
+        // Global state for publish readiness - matches dashboard
+        let instagramCanPublish = false;
+
+        // Check Instagram publish readiness - matches dashboard
+        async function checkPublishReadiness() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                const status = await response.json();
+                instagramCanPublish = status.can_publish === true;
+                return instagramCanPublish;
+            } catch (err) {
+                console.error('Failed to check publish readiness:', err);
+                instagramCanPublish = false;
+                return false;
+            }
+        }
+
+        // Show recommendation modal - EXACT copy from dashboard.html
         function showRecommendationModal(data) {
+            const rec = data;
             const modal = document.getElementById('recommendationModal');
             const content = document.getElementById('recommendationModalContent');
 
-            // Build caption variants - using dashboard-style classes
-            let captionHtml = '';
-            if (data.caption_variants && data.caption_variants.length > 0) {
-                captionHtml = `
+            // Build variants HTML
+            let variantsHtml = '';
+            if (rec.caption_variants && rec.caption_variants.length > 0) {
+                variantsHtml = `
                     <div class="recommendation-section" style="--section-index: 1;">
                         <p class="section-label">Choose Your Style</p>
                         <div id="captionVariants" class="variant-cards">
-                            ${data.caption_variants.map((variant, i) => `
-                                <div class="variant-card ${i === 0 ? 'selected' : ''}" onclick="selectReelVariant(this, ${i})">
+                            ${rec.caption_variants.map((variant, i) => `
+                                <div class="variant-card ${i === 0 ? 'selected' : ''}" onclick="selectReelVariant(this, 'caption', ${i})">
                                     <div class="variant-label">
-                                        <span>${variant.label || 'Option ' + (i + 1)}</span>
+                                        <span>${variant.style || 'Option ' + (i + 1)}</span>
                                     </div>
                                     <p>${variant.caption}</p>
-                                    ${variant.why ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">${variant.why}</div>` : ''}
                                 </div>
                             `).join('')}
                         </div>
@@ -2173,92 +2189,87 @@
                 `;
             }
 
-            // Build hashtag variants - using dashboard-style chips
-            let hashtagHtml = '';
-            if (data.hashtag_variants && data.hashtag_variants.length > 0) {
-                const hashtags = data.hashtag_variants[0].hashtags || [];
-                hashtagHtml = `
-                    <div class="recommendation-section" style="--section-index: 2;">
-                        <p class="section-label">Recommended Hashtags <span style="color: var(--text-muted);">(${hashtags.length})</span></p>
-                        <div class="modal-hashtags">
-                            ${hashtags.slice(0, 15).map((tag, index) =>
-                                `<span class="hashtag-chip selected" data-hashtag="${tag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${tag}</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Build reel-specific guidance (reels-unique feature)
-            let reelSpecificHtml = '';
-            if (data.reel_specific) {
-                reelSpecificHtml = `
-                    <div class="recommendation-section" style="--section-index: 3;">
-                        <p class="section-label">Reel Tips</p>
-                        <div class="reel-tips-card">
-                            ${data.reel_specific.hook ? `<div class="reel-tip"><strong>Hook:</strong> ${data.reel_specific.hook}</div>` : ''}
-                            ${data.reel_specific.on_screen_text ? `<div class="reel-tip"><strong>On-Screen:</strong> ${data.reel_specific.on_screen_text}</div>` : ''}
-                            ${data.reel_specific.cta ? `<div class="reel-tip"><strong>CTA:</strong> ${data.reel_specific.cta}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Build optimal time - using dashboard-style display
-            let timeHtml = '';
-            if (data.optimal_time) {
-                timeHtml = `
-                    <div class="recommendation-section" style="--section-index: 4;">
-                        <p class="section-label">Best Time to Post</p>
-                        <div class="recommendation-content">
-                            <div class="optimal-time-display">
-                                <div class="time-badge">${icon('clock', 'icon icon-sm')}${data.optimal_time.time || '6:00 PM'}</div>
-                                <div class="time-reasoning">${data.optimal_time.reasoning || 'Peak engagement time for maximum reach'}</div>
-                            </div>
-                            <div class="schedule-time-picker" style="margin-top: var(--space-3);">
-                                <label style="font-size: var(--text-xs); color: var(--text-muted); display: block; margin-bottom: var(--space-1);">Schedule for:</label>
-                                <input type="datetime-local" id="reelScheduleTime" class="form-input" style="font-size: var(--text-sm);"
-                                    value="${new Date(Date.now() + 86400000).toISOString().slice(0, 16)}">
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
+            // Build hashtags HTML - clickable for selection
+            const hashtags = rec.suggested_hashtags || (rec.hashtag_variants?.[0]?.hashtags) || [];
+            const hashtagHtml = hashtags.slice(0, 15).map((tag, index) =>
+                `<span class="hashtag-chip selected" data-hashtag="${tag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${tag}</span>`
+            ).join('');
 
             content.innerHTML = `
-                ${captionHtml}
-                ${hashtagHtml}
-                ${reelSpecificHtml}
-                ${timeHtml}
+                <div class="recommendation-section" style="--section-index: 0;">
+                    <p class="section-label">AI-Generated Caption</p>
+                    <div class="recommendation-content caption" id="selectedCaption">
+                        ${rec.suggested_caption || rec.caption_variants?.[0]?.caption || 'No caption generated'}
+                    </div>
+                </div>
+                ${variantsHtml}
+                <div class="recommendation-section" style="--section-index: 2;">
+                    <p class="section-label">Recommended Hashtags <span style="color: var(--text-muted);">(${hashtags.length})</span></p>
+                    <div class="modal-hashtags">
+                        ${hashtagHtml}
+                    </div>
+                </div>
+                <div class="recommendation-section" style="--section-index: 3;">
+                    <p class="section-label">Best Time to Post</p>
+                    <div class="recommendation-content">
+                        <div class="optimal-time-display">
+                            <div class="time-badge">${icon('clock', 'icon icon-sm')}${rec.optimal_time?.time || '6:00 PM'}</div>
+                            <div class="time-reasoning">${rec.optimal_time?.reasoning || 'Peak engagement time for maximum reach'}</div>
+                        </div>
+                        <div class="schedule-time-picker" style="margin-top: var(--space-3);">
+                            <label style="font-size: var(--text-xs); color: var(--text-muted); display: block; margin-bottom: var(--space-1);">Schedule for:</label>
+                            <input type="datetime-local" id="reelScheduleTime" class="form-input" style="font-size: var(--text-sm);"
+                                value="${new Date(Date.now() + 86400000).toISOString().slice(0, 16)}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions recommendation-section" style="--section-index: 4;">
+                    <button class="btn btn-primary" id="modalScheduleBtn">
+                        ${icon('calendar', 'icon icon-sm')} Schedule Reel
+                    </button>
+                    ${instagramCanPublish ? `
+                    <button class="btn btn-secondary" id="modalPublishBtn">
+                        ${icon('send', 'icon icon-sm')} Publish Now
+                    </button>
+                    ` : `
+                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">
+                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
+                    </button>
+                    `}
+                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">
+                        Save for Later
+                    </button>
+                </div>
             `;
 
-            // Pre-select first options
-            selectedReelVariant = 0;
-            selectedReelHashtagVariant = 0;
+            // Wire up action buttons
+            document.getElementById('modalScheduleBtn').onclick = () => executeModalSchedule();
+            document.getElementById('modalPublishBtn').onclick = () => executeModalPublish();
 
-            // Wire up modal action buttons
-            const scheduleBtn = document.getElementById('modalScheduleBtn');
-            const publishBtn = document.getElementById('modalPublishBtn');
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
 
-            scheduleBtn.onclick = () => executeModalSchedule();
-            publishBtn.onclick = () => executeModalPublish();
+        // Select variant - matches dashboard
+        function selectReelVariant(element, type, index) {
+            document.querySelectorAll(`#${type}Variants .variant-card`).forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
 
-            // Check Instagram status and update publish button
-            checkInstagramStatus().then(status => {
-                const sendIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>`;
-                if (status.connected && status.can_publish) {
-                    publishBtn.disabled = false;
-                    publishBtn.innerHTML = `${sendIcon} Publish Now`;
-                } else if (status.connected) {
-                    publishBtn.disabled = true;
-                    publishBtn.innerHTML = `${sendIcon} Professional Account Required`;
-                } else {
-                    publishBtn.disabled = true;
-                    publishBtn.innerHTML = `${sendIcon} Connect Instagram to Publish`;
+            if (currentReelRecommendation && currentReelRecommendation.caption_variants) {
+                const variant = currentReelRecommendation.caption_variants[index];
+                if (variant) {
+                    const selectedCaption = document.getElementById('selectedCaption');
+                    selectedCaption.classList.remove('content-swap');
+                    void selectedCaption.offsetWidth;
+                    selectedCaption.textContent = variant.caption;
+                    selectedCaption.classList.add('content-swap');
                 }
-            });
+            }
+        }
 
-            modal.style.display = 'flex';
+        // Toggle hashtag - matches dashboard
+        function toggleHashtag(chip) {
+            chip.classList.toggle('selected');
         }
 
         // Execute schedule directly from modal
@@ -2342,9 +2353,11 @@
             }
         }
 
-        // Close recommendation modal
+        // Close recommendation modal - matches dashboard
         function closeRecommendationModal() {
-            document.getElementById('recommendationModal').style.display = 'none';
+            const modal = document.getElementById('recommendationModal');
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
         }
 
         // Track selections
@@ -2547,29 +2560,22 @@
     </svg>
 
     <!-- Recommendation Modal -->
-    <div class="modal-overlay" id="recommendationModal" style="display: none;">
-        <div class="modal" style="max-width: 600px;">
+    <div class="modal-overlay" id="recommendationModal">
+        <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">AI Recommendations</h2>
-                <button class="modal-close" onclick="closeRecommendationModal()">&times;</button>
+                <h2>
+                    <svg class="icon icon-lg"><use href="assets/ui-icons.svg#sparkles"></use></svg>
+                    AI Recommendation
+                </h2>
+                <button class="modal-close" onclick="closeRecommendationModal()" aria-label="Close recommendation">
+                    <svg class="icon"><use href="assets/ui-icons.svg#x"></use></svg>
+                </button>
             </div>
             <div class="modal-body" id="recommendationModalContent">
-                <!-- Content loaded dynamically -->
-            </div>
-            <div class="modal-actions recommendation-section" style="--section-index: 5;">
-                <button class="btn btn-primary" id="modalScheduleBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-                    </svg>
-                    Schedule Reel
-                </button>
-                <button class="btn btn-secondary" id="modalPublishBtn" disabled>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                        <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
-                    </svg>
-                    Connect Instagram to Publish
-                </button>
-                <button class="btn btn-secondary" onclick="closeRecommendationModal()">Save for Later</button>
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Analyzing your reel...</span>
+                </div>
             </div>
         </div>
     </div>
