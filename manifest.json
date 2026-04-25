@@ -1,0 +1,142 @@
+{
+  "name": "Hungry Panda Reels Maker",
+  "short_name": "Reels Maker",
+  "version": "1.0.0",
+  "description": "AI-powered Instagram Reels creation and publishing for Hungry Panda",
+  "start_url": "/reels.html",
+  "display": "standalone",
+  "background_color": "#f8faf6",
+  "theme_color": "#6e9a42",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "output_contract": {
+    "format": "MP4",
+    "video_codec": "H.264",
+    "audio_codec": "AAC",
+    "pixel_format": "yuv420p",
+    "resolution": {
+      "width": 1080,
+      "height": 1920
+    },
+    "frame_rate": 30,
+    "duration": {
+      "min_seconds": 30,
+      "max_seconds": 60
+    },
+    "audio": {
+      "required": true,
+      "silent_track_acceptable": true
+    },
+    "faststart": true
+  },
+  "features": [
+    "Multi-asset upload (images and videos)",
+    "AI-powered visual analysis",
+    "Smart edit plan generation with Ken Burns effect",
+    "8 curated Reel templates",
+    "FFmpeg-based rendering with transitions",
+    "Instagram-safe output format",
+    "Direct Instagram publishing",
+    "Metrics tracking and observability"
+  ],
+  "auth_flow": {
+    "type": "facebook_login",
+    "scopes": [
+      "instagram_basic",
+      "instagram_content_publish",
+      "pages_read_engagement",
+      "business_management",
+      "pages_show_list"
+    ],
+    "endpoints": {
+      "start": "/api/facebook-instagram/oauth/start",
+      "callback": "/api/facebook-instagram/oauth/callback",
+      "finalize": "/api/facebook-instagram/oauth/finalize",
+      "status": "/api/instagram/status",
+      "test": "/api/instagram/test",
+      "disconnect": "/api/instagram/disconnect"
+    }
+  },
+  "api_endpoints": {
+    "projects": {
+      "create": "POST /api/reels/projects",
+      "list": "GET /api/reels/projects",
+      "get": "GET /api/reels/projects/{id}",
+      "update": "PUT /api/reels/projects/{id}",
+      "delete": "DELETE /api/reels/projects/{id}",
+      "upload": "POST /api/reels/projects/{id}/upload",
+      "assets": "GET /api/reels/projects/{id}/assets",
+      "analyze": "POST /api/reels/projects/{id}/analyze",
+      "generate": "POST /api/reels/projects/{id}/generate",
+      "publish": "POST /api/reels/projects/{id}/publish",
+      "status": "GET /api/reels/projects/{id}/status",
+      "preview": "GET /api/reels/projects/{id}/preview",
+      "metrics": "GET /api/reels/metrics"
+    }
+  },
+  "templates": [
+    {
+      "key": "dish_showcase",
+      "name": "Dish Showcase",
+      "description": "Highlight a signature dish with appetizing shots"
+    },
+    {
+      "key": "recipe_steps",
+      "name": "Recipe Steps",
+      "description": "Show cooking process from ingredients to final plate"
+    },
+    {
+      "key": "ambience_montage",
+      "name": "Ambience Montage",
+      "description": "Atmospheric cuts of dining space and service"
+    },
+    {
+      "key": "platter_reveal",
+      "name": "Platter Reveal",
+      "description": "Dramatic reveals of large shared platters"
+    },
+    {
+      "key": "chef_special",
+      "name": "Chef's Special",
+      "description": "Chef preparing and plating their signature creation"
+    },
+    {
+      "key": "ingredient_focus",
+      "name": "Ingredient Focus",
+      "description": "Macro shots highlighting fresh ingredients"
+    },
+    {
+      "key": "satisfying_sizzle",
+      "name": "Satisfying Sizzle",
+      "description": "ASMR-style cooking sounds and close-ups"
+    },
+    {
+      "key": "behind_the_scenes",
+      "name": "Behind the Scenes",
+      "description": "Kitchen culture and team moments"
+    }
+  ],
+  "supported_transitions": [
+    "hard_cut",
+    "crossfade",
+    "fade",
+    "wipe",
+    "slide"
+  ],
+  "database_tables": [
+    "reel_projects",
+    "reel_assets",
+    "reel_render_jobs",
+    "reel_publish_jobs"
+  ]
+}

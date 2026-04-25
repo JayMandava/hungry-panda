@@ -816,9 +816,21 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         except DatabaseError as e:
             logger.error(f"Failed to update project output: {e}")
         
-        # Mark as complete
-        update_render_job_status(job_id, "completed")
-        update_project_status(project_id, "ready")
+        # Validate output contract before marking ready
+        validation_passed = True
+        if render_result.diagnostics and "validation" in render_result.diagnostics:
+            validation = render_result.diagnostics["validation"]
+            if not validation.get("valid", False):
+                logger.warning(f"Output validation failed for project {project_id}: {validation.get('errors', [])}")
+                validation_passed = False
+        
+        # Only mark ready if validation passed
+        if validation_passed:
+            update_render_job_status(job_id, "completed")
+            update_project_status(project_id, "ready")
+        else:
+            update_render_job_status(job_id, "failed", f"Output validation failed: {validation.get('errors', [])}")
+            update_project_status(project_id, "failed")
         
         # Phase 5: Track render metrics
         render_duration_ms = (time.time() - render_start_time) * 1000

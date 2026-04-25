@@ -136,13 +136,46 @@ class FFmpegRenderer:
                     diagnostics=diagnostics
                 )
             
-            # Step 3: Get final duration
+            # Step 3: Final normalization (add audio, enforce 30s minimum duration)
+            logger.info("Normalizing final output with audio and duration enforcement")
+            temp_normalized = self.temp_dir / f"normalized_{os.urandom(4).hex()}.mp4"
+            temp_files.append(temp_normalized)
+            
+            target_duration = edit_plan.get("target_duration", 30.0)
+            normalize_success = self._normalize_final_output(
+                output_path, 
+                str(temp_normalized), 
+                target_duration,
+                diagnostics
+            )
+            
+            if normalize_success:
+                # Replace original with normalized version
+                import shutil
+                shutil.move(str(temp_normalized), output_path)
+            else:
+                logger.warning("Final normalization failed, proceeding with unnormalized output")
+            
+            # Step 4: Validate output contract
+            logger.info("Validating output contract")
+            is_valid, validation_diagnostics = self.validate_output_contract(output_path)
+            diagnostics["validation"] = validation_diagnostics
+            
+            if not is_valid:
+                logger.error(f"Output validation failed: {validation_diagnostics['errors']}")
+                # Still return success but with warning - let caller decide
+                diagnostics["validation_warnings"] = validation_diagnostics['errors']
+            else:
+                logger.info("Output validation passed")
+            
+            # Step 5: Get final duration
             duration = self._get_video_duration(output_path)
+            diagnostics["final_duration"] = duration
             
             return RenderResult(
                 success=True,
                 output_path=output_path,
-                error_message=None,
+                error_message=None if is_valid else f"Validation warnings: {validation_diagnostics['errors']}",
                 duration=duration,
                 diagnostics=diagnostics
             )
@@ -686,6 +719,199 @@ class FFmpegRenderer:
         except Exception as e:
             logger.error(f"Poster generation failed: {e}")
             return False
+
+
+    def _normalize_final_output(
+        self, 
+        input_path: str, 
+        output_path: str, 
+        target_duration: float,
+        diagnostics: Dict
+    ) -> bool:
+        """
+        Normalize final output to Instagram-safe format.
+        - Ensures 30-60s duration (extends if needed)
+        - Adds AAC audio track (silent if no audio)
+        - Re-encodes to H.264/AAC with proper settings
+        """
+        # First, check actual duration
+        duration = self._get_video_duration(input_path)
+        
+        # Calculate extension needed
+        if duration and duration < 30.0:
+            # Need to extend - use apad filter for audio and tpad for video
+            pad_duration = 30.0 - duration
+            
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-filter_complex',
+                f'[0:v]tpad=stop_mode=clone:stop_duration={pad_duration}[v];'
+                f'[0:a]apad=pad_dur={pad_duration}[a]',
+                '-map', '[v]',
+                '-map', '[a]',
+                '-c:v', self.TARGET_CODEC,
+                '-pix_fmt', self.TARGET_PIXEL_FORMAT,
+                '-r', str(self.TARGET_FPS),
+                '-c:a', self.TARGET_AUDIO_CODEC,
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-movflags', '+faststart',
+                '-preset', 'fast',
+                '-crf', '23',
+                '-shortest',
+                output_path
+            ]
+        else:
+            # Duration OK or unknown - just add audio if missing and normalize
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',  # Silent audio source
+                '-c:v', self.TARGET_CODEC,
+                '-pix_fmt', self.TARGET_PIXEL_FORMAT,
+                '-r', str(self.TARGET_FPS),
+                '-c:a', self.TARGET_AUDIO_CODEC,
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-shortest',  # Match audio to video duration
+                '-movflags', '+faststart',
+                '-preset', 'fast',
+                '-crf', '23',
+                output_path
+            ]
+        
+        diagnostics["ffmpeg_commands"].append(" ".join(cmd))
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=120
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Final normalization failed: {result.stderr.decode()[:500]}")
+            return False
+        
+        return True
+
+    def validate_output_contract(self, output_path: str) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Validate final output meets Instagram contract using ffprobe.
+        Returns (is_valid, diagnostics_dict)
+        """
+        import json
+        
+        diagnostics = {
+            "file": output_path,
+            "valid": False,
+            "errors": [],
+            "streams": {},
+        }
+        
+        if not Path(output_path).exists():
+            diagnostics["errors"].append("File does not exist")
+            return False, diagnostics
+        
+        # Run ffprobe
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-print_format', 'json',
+            '-show_streams',
+            '-show_format',
+            output_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        
+        if result.returncode != 0:
+            diagnostics["errors"].append(f"ffprobe failed: {result.stderr.decode()[:200]}")
+            return False, diagnostics
+        
+        try:
+            probe_data = json.loads(result.stdout.decode())
+        except json.JSONDecodeError as e:
+            diagnostics["errors"].append(f"Failed to parse ffprobe output: {e}")
+            return False, diagnostics
+        
+        streams = probe_data.get("streams", [])
+        format_info = probe_data.get("format", {})
+        
+        # Analyze streams
+        video_stream = None
+        audio_stream = None
+        
+        for stream in streams:
+            if stream.get("codec_type") == "video":
+                video_stream = stream
+            elif stream.get("codec_type") == "audio":
+                audio_stream = stream
+        
+        # Validate video stream
+        if not video_stream:
+            diagnostics["errors"].append("No video stream found")
+        else:
+            diagnostics["streams"]["video"] = {
+                "codec": video_stream.get("codec_name"),
+                "width": video_stream.get("width"),
+                "height": video_stream.get("height"),
+                "pix_fmt": video_stream.get("pix_fmt"),
+                "fps": eval(video_stream.get("r_frame_rate", "0/1")),  # e.g., "30/1"
+            }
+            
+            # Check video specs
+            if video_stream.get("codec_name") != "h264":
+                diagnostics["errors"].append(f"Video codec is {video_stream.get('codec_name')}, expected h264")
+            
+            if video_stream.get("width") != self.TARGET_WIDTH or video_stream.get("height") != self.TARGET_HEIGHT:
+                diagnostics["errors"].append(
+                    f"Resolution is {video_stream.get('width')}x{video_stream.get('height')}, "
+                    f"expected {self.TARGET_WIDTH}x{self.TARGET_HEIGHT}"
+                )
+            
+            if video_stream.get("pix_fmt") != self.TARGET_PIXEL_FORMAT:
+                diagnostics["errors"].append(
+                    f"Pixel format is {video_stream.get('pix_fmt')}, expected {self.TARGET_PIXEL_FORMAT}"
+                )
+        
+        # Validate audio stream
+        if not audio_stream:
+            diagnostics["errors"].append("No audio stream found (AAC required)")
+        else:
+            diagnostics["streams"]["audio"] = {
+                "codec": audio_stream.get("codec_name"),
+                "sample_rate": audio_stream.get("sample_rate"),
+            }
+            
+            if audio_stream.get("codec_name") != "aac":
+                diagnostics["errors"].append(f"Audio codec is {audio_stream.get('codec_name')}, expected aac")
+        
+        # Validate duration
+        duration_str = format_info.get("duration")
+        if duration_str:
+            try:
+                duration = float(duration_str)
+                diagnostics["duration_seconds"] = duration
+                
+                if duration < 30.0:
+                    diagnostics["errors"].append(f"Duration is {duration:.2f}s, minimum is 30s")
+                elif duration > 60.0:
+                    diagnostics["errors"].append(f"Duration is {duration:.2f}s, maximum is 60s")
+            except ValueError:
+                diagnostics["errors"].append(f"Could not parse duration: {duration_str}")
+        else:
+            diagnostics["errors"].append("Could not determine duration")
+        
+        # Format info
+        diagnostics["format"] = {
+            "format_name": format_info.get("format_name"),
+            "bit_rate": format_info.get("bit_rate"),
+        }
+        
+        is_valid = len(diagnostics["errors"]) == 0
+        diagnostics["valid"] = is_valid
+        
+        return is_valid, diagnostics
 
 
 # Convenience function
