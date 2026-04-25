@@ -7,7 +7,7 @@ import json
 import uuid
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -110,8 +110,6 @@ REELS_METRICS = {
 
 def update_reels_metrics(metric_type: str, status: str = None, duration_ms: float = None, template_key: str = None):
     """Update reels metrics for observability"""
-from datetime import datetime, timedelta
-    
     REELS_METRICS["last_updated"] = datetime.utcnow().isoformat()
     
     if metric_type == "project_created":
