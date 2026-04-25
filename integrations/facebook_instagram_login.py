@@ -31,13 +31,15 @@ class FacebookInstagramAuthClient:
     GRAPH_URL = f"https://graph.facebook.com/{API_VERSION}"
     
     # Required scopes for Instagram publishing via Facebook Login
-    # pages_show_list required for /me/accounts call
-    # pages_read_engagement required for reading Page access token
+    # Must exactly match Meta dashboard registered permissions:
+    # instagram_basic, instagram_content_publishing, pages_read_engagement,
+    # business_management, pages_show_list
     REQUIRED_SCOPES = [
         "instagram_basic",
-        "instagram_content_publish",
-        "pages_show_list",
+        "instagram_content_publishing",
         "pages_read_engagement",
+        "business_management",
+        "pages_show_list",
     ]
     
     def __init__(self):
