@@ -219,7 +219,9 @@
                 const data = await response.json();
                 
                 if (!response.ok || !data.connected) {
-                    throw new Error(data.error || data.message || 'Finalization failed');
+                    // Handle both FastAPI error format (detail) and our custom format (error/message)
+                    const errorMsg = data.detail || data.error || data.message || 'Finalization failed';
+                    throw new Error(errorMsg);
                 }
                 
                 // Success

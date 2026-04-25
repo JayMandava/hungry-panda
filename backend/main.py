@@ -219,14 +219,21 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
     redirect_uri = None
     redirect_error = None
 
-    try:
-        redirect_uri = get_configured_redirect_uri(base_url)
-    except InstagramLoginError as exc:
-        redirect_error = str(exc)
-
     # Check for new Facebook Login auth flow first
     auth_flow = get_setting("instagram_auth_flow", "")
     facebook_connected = auth_flow == "facebook_login"
+    
+    # Use appropriate redirect URI helper based on auth flow
+    if facebook_connected and FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        try:
+            redirect_uri = get_facebook_instagram_redirect_uri() or config.FACEBOOK_INSTAGRAM_REDIRECT_URI or config.INSTAGRAM_REDIRECT_URI
+        except Exception as exc:
+            redirect_error = str(exc)
+    else:
+        try:
+            redirect_uri = get_configured_redirect_uri(base_url)
+        except InstagramLoginError as exc:
+            redirect_error = str(exc)
     
     if facebook_connected:
         # New Facebook Login flow status
@@ -235,14 +242,16 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
         ig_business_id = get_setting("facebook_instagram_business_account_id")
         has_all_ids = bool(page_id and ig_business_id)
         
-        # Check required scopes for Facebook flow
+        # Check required scopes for Facebook flow - must match Meta dashboard exactly
         fb_permissions = get_setting("facebook_instagram_permissions", "")
         granted_permissions = [p.strip() for p in fb_permissions.split(",") if p.strip()]
-        # Facebook flow needs different scopes
+        # Must match REQUIRED_SCOPES in FacebookInstagramAuthClient exactly
         required_permissions = [
             "instagram_basic",
-            "instagram_content_publish",
+            "instagram_content_publishing",
             "pages_read_engagement",
+            "business_management",
+            "pages_show_list",
         ]
         missing_permissions = [
             p for p in required_permissions if p not in granted_permissions
