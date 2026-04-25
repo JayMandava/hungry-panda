@@ -1212,14 +1212,23 @@ async def upload_content(
             f.write(content)
         
         logger.info(f"Content uploaded: {content_id} ({file.filename})")
-        
+
+        # Determine content_type from file extension
+        file_lower = file.filename.lower()
+        if any(file_lower.endswith(ext) for ext in ['.mp4', '.mov', '.quicktime', '.avi', '.mkv', '.webm']):
+            content_type = 'video'
+        elif any(file_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp', '.gif']):
+            content_type = 'image'
+        else:
+            content_type = 'unknown'
+
         # Store in database
         execute_insert(
             """
-            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status, content_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, context, 'pending')
+            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, context, 'pending', content_type)
         )
         
         response = {
