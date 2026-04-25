@@ -207,6 +207,16 @@ def init_database():
         );
         
         CREATE INDEX IF NOT EXISTS idx_reel_publish_jobs_project ON reel_publish_jobs(project_id);
+
+        -- Reel recommendations table: caches AI-generated recommendations
+        CREATE TABLE IF NOT EXISTS reel_recommendations (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES reel_projects(id) ON DELETE CASCADE,
+            recommendation_json TEXT NOT NULL,  -- Full recommendation payload
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_reel_recommendations_project ON reel_recommendations(project_id);
     """
     
     try:

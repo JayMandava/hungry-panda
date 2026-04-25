@@ -648,15 +648,166 @@ async def get_project(project_id: str):
     project = get_project_db(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     assets = get_project_assets_db(project_id)
     latest_render = get_latest_render_job_db(project_id)
-    
+
     return ProjectFullResponse(
         project=ProjectDetail(**project),
         assets=[AssetInfo(**a) for a in assets],
         latest_render=RenderJobInfo(**latest_render) if latest_render else None
     )
+
+
+# Import recommendation functions
+LLM_AVAILABLE = False
+try:
+    from integrations.llm_client import generate_reel_recommendation, LLMError
+    LLM_AVAILABLE = True
+except ImportError:
+    logger.warning("LLM client not available for reel recommendations")
+
+
+class ReelRecommendationResponse(BaseModel):
+    content_analysis: Dict[str, Any]
+    caption_variants: List[Dict[str, str]]
+    hashtag_variants: List[Dict[str, Any]]
+    optimal_time: Dict[str, str]
+    reel_specific: Dict[str, str]
+    strategy_notes: str
+    confidence_score: float
+    content_patterns: List[str]
+    recommendation_id: str
+
+
+@router.post("/projects/{project_id}/recommendations", response_model=ReelRecommendationResponse)
+async def get_reel_recommendations(project_id: str):
+    """
+    Generate AI recommendations for a reel project.
+    Analyzes the first selected video asset and returns caption variants,
+    hashtag variants, optimal posting time, and reel-specific guidance.
+    """
+    # Get project
+    project = get_project_db(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get assets - prefer selected assets, fallback to first video
+    assets = get_project_assets_db(project_id)
+    if not assets:
+        raise HTTPException(status_code=400, detail="No assets found for this project")
+
+    # Find a suitable video asset
+    video_asset = None
+    for asset in assets:
+        if asset.get("selected") and asset.get("media_type") == "video":
+            video_asset = asset
+            break
+    if not video_asset:
+        for asset in assets:
+            if asset.get("media_type") == "video":
+                video_asset = asset
+                break
+
+    if not video_asset:
+        raise HTTPException(status_code=400, detail="No video assets found for recommendation")
+
+    # Check if we have cached recommendations
+    cached = get_cached_recommendation(project_id)
+    if cached:
+        return ReelRecommendationResponse(**cached)
+
+    # Generate recommendation
+    if not LLM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Recommendation service unavailable")
+
+    try:
+        filepath = video_asset["source_path"]
+        context = project.get("title", "")
+
+        # Get visual analysis if available
+        visual_analysis = None
+        if video_asset.get("analysis_json"):
+            analysis = json.loads(video_asset["analysis_json"])
+            visual_analysis = analysis.get("visual_facts", {})
+
+        # Call LLM for recommendation
+        recommendation = generate_reel_recommendation(
+            filepath=filepath,
+            context=context,
+            visual_analysis=visual_analysis,
+            _allow_internal_visual=False  # Skip visual analysis to keep it fast
+        )
+
+        # Add metadata
+        recommendation["recommendation_id"] = str(uuid.uuid4())
+
+        # Cache the recommendation
+        cache_recommendation(project_id, recommendation)
+
+        return ReelRecommendationResponse(**recommendation)
+
+    except LLMError as e:
+        logger.error(f"LLM recommendation failed for project {project_id}: {e}")
+        raise HTTPException(status_code=503, detail=f"Recommendation generation failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error generating recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Internal error generating recommendations")
+
+
+def get_cached_recommendation(project_id: str) -> Optional[Dict]:
+    """Get cached recommendation if recent (< 1 hour)"""
+    try:
+        result = execute_query(
+            "SELECT recommendation_json, created_at FROM reel_recommendations WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
+            (project_id,)
+        )
+        if result:
+            row = result[0]
+            created = datetime.fromisoformat(row["created_at"])
+            if (datetime.now() - created).seconds < 3600:  # 1 hour cache
+                return json.loads(row["recommendation_json"])
+    except Exception as e:
+        logger.warning(f"Failed to get cached recommendation: {e}")
+    return None
+
+
+def cache_recommendation(project_id: str, recommendation: Dict):
+    """Cache recommendation to database"""
+    try:
+        rec_id = recommendation.get("recommendation_id", str(uuid.uuid4()))
+        execute_insert(
+            """INSERT INTO reel_recommendations (id, project_id, recommendation_json, created_at)
+               VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
+            (rec_id, project_id, json.dumps(recommendation))
+        )
+    except Exception as e:
+        logger.warning(f"Failed to cache recommendation: {e}")
+
+
+class UpdateProjectRequest(BaseModel):
+    caption: Optional[str] = None
+    hashtags: Optional[List[str]] = None
+
+
+@router.post("/projects/{project_id}/update")
+async def update_project(project_id: str, request: UpdateProjectRequest):
+    """Update project metadata (caption, hashtags)"""
+    project = get_project_db(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        hashtags_str = json.dumps(request.hashtags) if request.hashtags else None
+        execute_insert(
+            "UPDATE reel_projects SET caption = ?, hashtags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (request.caption, hashtags_str, project_id)
+        )
+        return {"status": "updated", "project_id": project_id}
+    except DatabaseError as e:
+        logger.error(f"Failed to update project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update project")
+
 
 def update_render_job_status(job_id: str, status: str, error_message: Optional[str] = None):
     """Update render job status and timestamps"""
