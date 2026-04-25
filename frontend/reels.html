@@ -547,6 +547,8 @@
 
         .modal-body {
             padding: var(--space-6);
+            overflow-y: auto;
+            max-height: 60vh;
         }
 
         .form-group {
@@ -2048,6 +2050,18 @@
         // Phase 4: Publishing
         // ========================================
 
+        // Check Instagram connection status
+        async function checkInstagramStatus() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                if (!response.ok) throw new Error('Failed to check status');
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to check Instagram status:', error);
+                return { connected: false, can_publish: false };
+            }
+        }
+
         function updatePublishUI(project, instagramStatus) {
             const postActions = document.getElementById('postGenerateActions');
 
@@ -2219,6 +2233,20 @@
 
             scheduleBtn.onclick = () => executeModalSchedule();
             publishBtn.onclick = () => executeModalPublish();
+
+            // Check Instagram status and update publish button
+            checkInstagramStatus().then(status => {
+                if (status.connected && status.can_publish) {
+                    publishBtn.disabled = false;
+                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Publish Now`;
+                } else if (status.connected) {
+                    publishBtn.disabled = true;
+                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Professional Account Required`;
+                } else {
+                    publishBtn.disabled = true;
+                    publishBtn.innerHTML = `${icon('send', 'icon icon-sm')} Connect Instagram to Publish`;
+                }
+            });
 
             modal.style.display = 'flex';
         }
@@ -2513,9 +2541,9 @@
             <div class="modal-body" id="recommendationModalContent">
                 <!-- Content loaded dynamically -->
             </div>
-            <div class="modal-footer" style="display: flex; gap: var(--space-3); justify-content: flex-end;">
-                <button class="btn btn-secondary" id="modalScheduleBtn">${icon('calendar', 'icon icon-sm')} Schedule Reel</button>
-                <button class="btn btn-secondary" id="modalPublishBtn">${icon('send', 'icon icon-sm')} Publish Now</button>
+            <div class="modal-actions recommendation-section" style="--section-index: 5;">
+                <button class="btn btn-primary" id="modalScheduleBtn">${icon('calendar', 'icon icon-sm')} Schedule Reel</button>
+                <button class="btn btn-secondary" id="modalPublishBtn" disabled>Connect Instagram to Publish</button>
                 <button class="btn btn-secondary" onclick="closeRecommendationModal()">Save for Later</button>
             </div>
         </div>
