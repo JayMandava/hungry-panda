@@ -110,7 +110,7 @@ REELS_METRICS = {
 
 def update_reels_metrics(metric_type: str, status: str = None, duration_ms: float = None, template_key: str = None):
     """Update reels metrics for observability"""
-    from datetime import datetime
+from datetime import datetime, timedelta
     
     REELS_METRICS["last_updated"] = datetime.utcnow().isoformat()
     
