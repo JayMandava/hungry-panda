@@ -70,7 +70,7 @@ except ImportError as e:
 
 # Import Reels Maker module
 try:
-    from backend.reels import router as reels_router
+    from app.api.reels import router as reels_router
     REELS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Reels Maker module not available: {e}")
@@ -83,12 +83,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-frontend_assets_dir = Path(__file__).parent.parent / "frontend" / "assets"
+frontend_assets_dir = Path(__file__).parent.parent.parent / "frontend" / "assets"
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
 
 # Mount static directory for manifest and icons
-static_dir = Path(__file__).parent.parent / "static"
+static_dir = Path(__file__).parent.parent.parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -547,7 +547,7 @@ async def dashboard():
     Serve the main growth dashboard.
     Returns the HTML dashboard for managing the Instagram growth agent.
     """
-    dashboard_path = Path(__file__).parent.parent / "frontend" / "dashboard.html"
+    dashboard_path = Path(__file__).parent.parent.parent / "frontend" / "pages" / "dashboard.html"
     
     if dashboard_path.exists():
         return HTMLResponse(content=dashboard_path.read_text())
@@ -559,7 +559,7 @@ async def dashboard():
 @app.get("/voice-styles.css")
 async def serve_voice_styles():
     """Serve voice input styles CSS"""
-    css_path = Path(__file__).parent.parent / "frontend" / "voice-styles.css"
+    css_path = Path(__file__).parent.parent.parent / "frontend" / "styles" / "voice-styles.css"
     if css_path.exists():
         return FileResponse(css_path, media_type="text/css")
     return HTMLResponse(content="/* CSS not found */", status_code=404)
@@ -568,7 +568,7 @@ async def serve_voice_styles():
 @app.get("/reels.html", response_class=HTMLResponse)
 async def serve_reels_page():
     """Serve the Reel Maker page"""
-    reels_path = Path(__file__).parent.parent / "frontend" / "reels.html"
+    reels_path = Path(__file__).parent.parent.parent / "frontend" / "pages" / "reels.html"
     if reels_path.exists():
         return HTMLResponse(content=reels_path.read_text())
     return HTMLResponse(content="<h1>Reel Maker page not found</h1>", status_code=404)
@@ -2095,7 +2095,7 @@ async def facebook_instagram_oauth_callback(request: Request):
     Serve the callback page that captures Facebook token from URL fragment.
     The page parses the fragment client-side and POSTs to /finalize.
     """
-    callback_path = Path(__file__).parent.parent / "frontend" / "facebook-instagram-callback.html"
+    callback_path = Path(__file__).parent.parent.parent / "frontend" / "pages" / "facebook-instagram-callback.html"
     
     if callback_path.exists():
         return HTMLResponse(content=callback_path.read_text())

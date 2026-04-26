@@ -107,7 +107,7 @@ class TestInferenceCallCount:
     
     async def test_normal_path_makes_exactly_two_llm_calls(self, mock_llm_client):
         """P0: Normal recommendation path should make exactly 2 LLM calls"""
-        from analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
+        from workers.analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
         
         reset_llm_call_counts()
         
@@ -141,7 +141,7 @@ class TestInferenceCallCount:
     
     async def test_fallback_path_makes_zero_additional_llm_calls(self, mock_llm_client):
         """P0: When structured fails, fallback should make 0 additional LLM calls"""
-        from analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
+        from workers.analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
         
         reset_llm_call_counts()
         
@@ -185,8 +185,8 @@ class TestInferenceCallCount:
         to structured, generate_post_recommendation would internally call _inspect_visual_asset
         again, resulting in: 1 failed visual + 1 internal visual + 1 structured = 3 calls.
         """
-        from analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
-        from integrations.llm_client import LLMClient
+        from workers.analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts
+        from infra.integrations.llm_client import LLMClient
         
         reset_llm_call_counts()
         
@@ -225,7 +225,7 @@ class TestInferenceCallCount:
     
     async def test_build_caption_variants_respects_use_llm_false(self):
         """P0: build_caption_variants with use_llm=False should not call LLM"""
-        from analyzer.content_engine import ContentAnalyzer
+        from workers.analyzer.content_engine import ContentAnalyzer
         
         analyzer = ContentAnalyzer()
         
@@ -249,7 +249,7 @@ class TestInferenceCallCount:
     
     async def test_build_hashtag_variants_respects_use_llm_false(self):
         """P0: build_hashtag_variants with use_llm=False should not call LLM"""
-        from analyzer.content_engine import ContentAnalyzer
+        from workers.analyzer.content_engine import ContentAnalyzer
         
         analyzer = ContentAnalyzer()
         
@@ -273,7 +273,7 @@ class TestInferenceCallCount:
     
     async def test_no_second_vision_pass_called(self, mock_llm_client):
         """P0: Visual analysis should NOT call second detail pass"""
-        from integrations.llm_client import LLMClient
+        from infra.integrations.llm_client import LLMClient
         
         client = LLMClient(provider="fireworks")
         
@@ -311,7 +311,7 @@ class TestStageTimingMetrics:
     
     def test_stage_timer_records_duration(self):
         """StageTimer should record and log stage duration"""
-        from analyzer.content_engine import StageTimer, STAGE_TIMINGS, get_stage_timings
+        from workers.analyzer.content_engine import StageTimer, STAGE_TIMINGS, get_stage_timings
         import time
         
         # Clear previous timings for this test
@@ -326,7 +326,7 @@ class TestStageTimingMetrics:
     
     def test_llm_call_count_tracking(self):
         """LLM call counts should be tracked correctly"""
-        from analyzer.content_engine import (
+        from workers.analyzer.content_engine import (
             increment_llm_call_count,
             get_llm_call_counts,
             reset_llm_call_counts,
@@ -349,7 +349,7 @@ class TestStageTimingMetrics:
         This tests that request_metrics["stages"] contains the actual time each
         stage took for THIS request, not an average across multiple requests.
         """
-        from analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts, STAGE_TIMINGS
+        from workers.analyzer.content_engine import analyze_and_recommend, reset_llm_call_counts, STAGE_TIMINGS
         import time
         
         reset_llm_call_counts()
@@ -433,7 +433,7 @@ class TestInferenceMetricsEndpoint:
     async def test_health_endpoint_includes_inference_metrics(self):
         """Health endpoint should include inference metrics"""
         try:
-            from backend.main import app
+            from app.api.main import app
             from fastapi.testclient import TestClient
             client = TestClient(app)
         except (ImportError, RuntimeError, TypeError) as e:
@@ -455,7 +455,7 @@ class TestInferenceMetricsEndpoint:
     async def test_debug_inference_metrics_endpoint(self):
         """Debug endpoint should return detailed inference metrics"""
         try:
-            from backend.main import app
+            from app.api.main import app
             from fastapi.testclient import TestClient
             client = TestClient(app)
         except (ImportError, RuntimeError, TypeError) as e:

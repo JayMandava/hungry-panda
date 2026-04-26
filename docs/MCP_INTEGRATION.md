@@ -170,7 +170,7 @@ We've added an MCP client module to Hungry Panda:
 
 ```python
 # Example usage in Hungry Panda
-from integrations.mcp_client import InstagramMCPClient
+from infra.integrations.mcp_client import InstagramMCPClient
 
 # Initialize MCP client
 mcp = InstagramMCPClient()
@@ -206,7 +206,7 @@ Supports both ig-mcp (Graph API) and instagram_dm_mcp (private API)
 import asyncio
 import json
 from typing import Dict, List, Optional
-from config.settings import config
+from infra.config.settings import config
 
 
 class InstagramMCPClient:
