@@ -3,7 +3,7 @@
  * Basic caching strategy for PWA support
  */
 
-const CACHE_NAME = 'hungry-panda-v2-2026-04-25';
+const CACHE_NAME = 'hungry-panda-v3-2026-04-26';
 const STATIC_ASSETS = [
   '/',
   '/dashboard.html',

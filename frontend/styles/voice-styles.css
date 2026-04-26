@@ -1,0 +1,222 @@
+/* Hungry Panda - Voice Input Styles */
+/* Nature-Led Green Design System - Light Theme */
+
+:root {
+  /* Brand Colors - Green Nature Palette */
+  --brand-accent: #6e9a42;
+  --brand-accent-hover: #5a8335;
+  --brand-warm: #8ab85a;
+  --brand-success: #22c55e;
+
+  /* Surface System - Glass Depth (Light) */
+  --bg-primary: #f8faf6;
+  --bg-secondary: rgba(255, 255, 255, 0.6);
+  --bg-tertiary: rgba(255, 255, 255, 0.7);
+  --bg-elevated: rgba(255, 255, 255, 0.8);
+  --bg-card: rgba(255, 255, 255, 0.45);
+
+  /* Border & Separation - Green Accent */
+  --border-subtle: rgba(110, 154, 66, 0.2);
+  --border-default: rgba(110, 154, 66, 0.3);
+  --border-accent: rgba(110, 154, 66, 0.5);
+
+  /* Text Hierarchy - Dark for light background */
+  --text-primary: #1a2e12;
+  --text-secondary: rgba(26, 46, 18, 0.7);
+  --text-tertiary: rgba(26, 46, 18, 0.5);
+  --text-muted: rgba(26, 46, 18, 0.35);
+
+  /* Typography Scale */
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+
+  /* Spacing Rhythm */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Effects - Green Glow */
+  --shadow-sm: 0 2px 8px rgba(110, 154, 66, 0.1);
+  --shadow-md: 0 4px 16px rgba(110, 154, 66, 0.15);
+  --shadow-lg: 0 8px 32px rgba(110, 154, 66, 0.2);
+  --shadow-glow: 0 0 40px rgba(110, 154, 66, 0.3);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+/* Voice Input Container - Glass Style */
+.voice-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-default);
+  border-radius: 50px;
+  padding: 6px;
+  transition: all 0.3s ease;
+}
+
+.voice-input-container:focus-within {
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(110, 154, 66, 0.15), 0 0 20px rgba(110, 154, 66, 0.1);
+}
+
+.voice-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 10px 16px;
+  outline: none;
+  font-family: var(--font-display);
+}
+
+.voice-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Voice Button */
+.voice-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.voice-btn .icon,
+.send-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.voice-btn:hover {
+  background: var(--brand-accent);
+  color: white;
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(110, 154, 66, 0.3);
+}
+
+/* Voice Recording State - Green Pulse */
+.voice-btn.recording {
+  background: var(--brand-accent);
+  color: white;
+  animation: pulse-recording 1.5s infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 15px rgba(110, 154, 66, 0);
+  }
+}
+
+/* Send Button - Green Gradient */
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, var(--brand-accent) 0%, var(--brand-accent-hover) 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+}
+
+.send-btn:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-glow), var(--shadow-md);
+}
+
+.send-btn:active {
+  transform: scale(0.95);
+}
+
+/* Recording Status - Green Theme */
+.recording-status {
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(110, 154, 66, 0.1);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  color: var(--brand-accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.recording-status.active {
+  display: flex;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--brand-accent);
+  border-radius: 50%;
+  animation: blink 1s infinite;
+  box-shadow: 0 0 8px var(--brand-accent);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Voice Wave Animation - Green */
+.voice-wave {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+}
+
+.voice-wave.active {
+  display: flex;
+}
+
+.voice-wave-bar {
+  width: 3px;
+  background: var(--brand-accent);
+  border-radius: 3px;
+  animation: wave 1s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(110, 154, 66, 0.5);
+}
+
+.voice-wave-bar:nth-child(1) { animation-delay: 0s; height: 8px; }
+.voice-wave-bar:nth-child(2) { animation-delay: 0.1s; height: 16px; }
+.voice-wave-bar:nth-child(3) { animation-delay: 0.2s; height: 12px; }
+.voice-wave-bar:nth-child(4) { animation-delay: 0.3s; height: 20px; }
+.voice-wave-bar:nth-child(5) { animation-delay: 0.4s; height: 10px; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}

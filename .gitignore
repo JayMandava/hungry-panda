@@ -35,11 +35,22 @@ env/
 
 # Application
 .env
+.env.local
+.env.*.local
 *.db
 *.sqlite3
+*.db-journal
 project-context.db
+
+# Data directories (runtime data, not code)
+data/uploads/
+data/logs/
+data/cache/
+!data/.gitkeep
+
+# Legacy locations (to be removed)
 uploads/
-ui-ideas/
+logs/
 *.log
 
 # Local-only issue/context DBs (no extension)
