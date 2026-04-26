@@ -2,6 +2,11 @@
 Content Analysis & Recommendation Engine
 Analyzes uploaded content and generates AI-powered recommendations
 """
+import sys
+from pathlib import Path
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import json
 import logging
 import sqlite3
@@ -12,6 +17,8 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
+
+from infra.config.settings import config
 
 # Optional LLM integration
 try:
@@ -310,7 +317,7 @@ class ContentAnalyzer:
     """Analyzes content and generates strategic recommendations"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('hungry_panda.db')
+        self.conn = sqlite3.connect(config.DATABASE_PATH)
 
     def _get_rng(self, seed: str) -> random.Random:
         """Return a deterministic RNG for stable but content-specific variants."""

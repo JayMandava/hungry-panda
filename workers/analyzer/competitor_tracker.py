@@ -2,10 +2,16 @@
 Competitor Tracking & Analysis
 Monitors competitor accounts to extract insights and patterns
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import json
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Optional
+
+from infra.config.settings import config
 
 # Simulated competitor analysis - in production, this would use:
 # - Instagram API
@@ -72,7 +78,7 @@ class CompetitorTracker:
     """Tracks and analyzes competitor Instagram accounts"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('hungry_panda.db')
+        self.conn = sqlite3.connect(config.DATABASE_PATH)
     
     async def analyze_account(self, username: str) -> Dict:
         """

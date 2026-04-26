@@ -2,12 +2,17 @@
 Strategist Engine
 Generates weekly content strategies based on analysis
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 import json
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List
 import random
 
+from infra.config.settings import config
 from workers.analyzer.competitor_tracker import get_market_insights
 
 # Weekly content themes that rotate
@@ -65,7 +70,7 @@ class Strategist:
     """Generates data-driven content strategies"""
     
     def __init__(self):
-        self.conn = sqlite3.connect('hungry_panda.db')
+        self.conn = sqlite3.connect(config.DATABASE_PATH)
     
     def analyze_current_performance(self) -> Dict:
         """
