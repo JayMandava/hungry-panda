@@ -42,6 +42,19 @@ uploads/
 ui-ideas/
 *.log
 
+# Local-only issue/context DBs (no extension)
+ai-generation-issues
+auth-issues
+auth-revamp
+design-uplift
+inference-improvements
+output-processing-improvements
+process-improvements
+reels-maker
+reels-maker-followups
+reels-style-controls
+secure-url
+
 # OS
 .DS_Store
 Thumbs.db
