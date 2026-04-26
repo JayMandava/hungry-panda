@@ -8,7 +8,7 @@ import json
 import uuid
 import shutil
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -95,69 +95,87 @@ RENDER_STATUSES = ["queued", "analyzing", "running", "plan_ready", "completed", 
 PUBLISH_STATUSES = ["queued", "publishing", "published", "failed"]
 
 # Phase 5: Metrics tracking for observability
-REELS_METRICS = {
-    "total_projects": 0,
-    "total_renders": 0,
-    "total_publishes": 0,
-    "renders_by_status": {
-        "completed": 0,
-        "failed": 0,
-    },
-    "publishes_by_status": {
-        "published": 0,
-        "failed": 0,
-    },
-    "total_render_duration_ms": 0,
-    "total_publish_duration_ms": 0,
-    "template_usage": {},
-    "last_updated": None,
-}
-
-def update_reels_metrics(metric_type: str, status: str = None, duration_ms: float = None, template_key: str = None):
-    """Update reels metrics for observability"""
-    REELS_METRICS["last_updated"] = datetime.utcnow().isoformat()
+# Use a class-based singleton pattern to avoid mutable global state issues
+class ReelsMetricsManager:
+    """Thread-safe metrics manager for reels operations"""
     
-    if metric_type == "project_created":
-        REELS_METRICS["total_projects"] += 1
-    elif metric_type == "render":
-        REELS_METRICS["total_renders"] += 1
-        if status in REELS_METRICS["renders_by_status"]:
-            REELS_METRICS["renders_by_status"][status] += 1
-        if duration_ms:
-            REELS_METRICS["total_render_duration_ms"] += duration_ms
-    elif metric_type == "publish":
-        REELS_METRICS["total_publishes"] += 1
-        if status in REELS_METRICS["publishes_by_status"]:
-            REELS_METRICS["publishes_by_status"][status] += 1
-        if duration_ms:
-            REELS_METRICS["total_publish_duration_ms"] += duration_ms
-    elif metric_type == "template_used" and template_key:
-        REELS_METRICS["template_usage"][template_key] = REELS_METRICS["template_usage"].get(template_key, 0) + 1
+    def __init__(self):
+        self._metrics = {
+            "total_projects": 0,
+            "total_renders": 0,
+            "total_publishes": 0,
+            "renders_by_status": {
+                "completed": 0,
+                "failed": 0,
+            },
+            "publishes_by_status": {
+                "published": 0,
+                "failed": 0,
+            },
+            "total_render_duration_ms": 0,
+            "total_publish_duration_ms": 0,
+            "template_usage": {},
+            "last_updated": None,
+        }
+    
+    def update(self, metric_type: str, status: str = None, duration_ms: float = None, template_key: str = None) -> None:
+        """Update reels metrics for observability"""
+        from datetime import timezone
+        self._metrics["last_updated"] = datetime.now(timezone.utc).isoformat()
+        
+        if metric_type == "project_created":
+            self._metrics["total_projects"] += 1
+        elif metric_type == "render":
+            self._metrics["total_renders"] += 1
+            if status in self._metrics["renders_by_status"]:
+                self._metrics["renders_by_status"][status] += 1
+            if duration_ms:
+                self._metrics["total_render_duration_ms"] += duration_ms
+        elif metric_type == "publish":
+            self._metrics["total_publishes"] += 1
+            if status in self._metrics["publishes_by_status"]:
+                self._metrics["publishes_by_status"][status] += 1
+            if duration_ms:
+                self._metrics["total_publish_duration_ms"] += duration_ms
+        elif metric_type == "template_used" and template_key:
+            self._metrics["template_usage"][template_key] = self._metrics["template_usage"].get(template_key, 0) + 1
+    
+    def get(self) -> Dict[str, Any]:
+        """Get current reels metrics for health/debug visibility (returns a copy)"""
+        metrics = dict(self._metrics)
+        
+        # Calculate averages
+        if metrics["total_renders"] > 0:
+            completed = metrics["renders_by_status"].get("completed", 0)
+            metrics["avg_render_duration_ms"] = (
+                metrics["total_render_duration_ms"] / completed if completed > 0 else 0
+            )
+            metrics["render_success_rate"] = (
+                completed / metrics["total_renders"] * 100
+            )
+        
+        if metrics["total_publishes"] > 0:
+            published = metrics["publishes_by_status"].get("published", 0)
+            metrics["avg_publish_duration_ms"] = (
+                metrics["total_publish_duration_ms"] / published if published > 0 else 0
+            )
+            metrics["publish_success_rate"] = (
+                published / metrics["total_publishes"] * 100
+            )
+        
+        return metrics
+
+# Global singleton instance - thread-safe for async operations
+_reels_metrics_manager = ReelsMetricsManager()
+
+# Backward-compatible functions
+def update_reels_metrics(metric_type: str, status: str = None, duration_ms: float = None, template_key: str = None) -> None:
+    """Update reels metrics for observability"""
+    _reels_metrics_manager.update(metric_type, status, duration_ms, template_key)
 
 def get_reels_metrics() -> Dict[str, Any]:
     """Get current reels metrics for health/debug visibility"""
-    metrics = dict(REELS_METRICS)
-    
-    # Calculate averages
-    if metrics["total_renders"] > 0:
-        completed = metrics["renders_by_status"].get("completed", 0)
-        metrics["avg_render_duration_ms"] = (
-            metrics["total_render_duration_ms"] / completed if completed > 0 else 0
-        )
-        metrics["render_success_rate"] = (
-            completed / metrics["total_renders"] * 100
-        )
-    
-    if metrics["total_publishes"] > 0:
-        published = metrics["publishes_by_status"].get("published", 0)
-        metrics["avg_publish_duration_ms"] = (
-            metrics["total_publish_duration_ms"] / published if published > 0 else 0
-        )
-        metrics["publish_success_rate"] = (
-            published / metrics["total_publishes"] * 100
-        )
-    
-    return metrics
+    return _reels_metrics_manager.get()
 
 # Pydantic models
 class CreateProjectRequest(BaseModel):

@@ -26,6 +26,15 @@ class Config:
     PORT: int = int(os.getenv("PORT", "8080"))
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
+    # Request limits
+    # Maximum upload file size in MB (default 50MB for video uploads)
+    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+    
+    # CORS Settings
+    # Comma-separated list of allowed origins. Use "*" for development only.
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
+    CORS_ALLOW_CREDENTIALS: bool = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
+    
     # Paths
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", str(PROJECT_ROOT / "hungry_panda.db"))
     UPLOADS_DIR: str = os.getenv("UPLOADS_DIR", str(PROJECT_ROOT / "uploads"))
@@ -85,10 +94,27 @@ class Config:
     ENABLE_ANALYTICS: bool = os.getenv("ENABLE_ANALYTICS", "true").lower() == "true"
     
     @classmethod
+    def get_cors_origins(cls) -> list:
+        """Parse CORS_ORIGINS string into a list of origins.
+        
+        Examples:
+            "*" -> ["*"]
+            "http://localhost:3000,https://example.com" -> ["http://localhost:3000", "https://example.com"]
+        """
+        origins = cls.CORS_ORIGINS.strip()
+        if origins == "*":
+            return ["*"]
+        return [origin.strip() for origin in origins.split(",") if origin.strip()]
+    
+    @classmethod
     def validate(cls) -> dict:
         """Validate required configuration and return any issues"""
         issues = []
         warnings = []
+        
+        # CORS validation
+        if cls.CORS_ORIGINS == "*" and not cls.DEBUG:
+            warnings.append("CORS_ORIGINS is set to '*' (allow all) in production - this is a security risk")
         
         if not cls.INSTAGRAM_USERNAME:
             issues.append("INSTAGRAM_USERNAME not set - needed for tracking your account")

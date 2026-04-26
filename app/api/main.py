@@ -11,7 +11,8 @@ import json
 import hashlib
 import random
 import secrets
-from datetime import datetime, timedelta
+import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -35,6 +36,17 @@ from infra.config.database import (
     set_setting,
 )
 from infra.config.logging_config import logger
+
+# Rate limiting with slowapi
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    RATE_LIMITING_AVAILABLE = True
+    logger.info("Rate limiting enabled via slowapi")
+except ImportError:
+    RATE_LIMITING_AVAILABLE = False
+    logger.info("slowapi not installed, rate limiting disabled")
 from infra.integrations.instagram_login import (
     DEFAULT_SCOPES,
     InstagramLoginClient,
@@ -83,6 +95,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Initialize rate limiter if available
+if RATE_LIMITING_AVAILABLE:
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    logger.info("Rate limiting initialized")
+else:
+    limiter = None
+
+# Rate limiting decorator helper
+def rate_limit_if_available(limit_string: str):
+    """Apply rate limiting if slowapi is available, otherwise no-op"""
+    def decorator(func):
+        if RATE_LIMITING_AVAILABLE and limiter:
+            return limiter.limit(limit_string)(func)
+        return func
+    return decorator
+
 frontend_assets_dir = Path(__file__).parent.parent.parent / "frontend" / "assets"
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
@@ -102,14 +132,38 @@ if REELS_AVAILABLE:
     app.include_router(reels_router)
     logger.info("Reels Maker module loaded")
 
-# CORS middleware
+# CORS middleware - origins configurable via CORS_ORIGINS env variable
+# Default allows all for development, should be restricted in production
+cors_origins = config.get_cors_origins()
+if "*" in cors_origins and not config.DEBUG:
+    logger.warning("CORS is configured to allow all origins ('*') in production. This is a security risk. Set CORS_ORIGINS to specific domains.")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=config.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request size limiting middleware
+@app.middleware("http")
+async def limit_upload_size(request: Request, call_next):
+    """Middleware to limit upload size based on config."""
+    content_length = request.headers.get("content-length")
+    
+    if content_length:
+        max_size_bytes = config.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if int(content_length) > max_size_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "error": "File too large",
+                    "detail": f"Maximum upload size is {config.MAX_UPLOAD_SIZE_MB}MB"
+                }
+            )
+    
+    return await call_next(request)
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -339,7 +393,7 @@ def persist_instagram_connection(
     """Persist Instagram connection details in system settings."""
     expires_in = int(token_payload.get("expires_in", 0) or 0)
     expires_at = (
-        datetime.utcnow() + timedelta(seconds=expires_in)
+        datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     ).isoformat() if expires_in else (get_setting("instagram_token_expires_at") or None)
 
     permissions = token_payload.get("permissions", "")
@@ -361,7 +415,7 @@ def persist_instagram_connection(
         "instagram_followers_count": str(profile_payload.get("followers_count", 0) or 0),
         "instagram_follows_count": str(profile_payload.get("follows_count", 0) or 0),
         "instagram_media_count": str(profile_payload.get("media_count", 0) or 0),
-        "instagram_last_validated_at": datetime.utcnow().isoformat(),
+        "instagram_last_validated_at": datetime.now(timezone.utc).isoformat(),
         "instagram_error": "",
     }
 
@@ -388,7 +442,7 @@ def resolve_content_filepath(stored_filepath: Optional[str]) -> Optional[Path]:
     basename = candidate.name
     fallback_paths = [
         Path(config.UPLOADS_DIR) / basename,
-        Path("/tmp/hungry-panda/uploads") / basename,
+        Path(tempfile.gettempdir()) / "hungry-panda" / "uploads" / basename,
     ]
 
     for fallback in fallback_paths:
@@ -612,373 +666,19 @@ async def debug_inference_metrics():
 @app.get("/upload", response_class=HTMLResponse)
 async def working_upload_page():
     """Clean working upload page with chat-style bar"""
+    upload_path = Path(__file__).parent.parent.parent / "frontend" / "pages" / "upload.html"
+    
+    if upload_path.exists():
+        return HTMLResponse(content=upload_path.read_text())
+    
+    # Fallback if file not found
     return HTMLResponse(content="""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Upload - Hungry Panda</title>
-    <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f0f23;
-            color: #fff;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        h1 {
-            font-size: 28px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .subtitle {
-            color: #8b8b9a;
-            margin-bottom: 30px;
-            font-size: 16px;
-        }
-        
-        /* Upload Area */
-        .upload-area {
-            border: 2px dashed #3d3d5c;
-            border-radius: 20px;
-            padding: 40px 20px;
-            text-align: center;
-            background: #1a1a2e;
-            margin-bottom: 20px;
-            transition: all 0.2s;
-        }
-        .upload-area.dragover {
-            border-color: #e94560;
-            background: rgba(233, 69, 96, 0.1);
-        }
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        .upload-text {
-            color: #8b8b9a;
-            margin-bottom: 20px;
-            font-size: 15px;
-        }
-        .btn-select {
-            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
-            border: none;
-            color: white;
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        #fileInput { display: none; }
-        
-        /* File Preview */
-        .file-preview {
-            display: none;
-            background: #1a1a2e;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .file-preview.active { display: block; }
-        .file-name {
-            color: #4ade80;
-            font-weight: 600;
-            margin-bottom: 15px;
-            word-break: break-all;
-        }
-        
-        /* Chat-style Input Bar */
-        .chat-bar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #0f0f23;
-            border: 2px solid #3d3d5c;
-            border-radius: 28px;
-            padding: 8px 12px;
-        }
-        .chat-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: #fff;
-            font-size: 16px;
-            padding: 10px;
-            outline: none;
-        }
-        .chat-input::placeholder {
-            color: #5a5a7a;
-        }
-        .chat-mic, .chat-send {
-            width: 44px;
-            height: 44px;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .chat-mic {
-            background: #2d2d44;
-            color: #fff;
-        }
-        .chat-mic:hover, .chat-mic.recording {
-            background: #e94560;
-        }
-        .chat-mic.recording {
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        .chat-send {
-            background: linear-gradient(135deg, #e94560 0%, #d63852 100%);
-            color: white;
-        }
-        .chat-send:hover {
-            transform: scale(1.05);
-        }
-        
-        /* Recording Status */
-        .recording-status {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 10px;
-            color: #ef4444;
-            font-size: 14px;
-        }
-        .recording-status.active { display: flex; }
-        .red-dot {
-            width: 8px;
-            height: 8px;
-            background: #ef4444;
-            border-radius: 50%;
-            animation: blink 1s infinite;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        
-        /* Toast */
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1a1a2e;
-            border: 1px solid #4ade80;
-            color: #4ade80;
-            padding: 12px 24px;
-            border-radius: 8px;
-            display: none;
-            z-index: 1000;
-            font-size: 14px;
-        }
-        .toast.show { display: block; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🐼 Hungry Panda</h1>
-        <p class="subtitle">Upload food photos & get AI recommendations</p>
-        
-        <!-- Upload Area -->
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">🍽️</div>
-            <div class="upload-text">
-                Drop photos here or tap below<br>
-                <small>AI will suggest captions & hashtags</small>
-            </div>
-            <button class="btn-select" onclick="document.getElementById('fileInput').click()">
-                📎 Select File
-            </button>
-            <input type="file" id="fileInput" accept="image/*,video/*">
-        </div>
-        
-        <!-- File Preview & Chat Bar -->
-        <div class="file-preview" id="filePreview">
-            <div class="file-name" id="fileName"></div>
-            
-            <div class="chat-bar">
-                <input 
-                    type="text" 
-                    id="contextInput" 
-                    class="chat-input" 
-                    placeholder="Describe your dish (optional)..."
-                >
-                <button class="chat-mic" id="micBtn" onclick="toggleVoice()">🎤</button>
-                <button class="chat-send" onclick="upload()">⬆️</button>
-            </div>
-            
-            <div class="recording-status" id="recordingStatus">
-                <span class="red-dot"></span>
-                <span id="recordingText">Listening...</span>
-            </div>
-        </div>
-    </div>
-    
-    <div class="toast" id="toast"></div>
-    
-    <script>
-        let selectedFile = null;
-        let recognition = null;
-        let isRecording = false;
-        
-        // Initialize speech recognition
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-            
-            recognition.onresult = (event) => {
-                let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    transcript += event.results[i][0].transcript;
-                }
-                if (transcript) {
-                    document.getElementById('contextInput').value = transcript;
-                    document.getElementById('recordingText').textContent = transcript;
-                }
-            };
-            
-            recognition.onerror = () => {
-                stopRecording();
-                showToast('❌ Voice error - try typing');
-            };
-        } else {
-            document.getElementById('micBtn').style.display = 'none';
-        }
-        
-        // File selection
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                selectedFile = e.target.files[0];
-                document.getElementById('fileName').textContent = '📎 ' + selectedFile.name;
-                document.getElementById('filePreview').classList.add('active');
-                showToast('📎 File selected! Add context & tap ⬆️');
-            }
-        });
-        
-        // Drag & drop
-        const uploadArea = document.getElementById('uploadArea');
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                selectedFile = e.dataTransfer.files[0];
-                document.getElementById('fileName').textContent = '📎 ' + selectedFile.name;
-                document.getElementById('filePreview').classList.add('active');
-                showToast('📎 File dropped! Add context & tap ⬆️');
-            }
-        });
-        
-        // Voice toggle
-        function toggleVoice() {
-            if (!recognition) {
-                showToast('❌ Voice not supported');
-                return;
-            }
-            
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        }
-        
-        function startRecording() {
-            isRecording = true;
-            recognition.start();
-            document.getElementById('micBtn').classList.add('recording');
-            document.getElementById('recordingStatus').classList.add('active');
-            showToast('🎤 Recording... speak now');
-        }
-        
-        function stopRecording() {
-            isRecording = false;
-            if (recognition) recognition.stop();
-            document.getElementById('micBtn').classList.remove('recording');
-            document.getElementById('recordingStatus').classList.remove('active');
-        }
-        
-        // Upload
-        async function upload() {
-            if (!selectedFile) {
-                showToast('❌ Select a file first');
-                return;
-            }
-            
-            const context = document.getElementById('contextInput').value;
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('context', context);
-            formData.append('auto_optimize', 'true');
-            
-            showToast('📤 Uploading...');
-            
-            try {
-                const res = await fetch('/api/content/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await res.json();
-                
-                if (data.recommendation) {
-                    // Show results
-                    alert('✅ Upload complete!\\n\\nCaption: ' + data.recommendation.suggested_caption + 
-                          '\\n\\nHashtags: #' + data.recommendation.suggested_hashtags.slice(0, 5).join(' #'));
-                    
-                    // Reset
-                    selectedFile = null;
-                    document.getElementById('contextInput').value = '';
-                    document.getElementById('filePreview').classList.remove('active');
-                    document.getElementById('fileInput').value = '';
-                    showToast('✅ Upload complete!');
-                } else {
-                    showToast('✅ Uploaded! Check dashboard');
-                }
-            } catch (err) {
-                showToast('❌ Upload failed: ' + err.message);
-            }
-        }
-        
-        // Toast
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
-        }
-    </script>
-</body>
-</html>
+    <!DOCTYPE html>
+    <html><body style="padding: 40px; font-family: sans-serif;">
+        <h1>Upload Page Not Found</h1>
+        <p>Please ensure frontend/pages/upload.html exists.</p>
+        <a href="/">Go to Dashboard</a>
+    </body></html>
     """)
 
 
@@ -1172,6 +872,7 @@ def validate_food_content(context: Optional[str], caption: Optional[str], filena
 
 
 @app.post("/api/content/upload", response_model=Dict[str, Any])
+@rate_limit_if_available("30/minute")
 async def upload_content(
     file: UploadFile = File(..., description="Image or video file to upload"),
     caption: Optional[str] = Form(None),
@@ -1637,7 +1338,7 @@ async def publish_content(content_id: str, publish_data: ContentPublishRequest):
             raise HTTPException(status_code=400, detail=f"Instagram publish failed: {str(e)}")
 
         # Update content to posted status
-        posted_time = datetime.utcnow().isoformat()
+        posted_time = datetime.now(timezone.utc).isoformat()
         execute_insert(
             """
             UPDATE content
@@ -2044,6 +1745,7 @@ async def instagram_connect_page(request: Request):
 # ============================================================================
 
 @app.get("/api/facebook-instagram/oauth/start")
+@rate_limit_if_available("10/minute")
 async def facebook_instagram_oauth_start(request: Request):
     """
     Start Facebook Login for Business → Instagram auth flow.
@@ -2079,7 +1781,7 @@ async def facebook_instagram_oauth_start(request: Request):
     # Generate state for CSRF protection
     state = secrets.token_urlsafe(24)
     set_setting("facebook_instagram_oauth_state", state)
-    set_setting("facebook_instagram_oauth_state_created_at", datetime.utcnow().isoformat())
+    set_setting("facebook_instagram_oauth_state_created_at", datetime.now(timezone.utc).isoformat())
     
     try:
         client = FacebookInstagramAuthClient()
@@ -2201,7 +1903,7 @@ async def facebook_instagram_oauth_finalize(request: FacebookInstagramFinalizeRe
         set_setting("facebook_instagram_page_name", selected_page["name"])
         set_setting("facebook_instagram_page_access_token", selected_page["access_token"])
         set_setting("facebook_instagram_business_account_id", selected_page["instagram_business_account_id"])
-        set_setting("facebook_instagram_connected_at", datetime.utcnow().isoformat())
+        set_setting("facebook_instagram_connected_at", datetime.now(timezone.utc).isoformat())
         
         # Persist granted permissions (scopes) - required for publish readiness checks
         required_scopes = FacebookInstagramAuthClient.REQUIRED_SCOPES
@@ -2235,6 +1937,7 @@ async def instagram_status(request: Request):
 
 
 @app.get("/api/instagram/oauth/start")
+@rate_limit_if_available("10/minute")
 async def instagram_oauth_start(request: Request):
     """Start the Instagram OAuth flow using the official Instagram login."""
     status = build_instagram_status(request)
@@ -2246,7 +1949,7 @@ async def instagram_oauth_start(request: Request):
 
     state = secrets.token_urlsafe(24)
     set_setting("instagram_oauth_state", state)
-    set_setting("instagram_oauth_state_created_at", datetime.utcnow().isoformat())
+    set_setting("instagram_oauth_state_created_at", datetime.now(timezone.utc).isoformat())
 
     client = InstagramLoginClient.from_redirect_uri(status["redirect_uri"])
     return RedirectResponse(client.build_authorization_url(state))
@@ -2341,7 +2044,7 @@ async def instagram_test_connection(request: Request):
                 )
             
             # Update last validated timestamp
-            set_setting("facebook_instagram_last_validated_at", datetime.utcnow().isoformat())
+            set_setting("facebook_instagram_last_validated_at", datetime.now(timezone.utc).isoformat())
             
             return {
                 "connected": True,
@@ -2349,7 +2052,7 @@ async def instagram_test_connection(request: Request):
                 "page_id": page_id,
                 "page_name": page_name,
                 "instagram_business_account_id": ig_business_id,
-                "checked_at": datetime.utcnow().isoformat(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
             
         except FacebookInstagramAuthError as exc:
@@ -2395,7 +2098,7 @@ async def instagram_test_connection(request: Request):
             "profile": profile,
             "publishing_limit": publishing_limit,
             "publishing_limit_error": publishing_limit_error,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
     except InstagramLoginError as exc:
         clear_instagram_connection(str(exc))

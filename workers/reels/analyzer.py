@@ -6,7 +6,7 @@ import json
 import uuid
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from infra.config.database import execute_insert, execute_query, DatabaseError
 from infra.config.logging_config import logger
@@ -43,7 +43,7 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
     analysis = {
         "asset_id": asset_id,
         "media_type": media_type,
-        "analyzed_at": datetime.utcnow().isoformat(),
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
         "visual_facts": {},
         "quality_scores": {},
         "reel_suitability": {}
