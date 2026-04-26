@@ -346,7 +346,7 @@ def get_project_db(project_id: str) -> Optional[Dict]:
             (project_id,)
         )
         if rows:
-            row = rows[0]
+            row = dict(rows[0])  # Convert sqlite3.Row to dict
             return {
                 "id": row["id"],
                 "title": row["title"],
