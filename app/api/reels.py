@@ -3,6 +3,7 @@ Reels Maker - Separate module for Instagram Reel creation
 Isolated from the existing upload/recommendation flow
 """
 import os
+import sys
 import json
 import uuid
 import shutil
@@ -12,6 +13,10 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from infra.config.database import execute_query, execute_insert, DatabaseError, get_setting
 from infra.config.settings import config
 from infra.config.logging_config import logger

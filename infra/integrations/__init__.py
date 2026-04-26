@@ -7,14 +7,14 @@ This module handles integrations with external services and protocols:
 - Future: Other social media platforms, analytics services, etc.
 """
 
-from integrations.mcp_client import (
+from infra.integrations.mcp_client import (
     InstagramMCPClient,
     publish_content_via_mcp,
     sync_instagram_analytics,
     MCPConnectionConfig
 )
 
-from integrations.llm_client import (
+from infra.integrations.llm_client import (
     LLMClient,
     LLMError,
     generate_caption,

@@ -21,8 +21,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Redirect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path for imports (infra/, workers/)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from infra.config.settings import config
 from infra.config.database import (
