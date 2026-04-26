@@ -642,7 +642,7 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
     Generate a structured edit plan for the reel using AI-driven decisions.
     Hybrid approach: AI makes creative decisions, structure is deterministic.
     """
-    from app.api.reels import REEL_TEMPLATES
+    from shared.reel_templates import REEL_TEMPLATES
     
     if not selected_assets:
         raise ValueError("No assets selected for reel")
