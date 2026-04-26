@@ -119,6 +119,8 @@ def get_reels_metrics() -> Dict[str, Any]:
 class CreateProjectRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     template_key: str = Field(default="dish_showcase")
+    transition_style: str = Field(default="auto")  # auto, cut, smooth, fade
+    visual_filter: str = Field(default="none")  # none, natural, warm, rich, fresh
 
 class CreateProjectResponse(BaseModel):
     project_id: str
@@ -130,6 +132,8 @@ class ProjectDetail(BaseModel):
     title: str
     status: str
     template_key: str
+    transition_style: str
+    visual_filter: str
     target_duration_seconds: int
     caption: Optional[str]
     hashtags: Optional[List[str]]
@@ -300,26 +304,35 @@ def get_preview_url(preview_path: Optional[str]) -> Optional[str]:
     return None
 
 # Database operations
-def create_project_db(title: str, template_key: str) -> str:
+def create_project_db(title: str, template_key: str, transition_style: str = "auto", visual_filter: str = "none") -> str:
     """Create a new reel project in database"""
     project_id = str(uuid.uuid4())
     
     if template_key not in REEL_TEMPLATES:
         template_key = "dish_showcase"
     
+    # Validate and default style settings
+    valid_transitions = ["auto", "cut", "smooth", "fade"]
+    if transition_style not in valid_transitions:
+        transition_style = "auto"
+    
+    valid_filters = ["none", "natural", "warm", "rich", "fresh"]
+    if visual_filter not in valid_filters:
+        visual_filter = "none"
+    
     try:
         execute_insert(
             """
-            INSERT INTO reel_projects (id, title, status, template_key, target_duration_seconds)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO reel_projects (id, title, status, template_key, transition_style, visual_filter, target_duration_seconds)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (project_id, title, "draft", template_key, 30)
+            (project_id, title, "draft", template_key, transition_style, visual_filter, 30)
         )
         
         # Create storage directories
         ensure_project_dirs(project_id)
         
-        logger.info(f"Created reel project {project_id}: {title}")
+        logger.info(f"Created reel project {project_id}: {title} (transition={transition_style}, filter={visual_filter})")
         return project_id
     except DatabaseError as e:
         logger.error(f"Failed to create project: {e}")
@@ -339,6 +352,8 @@ def get_project_db(project_id: str) -> Optional[Dict]:
                 "title": row["title"],
                 "status": row["status"],
                 "template_key": row["template_key"],
+                "transition_style": row.get("transition_style", "auto"),
+                "visual_filter": row.get("visual_filter", "none"),
                 "target_duration_seconds": row["target_duration_seconds"],
                 "caption": row["caption"],
                 "hashtags": json.loads(row["hashtags"]) if row["hashtags"] else None,
@@ -528,7 +543,12 @@ async def create_project(request: CreateProjectRequest):
     if request.template_key not in REEL_TEMPLATES:
         raise HTTPException(status_code=400, detail=f"Invalid template_key. Valid: {list(REEL_TEMPLATES.keys())}")
     
-    project_id = create_project_db(request.title, request.template_key)
+    project_id = create_project_db(
+        request.title, 
+        request.template_key,
+        request.transition_style,
+        request.visual_filter
+    )
     
     # Phase 5: Track metrics
     update_reels_metrics("project_created")
@@ -789,25 +809,93 @@ def cache_recommendation(project_id: str, recommendation: Dict):
 class UpdateProjectRequest(BaseModel):
     caption: Optional[str] = None
     hashtags: Optional[List[str]] = None
+    transition_style: Optional[str] = None  # auto, cut, smooth, fade
+    visual_filter: Optional[str] = None  # none, natural, warm, rich, fresh
+
+
+class UpdateStyleRequest(BaseModel):
+    transition_style: str = Field(..., description="Transition style: auto, cut, smooth, fade")
+    visual_filter: str = Field(..., description="Visual filter: none, natural, warm, rich, fresh")
 
 
 @router.post("/projects/{project_id}/update")
 async def update_project(project_id: str, request: UpdateProjectRequest):
-    """Update project metadata (caption, hashtags)"""
+    """Update project metadata (caption, hashtags, style settings)"""
     project = get_project_db(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     try:
         hashtags_str = json.dumps(request.hashtags) if request.hashtags else None
-        execute_insert(
-            "UPDATE reel_projects SET caption = ?, hashtags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (request.caption, hashtags_str, project_id)
-        )
+        
+        # Build update fields dynamically
+        update_fields = ["caption = ?", "hashtags = ?"]
+        params = [request.caption, hashtags_str]
+        
+        if request.transition_style is not None:
+            update_fields.append("transition_style = ?")
+            params.append(request.transition_style)
+        
+        if request.visual_filter is not None:
+            update_fields.append("visual_filter = ?")
+            params.append(request.visual_filter)
+        
+        params.append(project_id)
+        
+        query = f"UPDATE reel_projects SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        execute_insert(query, tuple(params))
+        
         return {"status": "updated", "project_id": project_id}
     except DatabaseError as e:
         logger.error(f"Failed to update project {project_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update project")
+
+
+@router.post("/projects/{project_id}/style")
+async def update_project_style(project_id: str, request: UpdateStyleRequest):
+    """
+    Update project style settings (transition and filter).
+    These settings persist for generate and regenerate operations.
+    """
+    project = get_project_db(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Validate transition_style
+    valid_transitions = ["auto", "cut", "smooth", "fade"]
+    if request.transition_style not in valid_transitions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid transition_style. Must be one of: {', '.join(valid_transitions)}"
+        )
+    
+    # Validate visual_filter
+    valid_filters = ["none", "natural", "warm", "rich", "fresh"]
+    if request.visual_filter not in valid_filters:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid visual_filter. Must be one of: {', '.join(valid_filters)}"
+        )
+    
+    try:
+        execute_insert(
+            """UPDATE reel_projects 
+               SET transition_style = ?, visual_filter = ?, updated_at = CURRENT_TIMESTAMP 
+               WHERE id = ?""",
+            (request.transition_style, request.visual_filter, project_id)
+        )
+        
+        logger.info(f"Updated style settings for project {project_id}: transition={request.transition_style}, filter={request.visual_filter}")
+        
+        return {
+            "status": "updated", 
+            "project_id": project_id,
+            "transition_style": request.transition_style,
+            "visual_filter": request.visual_filter
+        }
+    except DatabaseError as e:
+        logger.error(f"Failed to update style settings for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update style settings")
 
 
 class ScheduleReelRequest(BaseModel):
@@ -969,6 +1057,16 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
     logger.info(f"Starting reel generation for project {project_id}, job {job_id}")
     
     try:
+        # Step 0: Get project details (includes style settings)
+        project = get_project_db(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        
+        transition_style = project.get("transition_style", "auto")
+        visual_filter = project.get("visual_filter", "none")
+        
+        logger.info(f"Project {project_id} style settings: transition={transition_style}, filter={visual_filter}")
+        
         # Step 1: Update status to analyzing
         update_render_job_status(job_id, "analyzing")
         update_project_status(project_id, "analyzing")
@@ -998,9 +1096,9 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         if not selected_assets:
             raise ValueError("No suitable assets selected for reel")
         
-        # Step 4: Generate edit plan
-        logger.info(f"Generating edit plan for project {project_id}")
-        edit_plan = generate_edit_plan(project_id, selected_assets, template_key, target_duration)
+        # Step 4: Generate edit plan with transition style
+        logger.info(f"Generating edit plan for project {project_id} with transition={transition_style}")
+        edit_plan = generate_edit_plan(project_id, selected_assets, template_key, target_duration, transition_style)
         
         # Step 5: Validate edit plan
         is_valid, error_msg = validate_edit_plan(edit_plan)
@@ -1033,8 +1131,8 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         output_path = dirs["output"] / output_filename
         poster_path = dirs["output"] / f"reel_{job_id[:8]}_poster.jpg"
         
-        # Render the reel
-        renderer = FFmpegRenderer()
+        # Render the reel with visual filter
+        renderer = FFmpegRenderer(visual_filter=visual_filter)
         render_result = renderer.render_reel(edit_plan, str(output_path))
         
         if not render_result.success:

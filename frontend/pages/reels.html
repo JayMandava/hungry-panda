@@ -876,6 +876,63 @@
         }
 
         /* ========================================
+           STYLE CONTROLS - Compact Design
+           ======================================== */
+        
+        .style-btn {
+            flex: 1;
+            min-width: 60px;
+            padding: 8px 12px;
+            font-size: 12px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .style-btn:hover {
+            border-color: var(--border-accent);
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+        
+        .style-btn.active {
+            border-color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.15);
+            color: var(--brand-primary);
+            font-weight: var(--font-semibold);
+            box-shadow: 0 0 0 1px var(--brand-primary);
+        }
+        
+        .style-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .style-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-style: italic;
+        }
+        
+        .style-control-group {
+            margin-bottom: 16px;
+        }
+        
+        .style-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ========================================
            PUBLISH BUTTON - Green Glass Design System
            ======================================== */
 
@@ -1635,6 +1692,62 @@
                         </div>
                     </div>
 
+                    <!-- Style Controls Card -->
+                    <div class="glass-card sidebar-card" id="styleControlsCard">
+                        <h3 class="sidebar-title">Style Settings</h3>
+                        
+                        <!-- Transition Style -->
+                        <div class="style-control-group" style="margin-bottom: 16px;">
+                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Transition Style
+                            </label>
+                            <div class="style-options" id="transitionOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button class="style-btn ${currentProject?.transition_style === 'auto' ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Auto
+                                </button>
+                                <button class="style-btn ${currentProject?.transition_style === 'cut' ? 'active' : ''}" data-value="cut" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Cut
+                                </button>
+                                <button class="style-btn ${currentProject?.transition_style === 'smooth' ? 'active' : ''}" data-value="smooth" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Smooth
+                                </button>
+                                <button class="style-btn ${currentProject?.transition_style === 'fade' ? 'active' : ''}" data-value="fade" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Fade
+                                </button>
+                            </div>
+                            <p class="style-hint" id="transitionHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                Auto uses template defaults
+                            </p>
+                        </div>
+                        
+                        <!-- Visual Filter -->
+                        <div class="style-control-group">
+                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Visual Filter
+                            </label>
+                            <div class="style-options" id="filterOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button class="style-btn ${currentProject?.visual_filter === 'none' ? 'active' : ''}" data-value="none" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    None
+                                </button>
+                                <button class="style-btn ${currentProject?.visual_filter === 'natural' ? 'active' : ''}" data-value="natural" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Natural
+                                </button>
+                                <button class="style-btn ${currentProject?.visual_filter === 'warm' ? 'active' : ''}" data-value="warm" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Warm
+                                </button>
+                                <button class="style-btn ${currentProject?.visual_filter === 'rich' ? 'active' : ''}" data-value="rich" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Rich
+                                </button>
+                                <button class="style-btn ${currentProject?.visual_filter === 'fresh' ? 'active' : ''}" data-value="fresh" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Fresh
+                                </button>
+                            </div>
+                            <p class="style-hint" id="filterHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                None = no filter applied
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- Preview Card -->
                     <div class="glass-card sidebar-card">
                         <h3 class="sidebar-title">Preview</h3>
@@ -1908,6 +2021,9 @@
                 const instagramStatus = await checkInstagramStatus();
                 updatePublishUI(data.project, instagramStatus);
 
+                // Update style buttons to match project settings
+                updateStyleButtons();
+                
                 // Switch views
                 projectsListView.classList.add('hidden');
                 projectDetailView.classList.remove('hidden');
@@ -2753,6 +2869,119 @@
             if (e.key === 'Escape') closeRecommendationModal();
         });
 
+        // ========================================
+        // STYLE CONTROLLERS
+        // ========================================
+        
+        let pendingTransitionStyle = null;
+        let pendingVisualFilter = null;
+        
+        function initStyleControls() {
+            // Transition buttons
+            document.querySelectorAll('#transitionOptions .style-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const value = btn.dataset.value;
+                    pendingTransitionStyle = value;
+                    
+                    // Update UI
+                    document.querySelectorAll('#transitionOptions .style-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Update hint
+                    const hints = {
+                        'auto': 'Auto uses template defaults',
+                        'cut': 'Clean hard cuts between segments',
+                        'smooth': 'Smooth crossfade transitions',
+                        'fade': 'Gentle fade transitions'
+                    };
+                    document.getElementById('transitionHint').textContent = hints[value];
+                    
+                    // Save to project
+                    await saveStyleSettings();
+                });
+            });
+            
+            // Filter buttons
+            document.querySelectorAll('#filterOptions .style-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const value = btn.dataset.value;
+                    pendingVisualFilter = value;
+                    
+                    // Update UI
+                    document.querySelectorAll('#filterOptions .style-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Update hint
+                    const hints = {
+                        'none': 'No filter applied - original colors',
+                        'natural': 'True-to-life neutral colors',
+                        'warm': 'Warmer, inviting tones',
+                        'rich': 'Higher contrast, richer colors',
+                        'fresh': 'Bright, vibrant, fresh look'
+                    };
+                    document.getElementById('filterHint').textContent = hints[value];
+                    
+                    // Save to project
+                    await saveStyleSettings();
+                });
+            });
+        }
+        
+        async function saveStyleSettings() {
+            if (!currentProject) return;
+            
+            const settings = {};
+            if (pendingTransitionStyle !== null) {
+                settings.transition_style = pendingTransitionStyle;
+            }
+            if (pendingVisualFilter !== null) {
+                settings.visual_filter = pendingVisualFilter;
+            }
+            
+            if (Object.keys(settings).length === 0) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/style`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    // Update currentProject
+                    if (result.transition_style) currentProject.transition_style = result.transition_style;
+                    if (result.visual_filter) currentProject.visual_filter = result.visual_filter;
+                    showToast('Style settings saved', 'success');
+                } else {
+                    showToast('Failed to save style settings', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving style settings:', error);
+                showToast('Error saving settings', 'error');
+            }
+        }
+        
+        function updateStyleButtons() {
+            if (!currentProject) return;
+            
+            // Update transition buttons
+            const transitionStyle = currentProject.transition_style || 'auto';
+            document.querySelectorAll('#transitionOptions .style-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === transitionStyle);
+            });
+            
+            // Update filter buttons
+            const visualFilter = currentProject.visual_filter || 'none';
+            document.querySelectorAll('#filterOptions .style-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === visualFilter);
+            });
+            
+            // Reset pending values
+            pendingTransitionStyle = null;
+            pendingVisualFilter = null;
+        }
+
         // Initialize - overlay click listener added after DOM ready
         document.addEventListener('DOMContentLoaded', () => {
             const recModal = document.getElementById('recommendationModal');
@@ -2761,6 +2990,9 @@
                     if (e.target.classList.contains('modal-overlay')) closeRecommendationModal();
                 });
             }
+            
+            // Initialize style controls
+            initStyleControls();
         });
 
         init();

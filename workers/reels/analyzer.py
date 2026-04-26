@@ -637,10 +637,17 @@ def _ensure_minimum_reel_duration(
                 if remaining_needed <= 0:
                     break
 
-def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_key: str, target_duration: int = 30) -> Dict[str, Any]:
+def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_key: str, target_duration: int = 30, transition_style: str = "auto") -> Dict[str, Any]:
     """
     Generate a structured edit plan for the reel using AI-driven decisions.
     Hybrid approach: AI makes creative decisions, structure is deterministic.
+    
+    Args:
+        project_id: The reel project ID
+        selected_assets: List of selected assets for the reel
+        template_key: Template to use for styling
+        target_duration: Target duration in seconds
+        transition_style: Transition style - auto, cut, smooth, fade (user override wins)
     """
     from shared.reel_templates import REEL_TEMPLATES
     
@@ -648,6 +655,26 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
         raise ValueError("No assets selected for reel")
     
     template = REEL_TEMPLATES.get(template_key, REEL_TEMPLATES["dish_showcase"])
+    
+    # Use user-selected transition style, or fall back to template default
+    # Valid transitions: hard_cut, crossfade, fade, smooth
+    if transition_style == "auto":
+        # Use template default
+        transition_map = {
+            "cut": "hard_cut",
+            "smooth": "crossfade",
+            "fade": "fade",
+        }
+        template_transition = template.get("transitions", "smooth")
+        effective_transition = transition_map.get(template_transition, "crossfade")
+    elif transition_style == "cut":
+        effective_transition = "hard_cut"
+    elif transition_style in ["smooth", "fade"]:
+        effective_transition = "crossfade"  # Both map to crossfade for now
+    else:
+        effective_transition = "crossfade"  # Default fallback
+    
+    logger.info(f"Edit plan for project {project_id}: transition_style={transition_style}, effective={effective_transition}")
     
     # Calculate base segment durations (deterministic foundation)
     pacing = template.get("pacing", "medium")
@@ -716,21 +743,16 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
             if duration < 1.0:
                 break
         
-        # Determine transition (deterministic based on template)
-        # First segment transition depends on template style
+        # Determine transition based on user-selected transition_style (overrides template)
+        # First segment transition (no transition from previous)
         if idx == 0:
-            if template["transitions"] == "cut":
-                transition = "hard_cut"  # Clean start for cut templates
+            if effective_transition == "hard_cut":
+                transition = "hard_cut"  # Clean start for cut style
             else:
-                transition = "fade_in"  # Smooth start for other templates
-        elif template["transitions"] == "smooth":
-            transition = "crossfade"
-        elif template["transitions"] == "cut":
-            transition = "hard_cut"
-        elif template["transitions"] == "fade":
-            transition = "fade"
+                transition = "fade_in"  # Smooth start for other styles
         else:
-            transition = "zoom"
+            # Use the effective transition style selected by user
+            transition = effective_transition
         
         # Build overlay text - FINAL CTA ONLY
         is_final_segment = (idx == len(selected_assets) - 1)
@@ -774,7 +796,9 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
             "frame_rate": 30,
             "video_codec": "libx264",
             "audio_codec": "aac",
-            "transition_duration": 0.5
+            "transition_duration": 0.5,
+            "transition_style": transition_style,
+            "effective_transition": effective_transition
         }
     }
     

@@ -47,9 +47,23 @@ class FFmpegRenderer:
     TARGET_AUDIO_CODEC = "aac"
     TARGET_PIXEL_FORMAT = "yuv420p"
     
-    def __init__(self, temp_dir: Optional[Path] = None):
+    # Visual filter presets (deterministic ffmpeg filter chains)
+    FILTER_PRESETS = {
+        "none": "",  # No filter applied
+        "natural": "eq=contrast=1.0:saturation=1.0:brightness=0.0",  # Neutral, true-to-life
+        "warm": "eq=contrast=1.05:saturation=1.1:brightness=0.02,curves=r='0.0/0.0 0.5/0.52 1.0/1.0':g='0.0/0.0 0.5/0.48 1.0/1.0'",  # Warmer tones
+        "rich": "eq=contrast=1.15:saturation=1.2:brightness=-0.02,curves=r='0.0/0.0 0.5/0.48 1.0/1.0':g='0.0/0.0 0.5/0.50 1.0/1.0':b='0.0/0.0 0.5/0.52 1.0/1.0'",  # Higher contrast, richer
+        "fresh": "eq=contrast=1.0:saturation=1.15:brightness=0.03,curves=r='0.0/0.0 0.5/0.46 1.0/1.0':g='0.0/0.0 0.5/0.52 1.0/1.0':b='0.0/0.0 0.5/0.54 1.0/1.0'",  # Bright, vibrant
+    }
+    
+    def __init__(self, temp_dir: Optional[Path] = None, visual_filter: str = "none"):
         self.temp_dir = temp_dir or Path(tempfile.gettempdir())
+        self.visual_filter = visual_filter if visual_filter in self.FILTER_PRESETS else "none"
         self._check_ffmpeg()
+    
+    def _get_visual_filter(self) -> str:
+        """Get the ffmpeg filter string for the current visual filter preset."""
+        return self.FILTER_PRESETS.get(self.visual_filter, "")
     
     def _check_ffmpeg(self):
         """Verify ffmpeg is available"""
@@ -64,11 +78,21 @@ class FFmpegRenderer:
         except FileNotFoundError:
             raise RuntimeError("ffmpeg not found. Please install ffmpeg.")
     
-    def render_reel(self, edit_plan: Dict[str, Any], output_path: str) -> RenderResult:
+    def render_reel(self, edit_plan: Dict[str, Any], output_path: str, visual_filter: Optional[str] = None) -> RenderResult:
         """
         Render a complete reel from edit plan.
         Returns RenderResult with output path or error.
+        
+        Args:
+            edit_plan: The edit plan with segments to render
+            output_path: Path for the final output video
+            visual_filter: Optional override for visual filter (none, natural, warm, rich, fresh)
         """
+        # Update visual filter if provided
+        if visual_filter and visual_filter in self.FILTER_PRESETS:
+            self.visual_filter = visual_filter
+            logger.info(f"Using visual filter: {visual_filter}")
+        
         segments = edit_plan.get("segments", [])
         if not segments:
             return RenderResult(
@@ -260,17 +284,23 @@ class FFmpegRenderer:
         # Then apply zoom animation
         kb_filter = self._build_ken_burns_filter(zoom_start, zoom_end, duration, pan_direction)
         
+        # Build visual filter if enabled
+        visual_filter_str = self._get_visual_filter()
+        
         # Build overlay filter if text present
         overlay_filter = ""
         text = overlay.get("text", "")
         if text:
             overlay_filter = self._build_text_overlay_filter(overlay, duration)
         
-        # Combine filters
+        # Combine filters: Ken Burns -> Visual Filter -> Overlay
+        filters = [kb_filter]
+        if visual_filter_str:
+            filters.append(visual_filter_str)
         if overlay_filter:
-            video_filter = f"{kb_filter},{overlay_filter}"
-        else:
-            video_filter = kb_filter
+            filters.append(overlay_filter)
+        
+        video_filter = ",".join(filters)
         
         cmd = [
             'ffmpeg', '-y',
@@ -347,16 +377,23 @@ class FFmpegRenderer:
             f"crop={self.TARGET_WIDTH}:{self.TARGET_HEIGHT}:(iw-{self.TARGET_WIDTH})/2:(ih-{self.TARGET_HEIGHT})/2"
         )
         
+        # Build visual filter if enabled
+        visual_filter_str = self._get_visual_filter()
+        
         # Build overlay filter if text present
         overlay_filter = ""
         text = overlay.get("text", "")
         if text:
             overlay_filter = self._build_text_overlay_filter(overlay, duration)
         
+        # Combine filters: Scale -> Visual Filter -> Overlay
+        filters = [scale_filter]
+        if visual_filter_str:
+            filters.append(visual_filter_str)
         if overlay_filter:
-            video_filter = f"{scale_filter},{overlay_filter}"
-        else:
-            video_filter = scale_filter
+            filters.append(overlay_filter)
+        
+        video_filter = ",".join(filters)
         
         cmd = [
             'ffmpeg', '-y',

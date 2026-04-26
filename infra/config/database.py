@@ -152,6 +152,8 @@ def init_database():
             title TEXT NOT NULL,
             status TEXT DEFAULT 'draft',  -- draft, queued, analyzing, rendering, ready, failed, published
             template_key TEXT DEFAULT 'dish_showcase',  -- dish_showcase, recipe_steps, ambience_montage, platter_reveal
+            transition_style TEXT DEFAULT 'auto',  -- auto, cut, smooth, fade
+            visual_filter TEXT DEFAULT 'none',  -- none, natural, warm, rich, fresh
             target_duration_seconds INTEGER DEFAULT 30,
             caption TEXT,
             hashtags TEXT,  -- JSON array
@@ -239,12 +241,38 @@ def init_database():
         with get_db_connection() as conn:
             conn.executescript(schema)
             conn.commit()
+            
+            # Migration: Add style control columns if they don't exist
+            _add_style_columns_if_missing(conn)
+            
             logger.info("Database initialized successfully")
     except DatabaseError:
         raise
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise DatabaseError(f"Database initialization failed: {e}") from e
+
+
+def _add_style_columns_if_missing(conn):
+    """
+    Migration helper: Add transition_style and visual_filter columns
+    to reel_projects table if they don't exist (for backward compatibility).
+    """
+    try:
+        cursor = conn.execute("PRAGMA table_info(reel_projects)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'transition_style' not in columns:
+            conn.execute("ALTER TABLE reel_projects ADD COLUMN transition_style TEXT DEFAULT 'auto'")
+            logger.info("Added transition_style column to reel_projects")
+        
+        if 'visual_filter' not in columns:
+            conn.execute("ALTER TABLE reel_projects ADD COLUMN visual_filter TEXT DEFAULT 'none'")
+            logger.info("Added visual_filter column to reel_projects")
+        
+        conn.commit()
+    except sqlite3.Error as e:
+        logger.warning(f"Migration check for style columns: {e}")
 
 
 def execute_query(query: str, params: tuple = ()) -> list:
