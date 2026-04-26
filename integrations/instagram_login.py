@@ -131,6 +131,69 @@ class InstagramLoginClient:
         )
         return self._parse_response(response)
 
+    def publish_reel(
+        self,
+        user_id: str,
+        access_token: str,
+        video_url: str,
+        caption: str,
+        share_to_feed: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Publish a Reel to Instagram.
+        
+        Uses the Instagram Graph API content publishing endpoint.
+        Requires instagram_business_content_publish permission.
+        """
+        # Step 1: Create media container
+        media_params = {
+            "media_type": "REELS",
+            "video_url": video_url,
+            "caption": caption,
+            "share_to_feed": "true" if share_to_feed else "false",
+            "access_token": access_token,
+        }
+        
+        response = requests.post(
+            f"https://graph.instagram.com/{self.api_version}/{user_id}/media",
+            data=media_params,
+            timeout=60,
+        )
+        media_result = self._parse_response(response)
+        media_id = media_result.get("id")
+        
+        if not media_id:
+            raise InstagramLoginError("Failed to create media container: no media ID returned")
+        
+        # Step 2: Publish the container
+        publish_params = {
+            "creation_id": media_id,
+            "access_token": access_token,
+        }
+        
+        response = requests.post(
+            f"https://graph.instagram.com/{self.api_version}/{user_id}/media_publish",
+            data=publish_params,
+            timeout=60,
+        )
+        return self._parse_response(response)
+
+    def check_media_status(
+        self,
+        media_id: str,
+        access_token: str,
+    ) -> Dict[str, Any]:
+        """Check the status of a media container (for async processing)"""
+        response = requests.get(
+            f"https://graph.instagram.com/{self.api_version}/{media_id}",
+            params={
+                "fields": "status_code",
+                "access_token": access_token,
+            },
+            timeout=30,
+        )
+        return self._parse_response(response)
+
     def _parse_response(self, response: requests.Response) -> Dict[str, Any]:
         try:
             payload = response.json()

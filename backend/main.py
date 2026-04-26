@@ -42,6 +42,18 @@ from integrations.instagram_login import (
     get_configured_redirect_uri,
 )
 
+# Import Facebook Instagram auth (new flow)
+try:
+    from integrations.facebook_instagram_login import (
+        FacebookInstagramAuthClient,
+        FacebookInstagramAuthError,
+        get_configured_redirect_uri as get_facebook_instagram_redirect_uri,
+    )
+    FACEBOOK_INSTAGRAM_AUTH_AVAILABLE = True
+except ImportError:
+    FACEBOOK_INSTAGRAM_AUTH_AVAILABLE = False
+    logger.warning("Facebook Instagram auth client not available")
+
 # Import analyzer modules
 try:
     from analyzer.content_engine import analyze_and_recommend, get_recommendation_stats, get_inference_metrics
@@ -56,6 +68,14 @@ except ImportError as e:
     logger.warning(f"Analyzer modules not available: {e}")
     ANALYZER_AVAILABLE = False
 
+# Import Reels Maker module
+try:
+    from backend.reels import router as reels_router
+    REELS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Reels Maker module not available: {e}")
+    REELS_AVAILABLE = False
+
 # FastAPI app
 app = FastAPI(
     title="Hungry Panda - Instagram Growth Agent",
@@ -66,6 +86,21 @@ app = FastAPI(
 frontend_assets_dir = Path(__file__).parent.parent / "frontend" / "assets"
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
+
+# Mount static directory for manifest and icons
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# Mount uploads directory for web access
+uploads_dir = Path(config.UPLOADS_DIR)
+if uploads_dir.exists():
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+# Include Reels Maker router
+if REELS_AVAILABLE:
+    app.include_router(reels_router)
+    logger.info("Reels Maker module loaded")
 
 # CORS middleware
 app.add_middleware(
@@ -118,6 +153,12 @@ class ContentScheduleRequest(BaseModel):
     final_caption: str = Field(..., description="Final caption for the post")
     final_hashtags: List[str] = Field(default_factory=list, description="Final hashtags")
     scheduled_time: Optional[str] = Field(None, description="When to post (ISO format)")
+
+
+class ContentPublishRequest(BaseModel):
+    """Request model for immediate publishing content"""
+    final_caption: str = Field(..., description="Final caption for the post")
+    final_hashtags: List[str] = Field(default_factory=list, description="Final hashtags")
 
 
 class CompetitorAddRequest(BaseModel):
@@ -189,11 +230,72 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
     redirect_uri = None
     redirect_error = None
 
-    try:
-        redirect_uri = get_configured_redirect_uri(base_url)
-    except InstagramLoginError as exc:
-        redirect_error = str(exc)
-
+    # Check for new Facebook Login auth flow first
+    auth_flow = get_setting("instagram_auth_flow", "")
+    facebook_connected = auth_flow == "facebook_login"
+    
+    # Use appropriate redirect URI helper based on auth flow
+    if facebook_connected and FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        try:
+            redirect_uri = get_facebook_instagram_redirect_uri() or config.FACEBOOK_INSTAGRAM_REDIRECT_URI or config.INSTAGRAM_REDIRECT_URI
+        except Exception as exc:
+            redirect_error = str(exc)
+    else:
+        try:
+            redirect_uri = get_configured_redirect_uri(base_url)
+        except InstagramLoginError as exc:
+            redirect_error = str(exc)
+    
+    if facebook_connected:
+        # New Facebook Login flow status
+        page_id = get_setting("facebook_instagram_page_id")
+        page_name = get_setting("facebook_instagram_page_name")
+        ig_business_id = get_setting("facebook_instagram_business_account_id")
+        has_all_ids = bool(page_id and ig_business_id)
+        
+        # Check required scopes for Facebook flow - must match Meta dashboard exactly
+        fb_permissions = get_setting("facebook_instagram_permissions", "")
+        granted_permissions = [p.strip() for p in fb_permissions.split(",") if p.strip()]
+        # Must match REQUIRED_SCOPES in FacebookInstagramAuthClient exactly
+        required_permissions = [
+            "instagram_basic",
+            "instagram_content_publish",
+            "pages_read_engagement",
+            "business_management",
+            "pages_show_list",
+        ]
+        missing_permissions = [
+            p for p in required_permissions if p not in granted_permissions
+        ]
+        
+        return {
+            "connected": True,
+            "auth_flow": "facebook_login",
+            "oauth_ready": bool(
+                (config.FACEBOOK_APP_ID or config.INSTAGRAM_APP_ID) and
+                (config.FACEBOOK_APP_SECRET or config.INSTAGRAM_APP_SECRET) and
+                redirect_uri
+            ),
+            "app_id_configured": bool(config.FACEBOOK_APP_ID or config.INSTAGRAM_APP_ID),
+            "app_secret_configured": bool(config.FACEBOOK_APP_SECRET or config.INSTAGRAM_APP_SECRET),
+            "redirect_uri": redirect_uri,
+            "redirect_uri_error": redirect_error,
+            "username": page_name or "",
+            "account_type": "business",  # Facebook flow requires business
+            "instagram_user_id": ig_business_id,
+            "page_id": page_id,
+            "page_name": page_name,
+            "token_expires_at": get_setting("facebook_instagram_token_expires_in"),
+            "last_validated_at": get_setting("facebook_instagram_connected_at"),
+            "permissions": granted_permissions,
+            "missing_permissions": missing_permissions,
+            "can_publish": has_all_ids and not missing_permissions,
+            "posting_method": config.POSTING_METHOD,
+            "connect_url": "/api/facebook-instagram/oauth/start" if redirect_uri else None,
+            "legacy_connect_url": "/api/instagram/oauth/start" if redirect_uri else None,
+        }
+    
+    # Legacy Instagram Login flow
     permissions = get_setting("instagram_permissions", "") or ""
     granted_permissions = [p.strip() for p in permissions.split(",") if p.strip()]
     required_permissions = list(DEFAULT_SCOPES)
@@ -206,6 +308,7 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
 
     return {
         "connected": connected,
+        "auth_flow": "instagram_login" if connected else None,
         "oauth_ready": bool(
             config.INSTAGRAM_APP_ID and
             config.INSTAGRAM_APP_SECRET and
@@ -224,7 +327,8 @@ def build_instagram_status(request: Optional[Request] = None) -> Dict[str, Any]:
         "missing_permissions": missing_permissions,
         "can_publish": account_type in {"Business", "Media_Creator", "business", "creator"} and not missing_permissions,
         "posting_method": config.POSTING_METHOD,
-        "connect_url": "/api/instagram/oauth/start" if redirect_uri else None,
+        "connect_url": "/api/facebook-instagram/oauth/start" if redirect_uri else None,
+        "legacy_connect_url": "/api/instagram/oauth/start" if redirect_uri else None,
     }
 
 
@@ -296,20 +400,36 @@ def resolve_content_filepath(stored_filepath: Optional[str]) -> Optional[Path]:
 
 def render_instagram_connect_page(status: Dict[str, Any], message: Optional[str] = None) -> str:
     """Render a small standalone page for Instagram connection management."""
+    
+    # Primary: Facebook Login for Business (new flow)
     connect_button = ""
-    if status["oauth_ready"]:
+    if status.get("oauth_ready"):
+        primary_url = status.get("connect_url", "/api/facebook-instagram/oauth/start")
         connect_button = (
-            '<a href="/api/instagram/oauth/start" '
-            'style="display:inline-block;background:#e94560;color:#fff;padding:12px 18px;'
-            'border-radius:10px;text-decoration:none;font-weight:600;">Connect Instagram</a>'
+            f'<a href="{primary_url}" '
+            'style="display:inline-block;background:#1877f2;color:#fff;padding:12px 18px;'
+            'border-radius:10px;text-decoration:none;font-weight:600;margin-right:10px;">'
+            'Connect with Facebook</a>'
         )
+        
+        # Legacy Instagram Login as secondary option
+        legacy_url = status.get("legacy_connect_url", "/api/instagram/oauth/start")
+        if legacy_url and legacy_url != primary_url:
+            connect_button += (
+                f'<a href="{legacy_url}" '
+                'style="display:inline-block;background:#6e9a42;color:#fff;padding:12px 18px;'
+                'border-radius:10px;text-decoration:none;font-weight:600;font-size:12px;">'
+                'Legacy Instagram Login</a>'
+            )
 
     oauth_help = ""
-    if not status["oauth_ready"]:
+    if not status.get("oauth_ready"):
         oauth_help = (
             "<p><strong>Missing config.</strong> Add "
-            "<code>INSTAGRAM_APP_ID</code>, <code>INSTAGRAM_APP_SECRET</code>, and "
-            "<code>INSTAGRAM_REDIRECT_URI</code> in <code>config/.env</code>."
+            "<code>FACEBOOK_APP_ID</code> (or <code>INSTAGRAM_APP_ID</code>), "
+            "<code>FACEBOOK_APP_SECRET</code> (or <code>INSTAGRAM_APP_SECRET</code>), and "
+            "<code>FACEBOOK_INSTAGRAM_REDIRECT_URI</code> (or <code>INSTAGRAM_REDIRECT_URI</code>) "
+            "in <code>config/.env</code>."
             "</p>"
         )
 
@@ -443,6 +563,15 @@ async def serve_voice_styles():
     if css_path.exists():
         return FileResponse(css_path, media_type="text/css")
     return HTMLResponse(content="/* CSS not found */", status_code=404)
+
+
+@app.get("/reels.html", response_class=HTMLResponse)
+async def serve_reels_page():
+    """Serve the Reel Maker page"""
+    reels_path = Path(__file__).parent.parent / "frontend" / "reels.html"
+    if reels_path.exists():
+        return HTMLResponse(content=reels_path.read_text())
+    return HTMLResponse(content="<h1>Reel Maker page not found</h1>", status_code=404)
 
 
 @app.get("/api/health")
@@ -1083,14 +1212,23 @@ async def upload_content(
             f.write(content)
         
         logger.info(f"Content uploaded: {content_id} ({file.filename})")
-        
+
+        # Determine content_type from file extension
+        file_lower = file.filename.lower()
+        if any(file_lower.endswith(ext) for ext in ['.mp4', '.mov', '.quicktime', '.avi', '.mkv', '.webm']):
+            content_type = 'video'
+        elif any(file_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp', '.gif']):
+            content_type = 'image'
+        else:
+            content_type = 'unknown'
+
         # Store in database
         execute_insert(
             """
-            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO content (id, filename, filepath, upload_time, caption, context, status, content_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, context, 'pending')
+            (content_id, file.filename, str(filepath), datetime.now().isoformat(), caption, context, 'pending', content_type)
         )
         
         response = {
@@ -1129,7 +1267,7 @@ async def get_pending_content():
         rows = execute_query(
             "SELECT * FROM content WHERE status IN ('pending', 'scheduled') ORDER BY upload_time DESC"
         )
-        
+
         content_list = []
         for row in rows:
             item = dict(row)
@@ -1139,13 +1277,67 @@ async def get_pending_content():
                     item['hashtags'] = json.loads(item['hashtags'])
                 except json.JSONDecodeError:
                     item['hashtags'] = []
+
+            # Convert filepath to web-accessible preview URL
+            stored_filepath = item.get('filepath')
+            if stored_filepath:
+                # Extract just the filename from the path
+                filename = Path(stored_filepath).name
+                file_path = Path(stored_filepath)
+
+                # Check if HEIC/HEIF - needs conversion for browser preview
+                if filename.lower().endswith(('.heic', '.heif')):
+                    preview_filename = _get_or_create_heic_preview(file_path, filename)
+                    item['preview_url'] = f"/uploads/{preview_filename}"
+                    item['is_heic'] = True
+                else:
+                    item['preview_url'] = f"/uploads/{filename}"
+                    item['is_heic'] = False
+            else:
+                item['preview_url'] = None
+                item['is_heic'] = False
+
+            # Remove the raw filepath from response (security)
+            item.pop('filepath', None)
+
             content_list.append(item)
-        
+
         return {"pending": content_list}
-        
+
     except DatabaseError as e:
         logger.error(f"Database error fetching pending content: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch content")
+
+
+def _get_or_create_heic_preview(file_path: Path, original_filename: str) -> str:
+    """
+    Convert HEIC/HEIF to JPEG for browser preview.
+    Returns the preview filename (JPEG) to serve.
+    """
+    from PIL import Image, ImageOps
+
+    preview_filename = original_filename.rsplit('.', 1)[0] + '_preview.jpg'
+    preview_path = file_path.parent / preview_filename
+
+    # Return cached preview if exists
+    if preview_path.exists():
+        return preview_filename
+
+    try:
+        # Convert HEIC to JPEG
+        with Image.open(file_path) as img:
+            img = ImageOps.exif_transpose(img)
+            # Convert to RGB if necessary
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            # Save as JPEG with good quality
+            img.save(preview_path, 'JPEG', quality=85, optimize=True)
+        logger.info(f"Created HEIC preview: {preview_filename}")
+        return preview_filename
+    except Exception as e:
+        logger.warning(f"Failed to convert HEIC preview for {original_filename}: {e}")
+        # Fall back to original filename - browser will show icon
+        return original_filename
 
 
 @app.get("/api/content/{content_id}/recommendation", response_model=Dict[str, Any])
@@ -1307,6 +1499,180 @@ async def schedule_content(content_id: str, schedule_data: ContentScheduleReques
         raise HTTPException(status_code=500, detail=f"Scheduling failed: {str(e)}")
 
 
+@app.post("/api/content/{content_id}/publish", response_model=Dict[str, str])
+async def publish_content(content_id: str, publish_data: ContentPublishRequest):
+    """
+    Publish content immediately to Instagram.
+
+    - **content_id**: ID of the content to publish
+    - **final_caption**: Caption to use for the post
+    - **final_hashtags**: List of hashtags to include
+
+    Returns the external post ID from Instagram on success.
+    """
+    try:
+        # Validate content exists and get filepath
+        rows = execute_query(
+            "SELECT id, filepath, status FROM content WHERE id = ?",
+            (content_id,)
+        )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        content_status = rows[0]["status"]
+        if content_status == "posted":
+            raise HTTPException(status_code=400, detail="Content already posted")
+
+        # Check Instagram connection readiness
+        from integrations.facebook_instagram_login import FacebookInstagramAuthClient, FacebookInstagramAuthError
+        from integrations.instagram_login import InstagramLoginClient, InstagramLoginError
+
+        auth_flow = get_setting("instagram_auth_flow", "")
+        
+        if auth_flow == "facebook_login":
+            # Facebook Login flow
+            access_token = get_setting("facebook_instagram_long_lived_token") or \
+                           get_setting("facebook_instagram_access_token")
+            user_id = get_setting("facebook_instagram_business_account_id")
+            
+            if not access_token or not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Instagram not connected. Please connect your Instagram business account first."
+                )
+            
+            # Use Facebook auth client for publishing
+            client = FacebookInstagramAuthClient()
+        else:
+            # Legacy Instagram Login flow
+            access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
+            user_id = get_setting("instagram_user_id") or getattr(config, 'INSTAGRAM_USER_ID', None)
+            
+            if not access_token or not user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Instagram not connected. Please connect your Instagram account first."
+                )
+            
+            # Use legacy client
+            status = build_instagram_status(None)
+            client = InstagramLoginClient.from_redirect_uri(status.get("redirect_uri", ""))
+
+        # Build public URL for the media
+        base_url = get_setting("reels_public_base_url", "")
+        if not base_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Public URL not configured. Please set reels_public_base_url in settings."
+            )
+
+        # Resolve filepath to public URL
+        filepath = rows[0]["filepath"]
+        if filepath:
+            filename = filepath.split("/")[-1]
+            media_url = f"{base_url.rstrip('/')}/uploads/{filename}"
+        else:
+            raise HTTPException(status_code=400, detail="Content has no media file")
+
+        # Detect media type from filename
+        is_video = any(filepath.lower().endswith(ext) for ext in ['.mp4', '.mov', '.quicktime', '.avi', '.mkv'])
+        is_image = any(filepath.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'])
+
+        # Build caption with hashtags
+        caption = publish_data.final_caption
+        if publish_data.final_hashtags:
+            hashtag_str = " ".join([f"#{h}" for h in publish_data.final_hashtags])
+            caption = f"{caption}\n\n{hashtag_str}".strip()
+
+        # Publish to Instagram
+        try:
+            if is_video:
+                # Publish as video/Reel
+                if auth_flow == "facebook_login":
+                    result = client.publish_reel(
+                        instagram_business_account_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+                else:
+                    result = client.publish_reel(
+                        user_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+            elif is_image:
+                # Publish as image
+                if auth_flow == "facebook_login":
+                    result = client.publish_image(
+                        instagram_business_account_id=str(user_id),
+                        access_token=access_token,
+                        image_url=media_url,
+                        caption=caption,
+                    )
+                else:
+                    # Legacy flow - use InstagramLoginClient for images too
+                    # Note: Legacy client may need image support added
+                    result = client.publish_reel(
+                        user_id=str(user_id),
+                        access_token=access_token,
+                        video_url=media_url,
+                        caption=caption,
+                        share_to_feed=True
+                    )
+                    logger.warning("Legacy auth flow: attempting to publish image as video - may fail")
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported media type: {filepath}")
+            
+            external_id = result.get("id")
+            if not external_id:
+                raise HTTPException(status_code=500, detail="Publish succeeded but no external ID returned")
+
+        except (FacebookInstagramAuthError, InstagramLoginError) as e:
+            logger.error(f"Instagram publish failed: {e}")
+            raise HTTPException(status_code=400, detail=f"Instagram publish failed: {str(e)}")
+
+        # Update content to posted status
+        posted_time = datetime.utcnow().isoformat()
+        execute_insert(
+            """
+            UPDATE content
+            SET status = 'posted', 
+                posted_time = ?, 
+                caption = ?, 
+                hashtags = ?,
+                external_id = ?
+            WHERE id = ?
+            """,
+            (
+                posted_time,
+                publish_data.final_caption,
+                json.dumps(publish_data.final_hashtags),
+                external_id,
+                content_id
+            )
+        )
+
+        logger.info(f"Content published: {content_id}, external_id: {external_id}")
+
+        return {
+            "status": "posted",
+            "content_id": content_id,
+            "external_id": external_id,
+            "posted_time": posted_time
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Publishing error: {e}")
+        raise HTTPException(status_code=500, detail=f"Publishing failed: {str(e)}")
+
+
 @app.delete("/api/content/{content_id}", response_model=Dict[str, str])
 async def delete_content(content_id: str):
     """
@@ -1320,6 +1686,9 @@ async def delete_content(content_id: str):
             "SELECT id, filepath FROM content WHERE id = ?",
             (content_id,)
         )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Content not found")
 
         content = dict(rows[0])
         resolved_filepath = resolve_content_filepath(content.get('filepath'))
@@ -1670,6 +2039,195 @@ async def instagram_connect_page(request: Request):
     return HTMLResponse(render_instagram_connect_page(status, message=message))
 
 
+# ============================================================================
+# Facebook Login for Business → Instagram Auth (New Flow)
+# ============================================================================
+
+@app.get("/api/facebook-instagram/oauth/start")
+async def facebook_instagram_oauth_start(request: Request):
+    """
+    Start Facebook Login for Business → Instagram auth flow.
+    Redirects to Facebook dialog/oauth with IG onboarding extras.
+    """
+    if not FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Facebook Instagram auth module not available",
+        )
+    
+    # Check configuration
+    app_id = config.FACEBOOK_APP_ID or config.INSTAGRAM_APP_ID
+    app_secret = config.FACEBOOK_APP_SECRET or config.INSTAGRAM_APP_SECRET
+    redirect_uri = get_facebook_instagram_redirect_uri() or config.INSTAGRAM_REDIRECT_URI
+    
+    if not app_id or not app_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="Facebook App ID and Secret not configured. Set FACEBOOK_APP_ID and FACEBOOK_APP_SECRET.",
+        )
+    
+    if not redirect_uri:
+        raise HTTPException(
+            status_code=400,
+            detail="Redirect URI not configured. Set FACEBOOK_INSTAGRAM_REDIRECT_URI or INSTAGRAM_REDIRECT_URI.",
+        )
+    
+    # Ensure HTTPS
+    if not redirect_uri.startswith("https://"):
+        logger.warning(f"Redirect URI should use HTTPS: {redirect_uri}")
+    
+    # Generate state for CSRF protection
+    state = secrets.token_urlsafe(24)
+    set_setting("facebook_instagram_oauth_state", state)
+    set_setting("facebook_instagram_oauth_state_created_at", datetime.utcnow().isoformat())
+    
+    try:
+        client = FacebookInstagramAuthClient()
+        login_url = client.build_login_url(state)
+        return RedirectResponse(login_url)
+    except FacebookInstagramAuthError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/facebook-instagram/oauth/callback", response_class=HTMLResponse)
+async def facebook_instagram_oauth_callback(request: Request):
+    """
+    Serve the callback page that captures Facebook token from URL fragment.
+    The page parses the fragment client-side and POSTs to /finalize.
+    """
+    callback_path = Path(__file__).parent.parent / "frontend" / "facebook-instagram-callback.html"
+    
+    if callback_path.exists():
+        return HTMLResponse(content=callback_path.read_text())
+    
+    # Fallback inline HTML
+    return HTMLResponse(content="""
+    <!DOCTYPE html>
+    <html>
+    <head><title>Connecting...</title></head>
+    <body>
+        <h1>Processing Facebook Login...</h1>
+        <p>If this page doesn't redirect automatically, please return to the dashboard.</p>
+        <script>
+            // Parse fragment and post to finalize
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const token = params.get('access_token');
+            
+            if (token) {
+                fetch('/api/facebook-instagram/oauth/finalize', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        access_token: token,
+                        long_lived_token: params.get('long_lived_token'),
+                        expires_in: params.get('expires_in'),
+                        data_access_expiration_time: params.get('data_access_expiration_time')
+                    })
+                }).then(() => window.location.href = '/');
+            } else {
+                window.location.href = '/?error=no_token';
+            }
+        </script>
+    </body>
+    </html>
+    """)
+
+
+class FacebookInstagramFinalizeRequest(BaseModel):
+    access_token: str
+    long_lived_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    data_access_expiration_time: Optional[int] = None
+    state: Optional[str] = None
+
+
+@app.post("/api/facebook-instagram/oauth/finalize")
+async def facebook_instagram_oauth_finalize(request: FacebookInstagramFinalizeRequest):
+    """
+    Finalize Facebook Login for Business → Instagram connection.
+    
+    1. Validate token
+    2. Call /me/accounts to get Pages
+    3. Resolve instagram_business_account from Page
+    4. Persist connection state
+    """
+    if not FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Facebook Instagram auth module not available",
+        )
+    
+    # Verify state if provided
+    if request.state:
+        expected_state = get_setting("facebook_instagram_oauth_state")
+        if request.state != expected_state:
+            raise HTTPException(status_code=400, detail="Invalid OAuth state")
+    
+    try:
+        client = FacebookInstagramAuthClient()
+        
+        # Exchange for long-lived token if available
+        token_to_use = request.long_lived_token or request.access_token
+        
+        # Get Pages for this user
+        pages = client.get_pages(token_to_use)
+        
+        if not pages:
+            raise HTTPException(
+                status_code=400,
+                detail="No Facebook Pages with Instagram Business Accounts found. "
+                        "Please connect a Facebook Page to an Instagram Business account.",
+            )
+        
+        # For now, use the first valid page (single page case)
+        # TODO: Add page selection UI for multiple pages (P1)
+        selected_page = pages[0]
+        
+        # Test the connection
+        if not client.test_connection(selected_page["instagram_business_account_id"], token_to_use):
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to verify Instagram Business Account access",
+            )
+        
+        # Persist connection state
+        set_setting("instagram_auth_flow", "facebook_login")
+        set_setting("instagram_connected", "true")
+        set_setting("facebook_instagram_access_token", request.access_token)
+        set_setting("facebook_instagram_long_lived_token", request.long_lived_token or "")
+        set_setting("facebook_instagram_token_expires_in", str(request.expires_in or 0))
+        set_setting("facebook_instagram_page_id", selected_page["id"])
+        set_setting("facebook_instagram_page_name", selected_page["name"])
+        set_setting("facebook_instagram_page_access_token", selected_page["access_token"])
+        set_setting("facebook_instagram_business_account_id", selected_page["instagram_business_account_id"])
+        set_setting("facebook_instagram_connected_at", datetime.utcnow().isoformat())
+        
+        # Persist granted permissions (scopes) - required for publish readiness checks
+        required_scopes = FacebookInstagramAuthClient.REQUIRED_SCOPES
+        set_setting("facebook_instagram_permissions", ",".join(required_scopes))
+        
+        # Clear legacy Instagram Login errors
+        set_setting("instagram_error", "")
+        
+        return {
+            "connected": True,
+            "auth_flow": "facebook_login",
+            "page_id": selected_page["id"],
+            "page_name": selected_page["name"],
+            "instagram_business_account_id": selected_page["instagram_business_account_id"],
+            "instagram_username": selected_page.get("name", ""),  # Use page name as proxy
+            "can_publish": True,
+        }
+        
+    except FacebookInstagramAuthError as e:
+        logger.error(f"Facebook Instagram finalize failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during finalize: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to complete connection: {str(e)}")
+
+
 @app.get("/api/instagram/status")
 async def instagram_status(request: Request):
     """Return current Instagram connection status."""
@@ -1752,10 +2310,60 @@ async def instagram_oauth_callback(
 
 @app.post("/api/instagram/test")
 async def instagram_test_connection(request: Request):
-    """Validate the stored Instagram token and return current profile details."""
+    """
+    Validate the stored Instagram connection and return current profile details.
+    Supports both Facebook Login (new) and Instagram Login (legacy) flows.
+    """
+    auth_flow = get_setting("instagram_auth_flow", "")
+    
+    # Facebook Login for Business flow (new)
+    if auth_flow == "facebook_login" and FACEBOOK_INSTAGRAM_AUTH_AVAILABLE:
+        fb_token = get_setting("facebook_instagram_long_lived_token") or \
+                   get_setting("facebook_instagram_access_token")
+        ig_business_id = get_setting("facebook_instagram_business_account_id")
+        page_id = get_setting("facebook_instagram_page_id")
+        page_name = get_setting("facebook_instagram_page_name")
+        
+        if not fb_token or not ig_business_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Facebook Instagram connection not fully configured. Missing token or account ID."
+            )
+        
+        try:
+            client = FacebookInstagramAuthClient()
+            is_valid = client.test_connection(ig_business_id, fb_token)
+            
+            if not is_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to verify Instagram Business Account access. Token may be expired."
+                )
+            
+            # Update last validated timestamp
+            set_setting("facebook_instagram_last_validated_at", datetime.utcnow().isoformat())
+            
+            return {
+                "connected": True,
+                "auth_flow": "facebook_login",
+                "page_id": page_id,
+                "page_name": page_name,
+                "instagram_business_account_id": ig_business_id,
+                "checked_at": datetime.utcnow().isoformat(),
+            }
+            
+        except FacebookInstagramAuthError as exc:
+            logger.error(f"Facebook Instagram test connection failed: {exc}")
+            set_setting("instagram_error", str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    
+    # Legacy Instagram Login flow
     access_token = get_setting("instagram_access_token") or config.INSTAGRAM_ACCESS_TOKEN
     if not access_token:
-        raise HTTPException(status_code=400, detail="No Instagram access token is configured.")
+        raise HTTPException(
+            status_code=400,
+            detail="No Instagram access token configured. Connect using Facebook Login or Legacy Instagram Login first."
+        )
 
     status = build_instagram_status(request)
     if not status["redirect_uri"]:
@@ -1783,6 +2391,7 @@ async def instagram_test_connection(request: Request):
 
         return {
             "connected": True,
+            "auth_flow": "instagram_login",
             "profile": profile,
             "publishing_limit": publishing_limit,
             "publishing_limit_error": publishing_limit_error,
@@ -1791,6 +2400,56 @@ async def instagram_test_connection(request: Request):
     except InstagramLoginError as exc:
         clear_instagram_connection(str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/instagram/disconnect")
+async def instagram_disconnect():
+    """
+    Disconnect Instagram connection.
+    Clears both Facebook Login (new) and Instagram Login (legacy) state.
+    """
+    auth_flow = get_setting("instagram_auth_flow", "")
+    
+    # Clear Facebook Login state if active
+    if auth_flow == "facebook_login":
+        facebook_keys = [
+            "instagram_auth_flow",
+            "facebook_instagram_access_token",
+            "facebook_instagram_long_lived_token",
+            "facebook_instagram_token_expires_in",
+            "facebook_instagram_page_id",
+            "facebook_instagram_page_name",
+            "facebook_instagram_page_access_token",
+            "facebook_instagram_business_account_id",
+            "facebook_instagram_permissions",
+            "facebook_instagram_connected_at",
+            "facebook_instagram_last_validated_at",
+        ]
+        for key in facebook_keys:
+            set_setting(key, "")
+    
+    # Clear legacy Instagram Login state
+    legacy_keys = [
+        "instagram_connected",
+        "instagram_access_token",
+        "instagram_token_type",
+        "instagram_token_expires_at",
+        "instagram_permissions",
+        "instagram_username",
+        "instagram_user_id",
+        "instagram_business_account_id",
+        "instagram_last_validated_at",
+    ]
+    for key in legacy_keys:
+        set_setting(key, "")
+    
+    # Clear any error message
+    set_setting("instagram_error", "")
+    
+    return {
+        "disconnected": True,
+        "previous_auth_flow": auth_flow or "unknown",
+    }
 
 
 @app.get("/api/config/profile")

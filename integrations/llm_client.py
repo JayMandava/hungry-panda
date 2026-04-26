@@ -386,7 +386,121 @@ Return: {{"hashtags": ["tag1", "tag2", ...]}}"""
         if not isinstance(parsed, dict):
             raise LLMError("Structured recommendation response was not a JSON object")
         return parsed
-    
+
+    def generate_reel_recommendation(
+        self,
+        filepath: str,
+        user_caption: Optional[str] = None,
+        context: Optional[str] = None,
+        fallback_analysis: Optional[Dict[str, Any]] = None,
+        visual_analysis: Optional[Dict[str, Any]] = None,
+        _allow_internal_visual: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Generate a structured, growth-focused recommendation for an Instagram Reel.
+        Includes reel-specific fields: hook, on-screen text, CTA, and best practices.
+        
+        Args:
+            filepath: Path to the video file
+            user_caption: Optional user-provided caption
+            context: Additional context about the content
+            fallback_analysis: Pre-computed content analysis
+            visual_analysis: Pre-computed visual analysis
+            _allow_internal_visual: If False, raises error when visual_analysis is None
+        """
+        if self.provider == "none":
+            raise LLMError("LLM disabled - multimodal recommendation unavailable")
+
+        if visual_analysis is None:
+            if not _allow_internal_visual:
+                raise LLMError(
+                    "visual_analysis is None but _allow_internal_visual=False. "
+                    "This would violate the 2-call max guarantee."
+                )
+            visual_analysis = self._inspect_visual_asset(filepath, user_caption=user_caption, context=context)
+
+        strategy_prompt = self._build_reel_recommendation_prompt(
+            filepath=filepath,
+            user_caption=user_caption,
+            context=context,
+            fallback_analysis=fallback_analysis,
+            visual_analysis=visual_analysis,
+        )
+        system_prompt = (
+            "You are an Instagram Reel strategist for food content. "
+            "Return only valid JSON. No markdown. Focus on short-form video best practices."
+        )
+
+        response = self._call_llm(
+            system_prompt,
+            strategy_prompt,
+            max_tokens=1800,
+            timeout=60,
+            json_mode=True,
+        )
+        try:
+            parsed = self._extract_json_object(response)
+            self._validate_reel_recommendation_payload(parsed)
+        except LLMError:
+            retry_prompt = (
+                strategy_prompt
+                + "\n\nCRITICAL: Your previous response was not valid JSON. "
+                "Return ONLY the JSON object, starting with { and ending with }. No other text."
+            )
+            response = self._call_llm(
+                system_prompt,
+                retry_prompt,
+                max_tokens=1800,
+                timeout=60,
+                json_mode=True,
+            )
+            parsed = self._extract_json_object(response)
+            self._validate_reel_recommendation_payload(parsed)
+
+        if not isinstance(parsed, dict):
+            raise LLMError("Structured recommendation response was not a JSON object")
+        return parsed
+
+    def _build_reel_recommendation_prompt(
+        self,
+        filepath: str,
+        user_caption: Optional[str],
+        context: Optional[str],
+        fallback_analysis: Optional[Dict[str, Any]],
+        visual_analysis: Optional[Dict[str, Any]],
+    ) -> str:
+        """Build prompt for reel recommendation."""
+        fallback_text = json.dumps(fallback_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+        visual_text = json.dumps(visual_analysis or {}, ensure_ascii=True, separators=(',', ':'))
+
+        return f"""Analyze this Instagram Reel for growth.
+
+Asset: {Path(filepath).name}
+Caption: {user_caption or 'none'}
+Context: {context or 'none'}
+Visual: {visual_text}
+Fallback: {fallback_text}
+
+Rules for Reels:
+- Hook must grab attention in first 3 seconds
+- Keep captions punchy (under 150 chars for preview)
+- Use trending audio references when relevant
+- Include strong CTA for engagement
+- Match posting time to meal type and audience activity
+- Two caption variants: "Performance" (hook-first) and "Story-led" (brand voice)
+- Two hashtag variants: "Broader Discovery" vs "Targeted Intent"
+- Lower confidence if asset is ambiguous
+
+Return JSON:
+{{"content_analysis":{{"category":"...","dish_detected":"...","meal_type":"...","cuisine_type":"...","format":"reel","confidence":0.0}},"caption_variants":[{{"label":"Performance","caption":"...","why":"..."}},{{"label":"Story-led","caption":"...","why":"..."}}],"hashtag_variants":[{{"label":"Broader Discovery","hashtags":["..."],"why":"..."}},{{"label":"Targeted Intent","hashtags":["..."],"why":"..."}}],"optimal_time":{{"time":"HH:MM","reasoning":"...","timezone":"local","engagement_prediction":"low|medium|high"}},"reel_specific":{{"hook":"First 3-second grabber","on_screen_text":"Text overlay suggestion","cta":"Call to action","audio_suggestion":"Trending or thematic audio"}},"strategy_notes":"...","confidence_score":0.0,"content_patterns":["..."]}}"""
+
+    def _validate_reel_recommendation_payload(self, parsed: Dict) -> None:
+        """Validate reel recommendation structure."""
+        required_fields = ["caption_variants", "hashtag_variants", "optimal_time", "reel_specific"]
+        for field in required_fields:
+            if field not in parsed:
+                raise LLMError(f"Recommendation missing required field: {field}")
+
     def analyze_content_strategy(
         self,
         content_history: List[Dict],
@@ -1061,6 +1175,12 @@ def generate_post_recommendation(filepath: str, **kwargs) -> Dict[str, Any]:
     """Generate a structured growth recommendation using the configured LLM."""
     client = LLMClient()
     return client.generate_post_recommendation(filepath, **kwargs)
+
+
+def generate_reel_recommendation(filepath: str, **kwargs) -> Dict[str, Any]:
+    """Generate a structured growth recommendation for an Instagram Reel."""
+    client = LLMClient()
+    return client.generate_reel_recommendation(filepath, **kwargs)
 
 
 def analyze_visual_asset(filepath: str, **kwargs) -> Dict[str, Any]:

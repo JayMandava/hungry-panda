@@ -1,0 +1,2789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6e9a42">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Reel Maker — Hungry Panda</title>
+    <link rel="manifest" href="/static/manifest.json?v=2">
+    <link rel="stylesheet" href="voice-styles.css?v=2026-04-25">
+    <style>
+        /* ========================================
+           REEL MAKER - PREMIUM GLASSMORPHISM
+           Phase 1: Foundation UI Shell
+           ======================================== */
+        
+        :root {
+            /* Brand Identity - Nature-Led Green System */
+            --brand-primary: #6e9a42;
+            --brand-primary-hover: #5a8335;
+            --brand-secondary: #8ab85a;
+            --brand-success: #22c55e;
+            --brand-info: #42a5f5;
+            --brand-warning: #f59e0b;
+            --brand-error: #ef4444;
+
+            /* Glassmorphism Surface System */
+            --bg-base: #f8faf6;
+            --bg-elevated: rgba(255, 255, 255, 0.75);
+            --bg-card: rgba(255, 255, 255, 0.70);
+            --bg-card-hover: rgba(255, 255, 255, 0.85);
+            --bg-input: rgba(255, 255, 255, 0.80);
+
+            /* Glass Border System */
+            --border-subtle: rgba(255, 255, 255, 0.5);
+            --border-default: rgba(110, 154, 66, 0.25);
+            --border-accent: rgba(110, 154, 66, 0.5);
+            --border-focus: rgba(110, 154, 66, 0.7);
+
+            /* Text Hierarchy */
+            --text-primary: #1a2e12;
+            --text-secondary: rgba(26, 46, 18, 0.7);
+            --text-tertiary: rgba(26, 46, 18, 0.5);
+            --text-muted: rgba(26, 46, 18, 0.35);
+            
+            /* Typography */
+            --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            
+            --text-xs: 11px;
+            --text-sm: 13px;
+            --text-base: 15px;
+            --text-lg: 18px;
+            --text-xl: 22px;
+            --text-2xl: 28px;
+            
+            --font-medium: 500;
+            --font-semibold: 600;
+            --font-bold: 700;
+            
+            /* Spacing */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --space-10: 40px;
+            --space-12: 48px;
+            
+            /* Radius */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+            
+            /* Effects */
+            --shadow-sm: 0 1px 2px rgba(110, 154, 66, 0.15);
+            --shadow-md: 0 4px 16px rgba(110, 154, 66, 0.2);
+            --shadow-lg: 0 8px 32px rgba(110, 154, 66, 0.25);
+            --shadow-glass: 0 8px 32px rgba(110, 154, 66, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-base: 250ms ease;
+        }
+        
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        body {
+            font-family: var(--font-display);
+            font-size: var(--text-base);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100vh;
+            background:
+                radial-gradient(ellipse 120% 80% at 20% 0%, rgba(110, 154, 66, 0.08), transparent 60%),
+                radial-gradient(ellipse 100% 60% at 80% 20%, rgba(138, 184, 90, 0.05), transparent 50%),
+                radial-gradient(ellipse 60% 40% at 50% 100%, rgba(34, 197, 94, 0.04), transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('assets/bg-rich-web.png');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.85;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Glass Card Base */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.6) 100%);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: var(--radius-xl);
+            box-shadow:
+                0 8px 32px rgba(110, 154, 66, 0.15),
+                0 2px 8px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9),
+                inset 0 -1px 0 rgba(110, 154, 66, 0.1);
+            transition: all var(--transition-base);
+        }
+
+        .glass-card:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.75) 100%);
+            border-color: rgba(110, 154, 66, 0.4);
+            box-shadow:
+                0 12px 48px rgba(110, 154, 66, 0.25),
+                0 4px 12px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 60px rgba(110, 154, 66, 0.15);
+        }
+
+        /* ========================================
+           HEADER
+           ======================================== */
+        
+        .app-header {
+            position: relative;
+            padding: var(--space-6) var(--space-8);
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-default);
+            z-index: 10;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+        }
+
+        .brand-icon img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .brand-text h1 {
+            font-size: var(--text-xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-text p {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-4);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+
+        .nav-link:hover {
+            color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .nav-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ========================================
+           ICON SIZE SYSTEM - matches dashboard exactly
+           ======================================== */
+
+        .icon {
+            width: 1em;
+            height: 1em;
+            flex-shrink: 0;
+            stroke: currentColor;
+        }
+
+        .icon-xs { width: 12px; height: 12px; }
+        .icon-sm { width: 14px; height: 14px; }
+        .icon-md { width: 18px; height: 18px; }
+        .icon-lg { width: 20px; height: 20px; }
+        .icon-xl { width: 24px; height: 24px; }
+        .icon-2xl { width: 34px; height: 34px; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-5);
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(110, 154, 66, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.6);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: var(--border-accent);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35), 0 0 20px rgba(34, 197, 94, 0.1);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(34, 197, 94, 0.45), 0 0 30px rgba(34, 197, 94, 0.15);
+        }
+
+        .btn-success:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:active {
+            box-shadow: 0 2px 12px rgba(110, 154, 66, 0.4), 0 0 30px rgba(110, 154, 66, 0.2);
+        }
+
+        /* ========================================
+           MAIN CONTAINER
+           ======================================== */
+        
+        .app-container {
+            position: relative;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-8);
+            z-index: 1;
+        }
+
+        /* ========================================
+           PAGE TITLE
+           ======================================== */
+        
+        .page-header {
+            margin-bottom: var(--space-8);
+        }
+
+        .page-title {
+            font-size: var(--text-2xl);
+            font-weight: var(--font-bold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .page-subtitle {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+        }
+
+        /* ========================================
+           PROJECTS GRID
+           ======================================== */
+        
+        .projects-section {
+            margin-bottom: var(--space-8);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-5);
+        }
+
+        .section-title {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: var(--space-5);
+        }
+
+        .project-card {
+            padding: var(--space-5);
+            cursor: pointer;
+        }
+
+        .project-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: var(--space-4);
+        }
+
+        .project-card-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .project-title {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .project-status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+            padding: var(--space-1) var(--space-3);
+            border-radius: var(--radius-full);
+            font-size: var(--text-xs);
+            font-weight: var(--font-medium);
+            text-transform: capitalize;
+        }
+
+        .status-draft { background: rgba(110, 154, 66, 0.12); color: var(--brand-primary); }
+        .status-queued { background: rgba(66, 165, 245, 0.12); color: var(--brand-info); }
+        .status-analyzing { background: rgba(245, 158, 11, 0.12); color: var(--brand-warning); }
+        .status-plan_ready { background: rgba(66, 165, 245, 0.12); color: var(--brand-info); }
+        .status-rendering { background: rgba(245, 158, 11, 0.15); color: var(--brand-warning); }
+        .status-ready { background: rgba(34, 197, 94, 0.12); color: var(--brand-success); }
+        .status-failed { background: rgba(239, 68, 68, 0.12); color: var(--brand-error); }
+        .status-published { background: rgba(110, 154, 66, 0.2); color: var(--brand-primary); }
+
+        .project-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .project-meta-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--text-sm);
+            color: var(--text-tertiary);
+        }
+
+        .project-meta-item svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(239, 68, 68, 0.18);
+            background: rgba(255, 255, 255, 0.65);
+            color: var(--brand-error);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .icon-btn:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .icon-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .icon-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .template-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: var(--space-1) var(--space-3);
+            background: rgba(110, 154, 66, 0.08);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-xs);
+            font-weight: var(--font-medium);
+            color: var(--brand-primary);
+            margin-top: var(--space-3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: var(--space-12);
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto var(--space-5);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.15) 0%, rgba(138, 184, 90, 0.1) 100%);
+            border-radius: var(--radius-xl);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--brand-primary);
+        }
+
+        .empty-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .empty-text {
+            font-size: var(--text-base);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-5);
+        }
+
+        /* ========================================
+           MODAL - New Project
+           ======================================== */
+        
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(26, 46, 18, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: var(--space-4);
+        }
+
+        .modal-overlay.active,
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+            backdrop-filter: blur(50px) saturate(180%);
+            -webkit-backdrop-filter: blur(50px) saturate(180%);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: var(--radius-xl);
+            box-shadow:
+                0 24px 80px rgba(110, 154, 66, 0.3),
+                0 8px 24px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modal-enter 0.3s ease;
+        }
+
+        @keyframes modal-enter {
+            from { opacity: 0; transform: scale(0.95) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-5) var(--space-6);
+            background: linear-gradient(180deg, rgba(110, 154, 66, 0.06) 0%, transparent 100%);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .modal-header h2,
+        .modal-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-semibold);
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--brand-primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .modal-header h2 .icon {
+            -webkit-text-fill-color: initial;
+            color: var(--brand-primary);
+            filter: drop-shadow(0 0 8px rgba(110, 154, 66, 0.4));
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+            box-shadow: 0 0 16px rgba(110, 154, 66, 0.2);
+        }
+
+        .modal-close svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-body {
+            padding: var(--space-6);
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+
+        .form-group {
+            margin-bottom: var(--space-5);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--text-base);
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(110, 154, 66, 0.15);
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-3);
+        }
+
+        .template-option {
+            padding: var(--space-4);
+            background: var(--bg-input);
+            border: 2px solid var(--border-default);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .template-option:hover {
+            border-color: var(--border-accent);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .template-option.selected {
+            border-color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .template-option h4 {
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-1);
+        }
+
+        .template-option p {
+            font-size: var(--text-xs);
+            color: var(--text-tertiary);
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: var(--space-3);
+            padding: var(--space-4) var(--space-6) var(--space-6);
+        }
+
+        /* ========================================
+           PROJECT DETAIL VIEW
+           ======================================== */
+        
+        .detail-layout {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: var(--space-6);
+        }
+
+        @media (max-width: 900px) {
+            .detail-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Asset Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--border-accent);
+            border-radius: var(--radius-lg);
+            padding: var(--space-8);
+            text-align: center;
+            background: rgba(110, 154, 66, 0.03);
+            transition: all var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            background: rgba(110, 154, 66, 0.06);
+            border-color: var(--brand-primary);
+        }
+
+        .upload-zone.dragover {
+            background: rgba(110, 154, 66, 0.1);
+            border-color: var(--brand-primary);
+        }
+
+        .upload-zone svg {
+            width: 48px;
+            height: 48px;
+            color: var(--brand-primary);
+            margin-bottom: var(--space-4);
+        }
+
+        .upload-text {
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .upload-hint {
+            font-size: var(--text-sm);
+            color: var(--text-tertiary);
+        }
+
+        /* Asset Grid */
+        .assets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: var(--space-3);
+            margin-top: var(--space-5);
+        }
+
+        .asset-item {
+            position: relative;
+            aspect-ratio: 9/16;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+        }
+
+        .asset-item img,
+        .asset-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .asset-remove {
+            position: absolute;
+            top: var(--space-2);
+            right: var(--space-2);
+            width: 24px;
+            height: 24px;
+            background: rgba(239, 68, 68, 0.9);
+            border: none;
+            border-radius: var(--radius-full);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .asset-item:hover .asset-remove {
+            opacity: 1;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: sticky;
+            top: var(--space-6);
+        }
+
+        .sidebar-card {
+            padding: var(--space-5);
+            margin-bottom: var(--space-5);
+        }
+
+        .sidebar-title {
+            font-size: var(--text-base);
+            font-weight: var(--font-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-4);
+        }
+
+        .status-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: var(--radius-full);
+            background: var(--text-muted);
+        }
+
+        .status-indicator.complete {
+            background: var(--brand-success);
+        }
+
+        .status-indicator.active {
+            background: var(--brand-warning);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: var(--space-4);
+            font-size: var(--text-base);
+        }
+
+        /* ========================================
+           PUBLISH BUTTON - Green Glass Design System
+           ======================================== */
+
+        .publish-btn {
+            width: 100%;
+            padding: var(--space-4);
+            font-size: var(--text-base);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: var(--radius-md);
+            color: white;
+            font-weight: var(--font-semibold);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                0 4px 16px rgba(110, 154, 66, 0.35),
+                0 1px 3px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+
+        .publish-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--brand-primary-hover) 0%, #4a7029 100%);
+            transform: translateY(-2px);
+            box-shadow:
+                0 8px 28px rgba(110, 154, 66, 0.45),
+                0 2px 6px rgba(0, 0, 0, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .publish-btn:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .publish-btn:disabled {
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.4) 0%, rgba(110, 154, 66, 0.3) 100%);
+            border-color: rgba(255, 255, 255, 0.15);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .publish-btn .publish-icon {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.2s ease;
+        }
+
+        .publish-btn:hover:not(:disabled) .publish-icon {
+            transform: translateX(2px);
+        }
+
+        .publish-btn.publishing {
+            background: linear-gradient(135deg, #8ab85a 0%, var(--brand-primary) 100%);
+            cursor: wait;
+        }
+
+        .publish-btn.published {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Preview Player */
+        .preview-player {
+            aspect-ratio: 9/16;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-4);
+        }
+
+        .preview-placeholder {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .preview-placeholder svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: var(--space-3);
+            opacity: 0.5;
+        }
+
+        /* Back Button */
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-5);
+            padding: var(--space-2) var(--space-3);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+
+        .back-btn:hover {
+            color: var(--brand-primary);
+            background: rgba(110, 154, 66, 0.08);
+        }
+
+        .back-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .detail-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--brand-error);
+            border: 1px solid rgba(239, 68, 68, 0.22);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.16);
+            border-color: rgba(239, 68, 68, 0.34);
+        }
+
+        /* Loading States */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(110, 154, 66, 0.1) 25%, rgba(110, 154, 66, 0.2) 50%, rgba(110, 154, 66, 0.1) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+            border-radius: var(--radius-md);
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Utility */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .app-container {
+                padding: var(--space-4);
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+                gap: var(--space-3);
+            }
+
+            .brand-text h1 {
+                font-size: var(--text-lg);
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .assets-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .modal {
+                max-height: 90vh;
+                border-radius: var(--radius-lg);
+                margin: auto;
+                width: calc(100% - var(--space-8));
+                max-width: 600px;
+            }
+
+            .modal-overlay {
+                align-items: center;
+                padding: var(--space-4);
+            }
+
+            .modal-header {
+                padding: var(--space-4) var(--space-5);
+            }
+
+            .modal-header h2 {
+                font-size: var(--text-lg);
+            }
+
+            .modal-close {
+                margin-left: auto;
+            }
+
+            .modal-body {
+                padding: var(--space-4) var(--space-5);
+            }
+
+            /* Stack modal action buttons vertically on mobile */
+            .modal-actions {
+                flex-direction: column;
+                gap: var(--space-3);
+            }
+
+            .modal-actions .btn {
+                flex: none;
+                width: 100%;
+                min-height: 44px;
+                justify-content: center;
+            }
+
+            /* Stack time display vertically */
+            .optimal-time-display {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .time-badge {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Prevent iOS input zoom */
+            .form-input,
+            .schedule-time-picker input[type="datetime-local"] {
+                font-size: 16px;
+            }
+
+            .btn {
+                font-size: var(--text-base);
+            }
+
+            .toast-container {
+                left: var(--space-4);
+                right: var(--space-4);
+                bottom: var(--space-4);
+            }
+
+            .toast {
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .app-container {
+                padding: var(--space-3);
+            }
+
+            .modal-hashtags .hashtag-chip {
+                font-size: var(--text-xs);
+                padding: var(--space-1) var(--space-2);
+            }
+
+            .variant-card {
+                padding: var(--space-3);
+            }
+        }
+
+        /* ========================================
+           TOAST NOTIFICATIONS
+           ======================================== */
+
+        .toast-container {
+            position: fixed;
+            bottom: var(--space-6);
+            right: var(--space-6);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-4) var(--space-5);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            transform: translateX(120%);
+            transition: transform var(--transition-base);
+            max-width: 400px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .toast-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .toast-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            border-color: rgba(102, 187, 106, 0.3);
+        }
+
+        .toast.error {
+            border-color: rgba(255, 107, 107, 0.3);
+        }
+
+        /* ========================================
+           RECOMMENDATION MODAL - Dashboard Design System
+           ======================================== */
+
+        .recommendation-section {
+            margin-bottom: var(--space-5);
+            animation: modalSectionEnter 0.32s ease backwards;
+            animation-delay: calc(var(--section-index, 0) * 70ms);
+        }
+
+        .recommendation-section:last-child {
+            margin-bottom: 0;
+        }
+
+        @keyframes modalSectionEnter {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-label {
+            font-size: var(--text-xs);
+            font-weight: var(--font-semibold);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: var(--space-3);
+        }
+
+        .recommendation-content {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.75) 100%);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 2px solid rgba(255, 255, 255, 0.95);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            position: relative;
+            overflow: hidden;
+            box-shadow:
+                0 4px 16px rgba(110, 154, 66, 0.12),
+                0 1px 4px rgba(0, 0, 0, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                inset 0 -1px 0 rgba(110, 154, 66, 0.1);
+        }
+
+        .recommendation-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary), transparent);
+            opacity: 0.8;
+            box-shadow: 0 0 16px rgba(110, 154, 66, 0.4);
+        }
+
+        .variant-cards {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .variant-card {
+            padding: var(--space-4);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.7) 100%);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            position: relative;
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.1),
+                0 1px 3px rgba(0, 0, 0, 0.03),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+        }
+
+        .variant-card:hover {
+            border-color: rgba(110, 154, 66, 0.4);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 100%);
+            transform: translateX(4px) translateY(-1px);
+            box-shadow:
+                0 6px 20px rgba(110, 154, 66, 0.18),
+                0 2px 6px rgba(0, 0, 0, 0.04),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 20px rgba(110, 154, 66, 0.12);
+        }
+
+        .variant-card.selected {
+            border-color: var(--brand-primary);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.85) 100%);
+            box-shadow:
+                0 8px 24px rgba(110, 154, 66, 0.25),
+                0 2px 8px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 30px rgba(110, 154, 66, 0.15);
+        }
+
+        .variant-card.selected::after {
+            position: absolute;
+            top: var(--space-3);
+            right: var(--space-3);
+            width: 24px;
+            height: 24px;
+            background: var(--brand-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            content: '\2713';
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .variant-label {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--text-xs);
+            font-weight: var(--font-semibold);
+            color: var(--brand-primary);
+            margin-bottom: var(--space-2);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* Reel-specific tips card */
+        .reel-tips-card {
+            background: linear-gradient(145deg, rgba(110, 154, 66, 0.08) 0%, rgba(110, 154, 66, 0.04) 100%);
+            border: 1px solid rgba(110, 154, 66, 0.2);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+        }
+
+        .reel-tip {
+            font-size: var(--text-sm);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+            line-height: 1.5;
+        }
+
+        .reel-tip strong {
+            color: var(--brand-primary);
+            font-size: var(--text-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Modal action buttons */
+        .modal-actions {
+            display: flex;
+            gap: var(--space-3);
+            margin-top: var(--space-6);
+            padding-top: var(--space-5);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+
+        /* Hashtag grid in modal */
+        .modal-hashtags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            margin-top: var(--space-3);
+        }
+
+        .modal-hashtags .hashtag-chip {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.75) 100%);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
+            border: 2px solid rgba(255, 255, 255, 0.95);
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--text-sm);
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+        }
+
+        .modal-hashtags .hashtag-chip:hover {
+            border-color: rgba(110, 154, 66, 0.5);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.85) 100%);
+            box-shadow:
+                0 4px 12px rgba(110, 154, 66, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 16px rgba(110, 154, 66, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .modal-hashtags .hashtag-chip.selected {
+            background: linear-gradient(145deg, rgba(110, 154, 66, 0.9) 0%, rgba(110, 154, 66, 0.75) 100%);
+            border-color: rgba(110, 154, 66, 0.95);
+            color: white;
+            box-shadow:
+                0 2px 8px rgba(110, 154, 66, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-hashtags .hashtag-chip.selected:hover {
+            background: linear-gradient(145deg, rgba(110, 154, 66, 0.95) 0%, rgba(110, 154, 66, 0.85) 100%);
+            box-shadow:
+                0 4px 12px rgba(110, 154, 66, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        /* Optimal time display */
+        .optimal-time-display {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .time-badge {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) var(--space-4);
+            background: linear-gradient(135deg, rgba(110, 154, 66, 0.18) 0%, rgba(138, 184, 90, 0.1) 100%);
+            border: 1px solid rgba(110, 154, 66, 0.3);
+            border-radius: var(--radius-md);
+            font-size: var(--text-lg);
+            font-weight: var(--font-semibold);
+            color: var(--brand-primary);
+            box-shadow: 0 0 16px rgba(110, 154, 66, 0.15);
+        }
+
+        .time-badge svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .time-reasoning {
+            flex: 1;
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Schedule time picker */
+        .schedule-time-picker input[type="datetime-local"] {
+            width: 100%;
+            padding: var(--space-2) var(--space-3);
+            border: 1px solid rgba(110, 154, 66, 0.3);
+            border-radius: var(--radius-md);
+            background: white;
+            font-size: var(--text-sm);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="brand">
+                <div class="brand-icon">
+                    <img src="assets/panda-icon.png" alt="Panda">
+                </div>
+                <div class="brand-text">
+                    <h1>Reel Maker</h1>
+                    <p>Create Instagram-ready Reels from your photos</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12l9-9 9 9M5 10v10a2 2 0 002 2h10a2 2 0 002-2V10"/>
+                    </svg>
+                    Back to Dashboard
+                </a>
+                <button class="btn btn-primary" id="newProjectBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    New Reel
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-container">
+        <!-- Projects List View -->
+        <div id="projectsListView">
+            <div class="page-header">
+                <h2 class="page-title">Your Reel Projects</h2>
+                <p class="page-subtitle">Upload photos and videos, then generate beautiful Instagram Reels</p>
+            </div>
+
+            <section class="projects-section">
+                <div class="section-header">
+                    <h3 class="section-title">Recent Projects</h3>
+                </div>
+
+                <div id="projectsGrid" class="projects-grid">
+                    <!-- Projects will be loaded here -->
+                    <div class="skeleton" style="height: 160px;"></div>
+                    <div class="skeleton" style="height: 160px;"></div>
+                    <div class="skeleton" style="height: 160px;"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state hidden">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                            <circle cx="15" cy="15" r="2"/>
+                        </svg>
+                    </div>
+                    <h3 class="empty-title">No Reel Projects Yet</h3>
+                    <p class="empty-text">Create your first Reel by uploading photos and videos</p>
+                    <button class="btn btn-primary" id="emptyStateNewBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Create New Reel
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Project Detail View -->
+        <div id="projectDetailView" class="hidden">
+            <a href="#" class="back-btn" id="backToList">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Projects
+            </a>
+
+            <div class="detail-layout">
+                <div class="main-content">
+                    <div class="glass-card" style="padding: var(--space-6);">
+                        <div class="detail-header">
+                            <h2 id="detailTitle" class="page-title" style="margin-bottom: 0;">Project Title</h2>
+                            <div class="detail-actions">
+                                <button class="btn btn-danger" id="deleteProjectBtn" type="button">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 6h18"/>
+                                        <path d="M8 6V4h8v2"/>
+                                        <path d="M19 6l-1 14H6L5 6"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                    </svg>
+                                    Delete Project
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Zone -->
+                        <div class="upload-zone" id="uploadZone">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                <path d="M17 8l-5-5-5 5"/>
+                                <path d="M12 3v12"/>
+                            </svg>
+                            <p class="upload-text">Drop photos & videos here</p>
+                            <p class="upload-hint">or click to browse (JPG, PNG, HEIC, MP4, MOV)</p>
+                            <input type="file" id="fileInput" multiple accept="image/*,video/*" style="display: none;">
+                        </div>
+
+                        <!-- Assets Grid -->
+                        <div id="assetsGrid" class="assets-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <aside class="sidebar">
+                    <!-- Status Card -->
+                    <div class="glass-card sidebar-card">
+                        <h3 class="sidebar-title">Generation Status</h3>
+                        <div class="status-list">
+                            <div class="status-item">
+                                <span class="status-indicator complete" id="statusAssets"></span>
+                                Assets uploaded
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusAnalysis"></span>
+                                Analyzing content
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusPlan"></span>
+                                Edit plan created
+                            </div>
+                            <div class="status-item">
+                                <span class="status-indicator" id="statusRender"></span>
+                                Video rendering
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Card -->
+                    <div class="glass-card sidebar-card">
+                        <h3 class="sidebar-title">Preview</h3>
+                        <div class="preview-player">
+                            <div class="preview-placeholder">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M3 9h18M9 21V9"/>
+                                    <circle cx="15" cy="15" r="2"/>
+                                </svg>
+                                <p>Generate to see preview</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary generate-btn" id="generateBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            <span id="generateBtnText">Generate Reel</span>
+                        </button>
+                        <p id="generationStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; display: none;"></p>
+
+                        <!-- Post-generation actions -->
+                        <div id="postGenerateActions" style="display: none; margin-top: 12px;">
+                            <!-- Context input for AI recommendations -->
+                            <div id="reelContextInput" style="margin-bottom: 12px;">
+                                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Describe your reel (helps AI recommendations)</label>
+                                <input type="text" id="reelContextText" class="form-input" style="font-size: 13px; margin-bottom: 8px;" placeholder="e.g., Crispy dosa preparation with chutney...">
+                            </div>
+                            <button class="btn btn-secondary" id="getRecommendationsBtn" style="width: 100%; margin-bottom: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                                Get AI Recommendations
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <!-- New Project Modal -->
+    <div class="modal-overlay" id="newProjectModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Reel</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="projectTitle">Project Name</label>
+                    <input type="text" class="form-input" id="projectTitle" placeholder="e.g., Weekend Specials">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Choose a Template</label>
+                    <div class="template-grid" id="templateGrid">
+                        <!-- Templates loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelModal">Cancel</button>
+                <button class="btn btn-primary" id="createProjectBtn">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // REEL MAKER - UI Controller
+        // ========================================
+
+        const API_BASE = '/api/reels';
+        let currentProject = null;
+        let selectedTemplate = 'dish_showcase';
+        let templates = {};
+
+        // Icon helper function - matches dashboard exactly
+        const iconSprite = 'assets/ui-icons.svg';
+        function icon(name, className = 'icon', hidden = true) {
+            const ariaHidden = hidden ? 'true' : 'false';
+            return `<svg class="${className}" aria-hidden="${ariaHidden}"><use href="${iconSprite}#${name}"></use></svg>`;
+        }
+
+        // DOM Elements
+        const projectsListView = document.getElementById('projectsListView');
+        const projectDetailView = document.getElementById('projectDetailView');
+        const projectsGrid = document.getElementById('projectsGrid');
+        const emptyState = document.getElementById('emptyState');
+        const newProjectModal = document.getElementById('newProjectModal');
+        const templateGrid = document.getElementById('templateGrid');
+        const assetsGrid = document.getElementById('assetsGrid');
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        // ========================================
+        // Initialization
+        // ========================================
+
+        async function init() {
+            await loadTemplates();
+            await loadProjects();
+            setupEventListeners();
+            checkPublishReadiness(); // Check on load - matches dashboard
+        }
+
+        async function loadTemplates() {
+            try {
+                const response = await fetch(`${API_BASE}/templates`);
+                templates = await response.json();
+                renderTemplateGrid();
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch(`${API_BASE}/projects`);
+                const data = await response.json();
+                renderProjects(data.projects);
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+                showEmptyState();
+            }
+        }
+
+        // ========================================
+        // Rendering
+        // ========================================
+
+        function renderTemplateGrid() {
+            templateGrid.innerHTML = Object.entries(templates).map(([key, template]) => `
+                <div class="template-option ${key === selectedTemplate ? 'selected' : ''}" data-key="${key}">
+                    <h4>${template.name}</h4>
+                    <p>${template.description}</p>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            templateGrid.querySelectorAll('.template-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    templateGrid.querySelectorAll('.template-option').forEach(t => t.classList.remove('selected'));
+                    el.classList.add('selected');
+                    selectedTemplate = el.dataset.key;
+                });
+            });
+        }
+
+        function renderProjects(projects) {
+            if (!projects || projects.length === 0) {
+                showEmptyState();
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            projectsGrid.innerHTML = projects.map(project => `
+                <div class="glass-card project-card" data-id="${project.id}">
+                    <div class="project-card-header">
+                        <h3 class="project-title">${escapeHtml(project.title)}</h3>
+                        <div class="project-card-actions">
+                            <span class="project-status status-${project.status}">${project.status}</span>
+                            <button class="icon-btn project-delete" data-id="${project.id}" data-title="${escapeHtml(project.title)}" type="button" aria-label="Delete project">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18"/>
+                                    <path d="M8 6V4h8v2"/>
+                                    <path d="M19 6l-1 14H6L5 6"/>
+                                    <path d="M10 11v6M14 11v6"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <span class="template-badge">${templates[project.template_key]?.name || project.template_key}</span>
+                    <div class="project-meta">
+                        <span class="project-meta-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                                <path d="M3 8h18M8 4v16"/>
+                            </svg>
+                            ${formatDate(project.created_at)}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            projectsGrid.querySelectorAll('.project-card').forEach(card => {
+                card.addEventListener('click', () => openProject(card.dataset.id));
+            });
+
+            projectsGrid.querySelectorAll('.project-delete').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const { id, title } = button.dataset;
+                    await deleteProject(id, title, button);
+                });
+            });
+        }
+
+        function showEmptyState() {
+            projectsGrid.innerHTML = '';
+            emptyState.classList.remove('hidden');
+        }
+
+        function renderAssets(assets) {
+            if (!assets || assets.length === 0) {
+                assetsGrid.innerHTML = '';
+                return;
+            }
+
+            assetsGrid.innerHTML = assets.map(asset => {
+                // Use preview_url if available, otherwise show placeholder
+                const hasPreview = asset.preview_url && asset.preview_url.startsWith('/uploads/');
+                const mediaContent = hasPreview 
+                    ? (asset.media_type === 'video'
+                        ? `<video src="${asset.preview_url}" preload="metadata"></video>`
+                        : `<img src="${asset.preview_url}" alt="Asset">`)
+                    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(110,154,66,0.1),rgba(138,184,90,0.05));">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(110,154,66,0.5)" stroke-width="1.5">
+                            ${asset.media_type === 'video'
+                                ? '<path d="M5 3v8"/><path d="M8 3v8"/><path d="M5 7h3"/><path d="M6.5 11v10"/><path d="M15 3c0 4-2 5-2 7v11"/><path d="M19 3v18"/>'
+                                : '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>'}
+                        </svg>
+                       </div>`;
+                return `
+                <div class="asset-item" data-id="${asset.id}">
+                    ${mediaContent}
+                    <button class="asset-remove" onclick="removeAsset('${asset.id}')">×</button>
+                </div>
+                `;
+            }).join('');
+
+            // Enable generate button if we have assets (Phase 1: shows Phase 2 notice when clicked)
+            const generateBtn = document.getElementById('generateBtn');
+            const hasAssets = assets.length > 0;
+            generateBtn.disabled = !hasAssets;
+            const generateBtnText = document.getElementById('generateBtnText');
+            if (generateBtnText) {
+                generateBtnText.textContent = hasAssets
+                    ? 'Generate Reel'
+                    : 'Upload Assets First';
+            }
+            
+            // Update status indicator
+            document.getElementById('statusAssets').classList.add('complete');
+        }
+
+        // ========================================
+        // Actions
+        // ========================================
+
+        async function openProject(projectId) {
+            try {
+                const response = await fetch(`${API_BASE}/projects/${projectId}`);
+                const data = await response.json();
+
+                currentProject = data.project;
+
+                // Update UI
+                document.getElementById('detailTitle').textContent = data.project.title;
+                renderAssets(data.assets);
+                updateStatusIndicators(data.project.status);
+
+                // Update preview player
+                updatePreviewPlayer(data.project, data.latest_render);
+
+                // Update generate button based on status
+                updateGenerateButton(data.project.status, data.assets.length);
+
+                // Update publish UI (Phase 4) - check Instagram status
+                const instagramStatus = await checkInstagramStatus();
+                updatePublishUI(data.project, instagramStatus);
+
+                // Switch views
+                projectsListView.classList.add('hidden');
+                projectDetailView.classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load project:', error);
+                alert('Failed to load project. Please try again.');
+            }
+        }
+
+        function updatePreviewPlayer(project, latestRender) {
+            const previewContainer = document.querySelector('.preview-player');
+            const status = project.status;
+            const outputUrl = project.final_output_url;
+            
+            // If video is rendered (Phase 3 complete), show video player
+            if (status === 'ready' && outputUrl) {
+                previewContainer.innerHTML = `
+                    <video controls autoplay muted loop style="width: 100%; height: 100%; object-fit: contain; border-radius: var(--radius-lg);">
+                        <source src="${outputUrl}" type="video/mp4">
+                        Your browser does not support video.
+                    </video>
+                `;
+            } else if (status === 'plan_ready') {
+                // Phase 2 complete, Phase 3 pending
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--brand-primary);">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <p style="color: var(--brand-primary);">Edit plan ready!</p>
+                        <p style="font-size: 11px;">Video rendering in progress...</p>
+                    </div>
+                `;
+            } else if (status === 'rendering') {
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="animation: spin 2s linear infinite; color: var(--brand-warning);">
+                            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                        </svg>
+                        <p>Rendering video...</p>
+                    </div>
+                `;
+            } else {
+                // Default placeholder
+                previewContainer.innerHTML = `
+                    <div class="preview-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                            <circle cx="15" cy="15" r="2"/>
+                        </svg>
+                        <p>Generate to see preview</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateGenerateButton(status, assetCount) {
+            const generateBtn = document.getElementById('generateBtn');
+            const hasAssets = assetCount > 0;
+            const defaultLabel = hasAssets ? 'Generate Reel' : 'Upload Assets First';
+            
+            if (status === 'ready') {
+                // Video already rendered - enable regenerate
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerate
+                `;
+                generateBtn.disabled = false;
+                // Change click handler to regenerate
+                generateBtn.onclick = () => regenerateReel();
+            } else if (status === 'plan_ready' || status === 'rendering') {
+                // Generation in progress
+                generateBtn.disabled = true;
+                generateBtn.onclick = null;
+            } else {
+                // Ready to generate
+                generateBtn.disabled = !hasAssets;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    <span id="generateBtnText">${defaultLabel}</span>
+                `;
+                generateBtn.onclick = null; // Use default click handler
+            }
+        }
+
+        async function regenerateReel() {
+            if (!currentProject) return;
+
+            const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('generationStatus');
+
+            // Confirm regeneration
+            if (!confirm('Regenerate this Reel? This will create a new version with the current template.')) {
+                return;
+            }
+
+            try {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerating...
+                `;
+                statusText.style.display = 'block';
+                statusText.textContent = 'Starting regeneration...';
+
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/regenerate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        target_duration_seconds: 30, 
+                        template_key: currentProject.template_key 
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Regeneration failed');
+                }
+
+                const data = await response.json();
+                
+                // Start polling for status
+                pollJobStatus(data.job_id);
+            } catch (error) {
+                console.error('Regeneration failed:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.style.color = 'var(--brand-error)';
+                
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Regenerate
+                `;
+            }
+        }
+
+        async function deleteProject(projectId, projectTitle = 'this project', triggerButton = null) {
+            if (!projectId) return;
+
+            const confirmed = confirm(`Delete "${projectTitle}"? This will remove the project, assets, previews, and generated output.`);
+            if (!confirmed) return;
+
+            const originalButtonHtml = triggerButton ? triggerButton.innerHTML : null;
+
+            try {
+                if (triggerButton) {
+                    triggerButton.disabled = true;
+                    triggerButton.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
+                        </svg>
+                    `;
+                }
+
+                const response = await fetch(`${API_BASE}/projects/${projectId}`, {
+                    method: 'DELETE'
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(payload.detail || 'Delete failed');
+                }
+
+                if (currentProject && currentProject.id === projectId) {
+                    projectDetailView.classList.add('hidden');
+                    projectsListView.classList.remove('hidden');
+                    currentProject = null;
+                }
+
+                await loadProjects();
+            } catch (error) {
+                console.error('Delete project failed:', error);
+                alert(`Failed to delete project: ${error.message}`);
+                if (triggerButton) {
+                    triggerButton.disabled = false;
+                    triggerButton.innerHTML = originalButtonHtml;
+                }
+                return;
+            }
+        }
+
+        function updateStatusIndicators(status) {
+            const indicators = {
+                'draft': ['statusAssets'],
+                'queued': ['statusAssets', 'statusAnalysis'],
+                'analyzing': ['statusAssets', 'statusAnalysis'],
+                'plan_ready': ['statusAssets', 'statusAnalysis', 'statusPlan'],  // Phase 2 complete
+                'rendering': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender'],
+                'ready': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender'],  // Phase 3 complete
+                'failed': ['statusAssets'],
+                'published': ['statusAssets', 'statusAnalysis', 'statusPlan', 'statusRender']
+            };
+
+            const activeStatuses = indicators[status] || ['statusAssets'];
+            
+            document.querySelectorAll('.status-indicator').forEach(el => {
+                el.classList.remove('complete', 'active');
+                if (activeStatuses.includes(el.id)) {
+                    if (status === 'analyzing' && el.id === 'statusAnalysis') {
+                        el.classList.add('active');
+                    } else if (status === 'rendering' && el.id === 'statusRender') {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.add('complete');
+                    }
+                }
+            });
+        }
+
+        async function createProject() {
+            const title = document.getElementById('projectTitle').value.trim();
+            if (!title) {
+                alert('Please enter a project name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/projects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, template_key: selectedTemplate })
+                });
+
+                if (!response.ok) throw new Error('Failed to create project');
+
+                const data = await response.json();
+                closeModal();
+                openProject(data.project_id);
+                await loadProjects();
+            } catch (error) {
+                console.error('Failed to create project:', error);
+                alert('Failed to create project. Please try again.');
+            }
+        }
+
+        async function uploadFiles(files) {
+            if (!currentProject) return;
+
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            try {
+                uploadZone.style.opacity = '0.6';
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/assets`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+
+                const data = await response.json();
+                
+                // Refresh project data
+                openProject(currentProject.id);
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert('Failed to upload files. Please try again.');
+            } finally {
+                uploadZone.style.opacity = '1';
+            }
+        }
+
+        // Phase 2: Real generation with async processing
+        async function generateReel() {
+            if (!currentProject) return;
+
+            const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('generationStatus');
+
+            try {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                    </svg>
+                    Starting...
+                `;
+                statusText.style.display = 'block';
+                statusText.textContent = 'Queueing analysis job...';
+
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        target_duration_seconds: 30, 
+                        template_key: currentProject.template_key 
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Generation failed');
+                }
+
+                const data = await response.json();
+                
+                // Start polling for status
+                pollJobStatus(data.job_id);
+            } catch (error) {
+                console.error('Generation failed:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.style.color = 'var(--brand-error)';
+                
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    Retry Generation
+                `;
+            }
+        }
+
+        async function pollJobStatus(jobId) {
+            if (!currentProject) return;
+
+            const statusText = document.getElementById('generationStatus');
+            const generateBtn = document.getElementById('generateBtn');
+
+            const checkStatus = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/projects/${currentProject.id}/jobs/${jobId}`);
+                    const data = await response.json();
+                    
+                    updateStatusIndicators(data.status);
+                    
+                    // Update status message
+                    const statusMessages = {
+                        'queued': 'Waiting to start...',
+                        'analyzing': 'AI analyzing your assets...',
+                        'running': 'Creating edit plan...',
+                        'plan_ready': 'Edit plan ready! Phase 3 (video rendering) coming soon.',
+                        'completed': 'Video rendered successfully!',  // Phase 3
+                        'failed': 'Analysis failed: ' + (data.error_message || 'Unknown error')
+                    };
+                    statusText.textContent = statusMessages[data.status] || `Status: ${data.status}`;
+                    
+                    if (data.status === 'plan_ready' || data.status === 'completed') {
+                        const isPlanReady = data.status === 'plan_ready';
+                        generateBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            ${isPlanReady ? 'Analysis Complete' : 'Video Ready'}
+                        `;
+                        statusText.style.color = 'var(--brand-success)';
+                        // Refresh to show any updates
+                        openProject(currentProject.id);
+                    } else if (data.status === 'failed') {
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Retry Generation
+                        `;
+                        statusText.style.color = 'var(--brand-error)';
+                    } else {
+                        // Continue polling
+                        setTimeout(checkStatus, 2000);
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                    statusText.textContent = 'Checking status...';
+                    setTimeout(checkStatus, 5000);
+                }
+            };
+
+            checkStatus();
+        }
+
+        function removeAsset(assetId) {
+            // TODO: Implement asset removal
+            console.log('Remove asset:', assetId);
+        }
+
+        // ========================================
+        // Phase 4: Publishing
+        // ========================================
+
+        // Check Instagram connection status
+        async function checkInstagramStatus() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                if (!response.ok) throw new Error('Failed to check status');
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to check Instagram status:', error);
+                return { connected: false, can_publish: false };
+            }
+        }
+
+        function updatePublishUI(project, instagramStatus) {
+            const postActions = document.getElementById('postGenerateActions');
+
+            // Show post-generation actions if video is ready
+            if (project.status === 'ready' || project.status === 'published') {
+                postActions.style.display = 'block';
+
+                // Set up recommendations button
+                const recBtn = document.getElementById('getRecommendationsBtn');
+                recBtn.onclick = () => getReelRecommendations(project.id);
+
+                // Check Instagram connection status for modal context
+                const isConnected = instagramStatus?.connected || false;
+                const canPublish = instagramStatus?.can_publish || false;
+
+                // Update button if already published
+                if (project.status === 'published') {
+                    const recBtn = document.getElementById('getRecommendationsBtn');
+                    if (recBtn) {
+                        recBtn.disabled = true;
+                        recBtn.innerHTML = `${icon('check', 'icon icon-sm')} Published`;
+                    }
+                }
+            } else {
+                postActions.style.display = 'none';
+            }
+        }
+
+        // Current recommendation data
+        let currentReelRecommendation = null;
+
+        // Get AI recommendations for reel
+        async function getReelRecommendations(projectId) {
+            const btn = document.getElementById('getRecommendationsBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;margin-right:8px;"></span> Generating...`;
+
+            try {
+                // Get context from input if provided
+                const contextInput = document.getElementById('reelContextText');
+                const context = contextInput ? contextInput.value.trim() : '';
+
+                const response = await fetch(`${API_BASE}/projects/${projectId}/recommendations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ context: context })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get recommendations');
+                }
+
+                const data = await response.json();
+                currentReelRecommendation = data;
+                showRecommendationModal(data);
+            } catch (error) {
+                console.error('Failed to get recommendations:', error);
+                showToast('Failed to get recommendations: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `${icon('sparkles', 'icon icon-sm')} Get AI Recommendations`;
+            }
+        }
+
+        // Global state for publish readiness - matches dashboard
+        let instagramCanPublish = false;
+
+        // Check Instagram publish readiness - matches dashboard
+        async function checkPublishReadiness() {
+            try {
+                const response = await fetch('/api/instagram/status');
+                const status = await response.json();
+                instagramCanPublish = status.can_publish === true;
+                return instagramCanPublish;
+            } catch (err) {
+                console.error('Failed to check publish readiness:', err);
+                instagramCanPublish = false;
+                return false;
+            }
+        }
+
+        // Show recommendation modal - EXACT copy from dashboard.html
+        function showRecommendationModal(data) {
+            const rec = data;
+            const modal = document.getElementById('recommendationModal');
+            const content = document.getElementById('recommendationModalContent');
+
+            // Build variants HTML
+            let variantsHtml = '';
+            if (rec.caption_variants && rec.caption_variants.length > 0) {
+                variantsHtml = `
+                    <div class="recommendation-section" style="--section-index: 1;">
+                        <p class="section-label">Choose Your Style</p>
+                        <div id="captionVariants" class="variant-cards">
+                            ${rec.caption_variants.map((variant, i) => `
+                                <div class="variant-card ${i === 0 ? 'selected' : ''}" onclick="selectReelVariant(this, 'caption', ${i})">
+                                    <div class="variant-label">
+                                        <span>${variant.style || 'Option ' + (i + 1)}</span>
+                                    </div>
+                                    <p>${variant.caption}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Build hashtags HTML - clickable for selection
+            const hashtags = rec.suggested_hashtags || (rec.hashtag_variants?.[0]?.hashtags) || [];
+            const hashtagHtml = hashtags.slice(0, 15).map((tag, index) => {
+                // Strip leading # if present to avoid double hashtags
+                const cleanTag = tag.startsWith('#') ? tag.substring(1) : tag;
+                return `<span class="hashtag-chip selected" data-hashtag="${cleanTag}" style="--chip-index: ${index};" onclick="toggleHashtag(this)">#${cleanTag}</span>`;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="recommendation-section" style="--section-index: 0;">
+                    <p class="section-label">AI-Generated Caption</p>
+                    <div class="recommendation-content caption" id="selectedCaption">
+                        ${rec.suggested_caption || rec.caption_variants?.[0]?.caption || 'No caption generated'}
+                    </div>
+                </div>
+                ${variantsHtml}
+                <div class="recommendation-section" style="--section-index: 2;">
+                    <p class="section-label">Recommended Hashtags <span style="color: var(--text-muted);">(${hashtags.length})</span></p>
+                    <div class="modal-hashtags">
+                        ${hashtagHtml}
+                    </div>
+                </div>
+                <div class="recommendation-section" style="--section-index: 3;">
+                    <p class="section-label">Best Time to Post</p>
+                    <div class="recommendation-content">
+                        <div class="optimal-time-display">
+                            <div class="time-badge">${icon('clock', 'icon icon-sm')}${rec.optimal_time?.time || '6:00 PM'}</div>
+                            <div class="time-reasoning">${rec.optimal_time?.reasoning || 'Peak engagement time for maximum reach'}</div>
+                        </div>
+                        <div class="schedule-time-picker" style="margin-top: var(--space-3);">
+                            <label style="font-size: var(--text-xs); color: var(--text-muted); display: block; margin-bottom: var(--space-1);">Schedule for:</label>
+                            <input type="datetime-local" id="reelScheduleTime" class="form-input" style="font-size: var(--text-sm);"
+                                value="${new Date(Date.now() + 86400000).toISOString().slice(0, 16)}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions recommendation-section" style="--section-index: 4;">
+                    <button class="btn btn-primary" id="modalScheduleBtn">
+                        ${icon('calendar', 'icon icon-sm')} Schedule Reel
+                    </button>
+                    ${instagramCanPublish ? `
+                    <button class="btn btn-secondary" id="modalPublishBtn">
+                        ${icon('send', 'icon icon-sm')} Publish Now
+                    </button>
+                    ` : `
+                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">
+                        ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
+                    </button>
+                    `}
+                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">
+                        Save for Later
+                    </button>
+                </div>
+            `;
+
+            // Wire up action buttons
+            document.getElementById('modalScheduleBtn').onclick = () => executeModalSchedule();
+            document.getElementById('modalPublishBtn').onclick = () => executeModalPublish();
+
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Select variant - updates display and tracks selection index
+        function selectReelVariant(element, type, index) {
+            document.querySelectorAll(`#${type}Variants .variant-card`).forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedReelVariant = index;
+
+            if (currentReelRecommendation && currentReelRecommendation.caption_variants) {
+                const variant = currentReelRecommendation.caption_variants[index];
+                if (variant) {
+                    const selectedCaption = document.getElementById('selectedCaption');
+                    selectedCaption.classList.remove('content-swap');
+                    void selectedCaption.offsetWidth;
+                    selectedCaption.textContent = variant.caption;
+                    selectedCaption.classList.add('content-swap');
+                }
+            }
+        }
+
+        // Toggle hashtag - matches dashboard
+        function toggleHashtag(chip) {
+            chip.classList.toggle('selected');
+        }
+
+        // Execute schedule directly from modal
+        async function executeModalSchedule() {
+            if (!currentProject || !currentReelRecommendation) return;
+
+            // Read from DOM — picks up user's variant selection and any edits
+            const caption = document.getElementById('selectedCaption')?.textContent?.trim() || '';
+            const hashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip.selected'))
+                .map(c => c.dataset.hashtag);
+            const scheduleTimeInput = document.getElementById('reelScheduleTime');
+            const scheduledTime = scheduleTimeInput ? new Date(scheduleTimeInput.value).toISOString() : null;
+
+            const btn = document.getElementById('modalScheduleBtn');
+            btn.disabled = true;
+            btn.innerHTML = `${icon('calendar', 'icon icon-sm')} Scheduling...`;
+
+            try {
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ caption, hashtags, scheduled_time: scheduledTime })
+                });
+
+                if (!response.ok) throw new Error('Failed to schedule');
+
+                const data = await response.json();
+                closeRecommendationModal();
+                showToast(`Reel scheduled for ${new Date(data.scheduled_time).toLocaleString()}`, 'success');
+
+                // Refresh publish UI
+                const instagramStatus = await checkInstagramStatus();
+                updatePublishUI(currentProject, instagramStatus);
+            } catch (error) {
+                showToast('Failed to schedule: ' + error.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = `${icon('calendar', 'icon icon-sm')} Schedule Reel`;
+            }
+        }
+
+        // Execute publish directly from modal
+        async function executeModalPublish() {
+            if (!currentProject || !currentReelRecommendation) return;
+
+            // Read from DOM — picks up user's variant selection and hashtag toggles
+            const caption = document.getElementById('selectedCaption')?.textContent?.trim() || '';
+            const hashtags = Array.from(document.querySelectorAll('.modal-hashtags .hashtag-chip.selected'))
+                .map(c => c.dataset.hashtag);
+
+            closeRecommendationModal();
+
+            try {
+                const response = await fetch(`${API_BASE}/projects/${currentProject.id}/publish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        caption: caption,
+                        hashtags: hashtags,
+                        share_to_feed: true
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Publish failed');
+                }
+
+                showToast('Reel published to Instagram!', 'success');
+                openProject(currentProject.id);
+            } catch (error) {
+                console.error('Publish failed:', error);
+                showToast('Failed to publish: ' + error.message, 'error');
+            }
+        }
+
+        // Close recommendation modal - matches dashboard
+        function closeRecommendationModal() {
+            const modal = document.getElementById('recommendationModal');
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        // Track selected variant index (used as fallback; DOM is the primary source of truth)
+        let selectedReelVariant = 0;
+
+
+
+        // ========================================
+        // Event Listeners
+        // ========================================
+        // Event Listeners
+        // ========================================
+
+        function setupEventListeners() {
+            // Modal controls
+            document.getElementById('newProjectBtn').addEventListener('click', openModal);
+            document.getElementById('emptyStateNewBtn').addEventListener('click', openModal);
+            document.getElementById('cancelModal').addEventListener('click', closeModal);
+            document.getElementById('createProjectBtn').addEventListener('click', createProject);
+
+            // Close modal on overlay click
+            newProjectModal.addEventListener('click', (e) => {
+                if (e.target === newProjectModal) closeModal();
+            });
+
+            // Back button
+            document.getElementById('backToList').addEventListener('click', (e) => {
+                e.preventDefault();
+                projectDetailView.classList.add('hidden');
+                projectsListView.classList.remove('hidden');
+                currentProject = null;
+                loadProjects();
+            });
+
+            // Upload zone
+            uploadZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => uploadFiles(e.target.files));
+
+            // Drag and drop
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                uploadFiles(e.dataTransfer.files);
+            });
+
+            // Generate button - Phase 2: Enabled with real async processing
+            document.getElementById('generateBtn').addEventListener('click', generateReel);
+
+            // Delete current project
+            document.getElementById('deleteProjectBtn').addEventListener('click', () => {
+                if (!currentProject) return;
+                deleteProject(currentProject.id, currentProject.title, document.getElementById('deleteProjectBtn'));
+            });
+        }
+
+        function openModal() {
+            newProjectModal.classList.add('active');
+            document.getElementById('projectTitle').value = '';
+            document.getElementById('projectTitle').focus();
+        }
+
+        function closeModal() {
+            newProjectModal.classList.remove('active');
+        }
+
+        // ========================================
+        // Utilities
+        // ========================================
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        // Add spin/pulse keyframes only
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.4); }
+                50% { box-shadow: 0 0 0 10px rgba(110, 154, 66, 0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Toast notifications - matches dashboard
+        function showToast(message, type = 'success') {
+            let container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icon(type === 'success' ? 'check' : 'alert', 'icon')}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Close recommendation modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeRecommendationModal();
+        });
+
+        // Initialize - overlay click listener added after DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const recModal = document.getElementById('recommendationModal');
+            if (recModal) {
+                recModal.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('modal-overlay')) closeRecommendationModal();
+                });
+            }
+        });
+
+        init();
+    </script>
+    
+    <!-- Service Worker Registration for PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker registered:', registration);
+
+                    // Check for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('Service Worker update found:', newWorker);
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New version available - force refresh
+                                console.log('New version available, reloading...');
+                                window.location.reload();
+                            }
+                        });
+                    });
+
+                    // Check if there's a new version waiting
+                    if (registration.waiting) {
+                        console.log('New version waiting, reloading...');
+                        window.location.reload();
+                    }
+                })
+                .catch((error) => {
+                    console.log('Service Worker registration failed:', error);
+                });
+
+            // Listen for messages from Service Worker
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data === 'SKIP_WAITING') {
+                    window.location.reload();
+                }
+            });
+        }
+    </script>
+
+    <!-- Icon Sprite -->
+    <svg style="display: none;">
+        <defs>
+            <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <path d="M16 2v4M8 2v4M3 10h18"/>
+            </symbol>
+            <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 2L11 13"/>
+                <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+            </symbol>
+            <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+            </symbol>
+        </defs>
+    </svg>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Recommendation Modal -->
+    <div class="modal-overlay" id="recommendationModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>
+                    <svg class="icon icon-lg"><use href="assets/ui-icons.svg#sparkles"></use></svg>
+                    AI Recommendation
+                </h2>
+                <button class="modal-close" onclick="closeRecommendationModal()" aria-label="Close recommendation">
+                    <svg class="icon"><use href="assets/ui-icons.svg#x"></use></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="recommendationModalContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Analyzing your reel...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

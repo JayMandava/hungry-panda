@@ -39,6 +39,7 @@ env/
 *.sqlite3
 project-context.db
 uploads/
+ui-ideas/
 *.log
 
 # OS
