@@ -3334,6 +3334,8 @@
         
         document.addEventListener('DOMContentLoaded', () => {
             loadDashboardData();
+            loadPendingContent(); // Load content queue
+            loadCompetitors(); // Load competitor insights
             setupUploadHandlers();
             checkPublishReadiness(); // Check on load
         });
