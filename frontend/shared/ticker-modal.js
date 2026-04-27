@@ -29,6 +29,7 @@ import {
   EASING_SPRING,
   EASING_SMOOTH,
   EASING_DRAMATIC,
+  DURATION_FAST,
   DURATION_BASE,
   DURATION_SLOW,
   DURATION_DRAMATIC,
@@ -477,12 +478,26 @@ class TickerModal {
     this.isOpen = true;
     console.log('[TickerModal] isOpen set to true, starting animation');
 
+    // Always ensure visibility first (critical for browsers that block animations)
+    this.overlay.style.display = 'flex';
+    this.modal.style.display = 'block';
+    
     if (!prefersReducedMotion()) {
       console.log('[TickerModal] Animating with reduced motion = false');
+      
+      // Start with visible but transparent for animation
+      this.overlay.style.opacity = '0';
+      this.modal.style.opacity = '0';
+      this.modal.style.transform = 'scale(0.9)';
+      
+      // Force reflow to ensure styles apply
+      void this.overlay.offsetHeight;
+      
       // Animate overlay
       const overlayAnim = animate(this.overlay, [{ opacity: 0 }, { opacity: 1 }], {
         duration: DURATION_BASE,
-        easing: EASING_SMOOTH
+        easing: EASING_SMOOTH,
+        fill: 'forwards'
       });
       console.log('[TickerModal] Overlay animation started:', overlayAnim);
 
@@ -492,24 +507,34 @@ class TickerModal {
         { opacity: 1, transform: 'scale(1)' }
       ], {
         duration: DURATION_DRAMATIC,
-        easing: EASING_DRAMATIC
+        easing: EASING_DRAMATIC,
+        fill: 'forwards'
       });
       console.log('[TickerModal] Modal animation started:', modalAnim);
 
       // Animate panda bounce
       this.startPandaAnimation();
 
-      // Safety fallback: ensure visibility even if animation fails
+      // Safety fallback: ensure visibility even if animation fails (500ms is safer)
       setTimeout(() => {
         if (this.overlay && this.isOpen) {
-          const currentOpacity = parseFloat(this.overlay.style.opacity || window.getComputedStyle(this.overlay).opacity);
-          if (currentOpacity < 0.5) {
-            console.warn('[TickerModal] Animation may have failed, forcing visibility');
-            this.overlay.style.opacity = '1';
+          const computedOpacity = window.getComputedStyle(this.overlay).opacity;
+          console.log('[TickerModal] Fallback check - computed opacity:', computedOpacity);
+          if (parseFloat(computedOpacity) < 0.5) {
+            console.warn('[TickerModal] Animation failed, forcing visibility');
+            this.overlay.style.cssText += '; opacity: 1 !important; display: flex !important;';
             if (this.modal) {
-              this.modal.style.opacity = '1';
-              this.modal.style.transform = 'scale(1)';
+              this.modal.style.cssText += '; opacity: 1 !important; transform: scale(1) !important;';
             }
+          }
+        }
+      }, 500);
+    } else {
+      // Reduced motion: show immediately
+      this.overlay.style.opacity = '1';
+      this.modal.style.opacity = '1';
+      this.modal.style.transform = 'scale(1)';
+    }
           }
         }
       }, 100);

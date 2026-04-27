@@ -4104,12 +4104,26 @@
                 
                 if (data.theme) {
                     showToast('Your new growth strategy is ready');
-                    // Store as current recommendation and show modal
-                    currentRecommendation = data;
-                    showRecommendationModal(data);
+                    // Format strategy data for the modal
+                    const strategyData = {
+                        content_id: 'strategy-' + Date.now(),
+                        recommendation: {
+                            suggested_caption: `This week's theme: ${data.theme}`,
+                            caption_variants: data.content_calendar?.map((day, i) => ({
+                                style: day.day || `Day ${i+1}`,
+                                caption: `${day.day}: ${day.content_type} - ${day.theme || data.theme}`
+                            })) || [],
+                            suggested_hashtags: data.hashtags?.discovery?.slice(0, 15) || data.hashtags || ['foodie', 'instafood'],
+                            optimal_time: { time: '6:00 PM', reasoning: data.insights?.[0] || 'Best engagement time' },
+                            strategy_notes: (data.growth_actions || []).join('\n')
+                        }
+                    };
+                    currentRecommendation = strategyData;
+                    showRecommendationModal(strategyData);
                     loadDashboardData();
                 }
             } catch (err) {
+                console.error('Strategy generation error:', err);
                 showToast('Unable to generate strategy. Please try again.', 'error');
             }
         }

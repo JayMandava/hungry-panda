@@ -1,0 +1,45 @@
+{
+  "testName": "TEST 1: Dashboard - Generate New Strategy",
+  "steps": [
+    {
+      "name": "Navigation",
+      "status": "PASSED"
+    },
+    {
+      "name": "Button Found and Clicked",
+      "status": "PASSED",
+      "details": {
+        "selector": "button:has-text(\"Generate New Strategy\")",
+        "text": "Generate New Strategy",
+        "visible": true,
+        "box": {
+          "x": 905,
+          "y": 668.34375,
+          "width": 338,
+          "height": 40
+        }
+      }
+    },
+    {
+      "name": "Modal Detection",
+      "status": "FAILED",
+      "details": {
+        "selector": ".modal-overlay",
+        "visible": false,
+        "computedStyle": {
+          "display": "none",
+          "opacity": "1",
+          "visibility": "visible",
+          "zIndex": "1000"
+        }
+      },
+      "modalFound": false
+    },
+    {
+      "name": "Console Error Check",
+      "status": "PASSED",
+      "errors": []
+    }
+  ],
+  "passed": false
+}

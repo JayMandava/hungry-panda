@@ -1,0 +1,42 @@
+{
+  "testName": "TEST 3: Verify Content Loading",
+  "checks": [
+    {
+      "section": "Content Queue",
+      "status": "NOT_FOUND",
+      "found": false
+    },
+    {
+      "section": "Insights",
+      "status": "NOT_FOUND",
+      "found": false
+    },
+    {
+      "section": "Strategy Status",
+      "status": "NOT_FOUND",
+      "found": false
+    },
+    {
+      "section": "Recent Content",
+      "status": "NOT_FOUND",
+      "found": false
+    },
+    {
+      "section": "Projects List",
+      "status": "NOT_FOUND",
+      "count": 0
+    },
+    {
+      "section": "Project Cards",
+      "status": "FOUND",
+      "count": 1
+    },
+    {
+      "section": "New Project Button",
+      "status": "FOUND",
+      "count": 2
+    }
+  ],
+  "passed": true,
+  "consoleErrors": []
+}
