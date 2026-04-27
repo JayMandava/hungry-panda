@@ -153,6 +153,10 @@ async def limit_upload_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     
     if content_length:
+        # Skip limit for reels endpoints (reels have their own handling via UploadFile)
+        if request.url.path.startswith("/api/reels"):
+            return await call_next(request)
+        
         max_size_bytes = config.MAX_UPLOAD_SIZE_MB * 1024 * 1024
         if int(content_length) > max_size_bytes:
             return JSONResponse(

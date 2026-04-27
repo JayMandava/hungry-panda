@@ -27,8 +27,8 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Request limits
-    # Maximum upload file size in MB (default 50MB for video uploads)
-    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+    # Maximum upload file size in MB (default 200MB for video uploads - reels need more)
+    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "200"))
     
     # CORS Settings
     # Comma-separated list of allowed origins. Use "*" for development only.
