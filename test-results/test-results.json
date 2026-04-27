@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-04-27T04:06:07.593Z",
+  "baseUrl": "http://localhost:8080",
+  "results": [
+    {
+      "test": "Dashboard",
+      "passed": true,
+      "queueVisible": true,
+      "insightsVisible": true,
+      "aiRecButtonVisible": true,
+      "aiRecButtonEnabled": true,
+      "errorCount": 0,
+      "moduleErrors": 0,
+      "showTickerErrors": 0,
+      "consoleLogs": [
+        {
+          "type": "log",
+          "text": "Service Worker registered: ServiceWorkerRegistration",
+          "location": {
+            "url": "http://localhost:8080/",
+            "lineNumber": 4177,
+            "columnNumber": 28
+          },
+          "timestamp": "2026-04-27T04:05:57.883Z"
+        }
+      ],
+      "errorLogs": []
+    },
+    {
+      "test": "Reels",
+      "passed": true,
+      "projectsVisible": true,
+      "emptyStateVisible": false,
+      "createButtonVisible": true,
+      "projectClickable": true,
+      "errorCount": 0,
+      "moduleErrors": 0,
+      "showTickerErrors": 0,
+      "consoleLogs": [
+        {
+          "type": "log",
+          "text": "Service Worker registered: ServiceWorkerRegistration",
+          "location": {
+            "url": "http://localhost:8080/reels.html",
+            "lineNumber": 3396,
+            "columnNumber": 28
+          },
+          "timestamp": "2026-04-27T04:06:01.846Z"
+        },
+        {
+          "type": "log",
+          "text": "Service Worker registered: ServiceWorkerRegistration",
+          "location": {
+            "url": "http://localhost:8080/reels.html",
+            "lineNumber": 3396,
+            "columnNumber": 28
+          },
+          "timestamp": "2026-04-27T04:06:06.033Z"
+        }
+      ],
+      "errorLogs": []
+    },
+    {
+      "test": "Shared Files",
+      "passed": true,
+      "results": [
+        {
+          "file": "/shared/ticker-modal.js",
+          "accessible": true,
+          "status": 200
+        },
+        {
+          "file": "/shared/animations.js",
+          "accessible": true,
+          "status": 200
+        },
+        {
+          "file": "/shared/quotes.js",
+          "accessible": true,
+          "status": 200
+        },
+        {
+          "file": "/shared/liquid-ui.css",
+          "accessible": true,
+          "status": 200
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0
+  }
+}
