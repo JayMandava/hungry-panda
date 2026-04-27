@@ -1,0 +1,651 @@
+/**
+ * Hungry Panda - Liquid UI CSS Library
+ * Premium animation and interaction styles
+ * 
+ * Design System:
+ * - Brand Primary: #6e9a42
+ * - Brand Primary Hover: #5a8335
+ * - Background Elevated: rgba(255, 255, 255, 0.75)
+ * - Background Card: rgba(255, 255, 255, 0.70)
+ * - Glassmorphism with backdrop-filter
+ * 
+ * @version 1.0.0
+ * @author Hungry Panda UX Team
+ */
+
+/* ========================================
+   CSS CUSTOM PROPERTIES
+   ======================================== */
+
+:root {
+  /* Brand Colors */
+  --brand-primary: #6e9a42;
+  --brand-primary-hover: #5a8335;
+  --brand-secondary: #8ab85a;
+  --brand-success: #22c55e;
+  --brand-info: #42a5f5;
+
+  /* Glassmorphism Surfaces */
+  --bg-elevated: rgba(255, 255, 255, 0.75);
+  --bg-card: rgba(255, 255, 255, 0.70);
+  --bg-card-hover: rgba(255, 255, 255, 0.85);
+
+  /* Border System */
+  --border-subtle: rgba(255, 255, 255, 0.5);
+  --border-default: rgba(110, 154, 66, 0.25);
+  --border-accent: rgba(110, 154, 66, 0.5);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Easings */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-linear: linear;
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Durations */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+  --duration-dramatic: 600ms;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(110, 154, 66, 0.15);
+  --shadow-md: 0 4px 16px rgba(110, 154, 66, 0.2);
+  --shadow-lg: 0 8px 32px rgba(110, 154, 66, 0.25);
+  --shadow-glow: 0 0 60px rgba(110, 154, 66, 0.3);
+  --shadow-glass: 0 8px 32px rgba(110, 154, 66, 0.15), 
+                  inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* ========================================
+   KEYFRAME ANIMATIONS
+   ======================================== */
+
+/* Page Transitions */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes pageExit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+    filter: blur(4px);
+  }
+}
+
+/* Modal Animations */
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes modalExit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+    filter: blur(10px);
+  }
+}
+
+@keyframes backdropEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropExit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Card Entrance */
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Utility Animations */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scaleBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-10px);
+  }
+  40% {
+    transform: translateX(10px);
+  }
+  60% {
+    transform: translateX(-10px);
+  }
+  80% {
+    transform: translateX(10px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(110, 154, 66, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(110, 154, 66, 0.5);
+  }
+}
+
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: rgba(110, 154, 66, 0.25);
+  }
+  50% {
+    border-color: rgba(110, 154, 66, 0.5);
+  }
+}
+
+/* Stagger Animation Delays */
+@keyframes staggerEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ========================================
+   LIQUID PAGE COMPONENT
+   ======================================== */
+
+.liquid-page {
+  animation: pageEnter var(--duration-dramatic) var(--ease-dramatic) forwards;
+}
+
+.liquid-page-exit {
+  animation: pageExit var(--duration-slow) var(--ease-smooth) forwards;
+}
+
+/* ========================================
+   LIQUID MODAL COMPONENT
+   ======================================== */
+
+.liquid-modal {
+  animation: modalEnter var(--duration-dramatic) var(--ease-dramatic) forwards;
+}
+
+.liquid-modal-exit {
+  animation: modalExit var(--duration-base) var(--ease-smooth) forwards;
+}
+
+.liquid-modal-backdrop {
+  animation: backdropEnter var(--duration-base) var(--ease-smooth) forwards;
+}
+
+.liquid-modal-backdrop-exit {
+  animation: backdropExit var(--duration-fast) var(--ease-smooth) forwards;
+}
+
+/* ========================================
+   LIQUID CARD COMPONENT
+   ======================================== */
+
+.liquid-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.6) 100%);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-glass);
+  transition: all var(--duration-base) var(--ease-smooth);
+  animation: cardEnter var(--duration-slow) var(--ease-dramatic) backwards;
+}
+
+.liquid-card:hover {
+  background: linear-gradient(135deg, var(--bg-card-hover) 0%, rgba(255, 255, 255, 0.75) 100%);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(110, 154, 66, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Staggered card children */
+.liquid-card > *:nth-child(1) { animation-delay: 0.05s; }
+.liquid-card > *:nth-child(2) { animation-delay: 0.1s; }
+.liquid-card > *:nth-child(3) { animation-delay: 0.15s; }
+.liquid-card > *:nth-child(4) { animation-delay: 0.2s; }
+
+/* ========================================
+   LIQUID BUTTON COMPONENT
+   ======================================== */
+
+.liquid-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: white;
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  box-shadow: 0 4px 16px rgba(110, 154, 66, 0.35), 
+              0 0 20px rgba(110, 154, 66, 0.1);
+}
+
+.liquid-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.liquid-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(110, 154, 66, 0.45), 
+              0 0 30px rgba(110, 154, 66, 0.15);
+}
+
+.liquid-button:hover::before {
+  opacity: 1;
+}
+
+.liquid-button:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 12px rgba(110, 154, 66, 0.4), 
+              0 0 30px rgba(110, 154, 66, 0.2);
+}
+
+/* Button variants */
+.liquid-button-secondary {
+  background: var(--bg-card);
+  color: var(--brand-primary);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.liquid-button-secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-md);
+}
+
+.liquid-button-ghost {
+  background: transparent;
+  color: var(--brand-primary);
+  box-shadow: none;
+}
+
+.liquid-button-ghost:hover {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Loading state */
+.liquid-button.loading {
+  color: transparent;
+  pointer-events: none;
+}
+
+.liquid-button.loading::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ========================================
+   HOVER EFFECTS
+   ======================================== */
+
+/* Lift Effect */
+.liquid-hover-lift {
+  transition: transform var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-fast) var(--ease-smooth);
+}
+
+.liquid-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.liquid-hover-lift:active {
+  transform: translateY(-2px);
+}
+
+/* Glow Effect */
+.liquid-hover-glow {
+  transition: box-shadow var(--duration-base) var(--ease-smooth);
+}
+
+.liquid-hover-glow:hover {
+  box-shadow: 0 0 40px rgba(110, 154, 66, 0.4),
+              0 0 80px rgba(110, 154, 66, 0.2);
+}
+
+/* Scale Effect */
+.liquid-hover-scale {
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+.liquid-hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.liquid-hover-scale:active {
+  transform: scale(0.98);
+}
+
+/* Combined hover effects */
+.liquid-hover-lift-glow {
+  transition: transform var(--duration-fast) var(--ease-smooth),
+              box-shadow var(--duration-base) var(--ease-smooth);
+}
+
+.liquid-hover-lift-glow:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), 
+              0 0 40px rgba(110, 154, 66, 0.3);
+}
+
+/* ========================================
+   UTILITY ANIMATION CLASSES
+   ======================================== */
+
+/* Entrance animations */
+.liquid-fade-in {
+  animation: fadeInUp var(--duration-base) var(--ease-smooth) forwards;
+}
+
+.liquid-fade-in-up {
+  animation: fadeInUp var(--duration-slow) var(--ease-dramatic) forwards;
+}
+
+.liquid-fade-in-left {
+  animation: fadeInLeft var(--duration-slow) var(--ease-dramatic) forwards;
+}
+
+.liquid-scale-in {
+  animation: scaleBounce var(--duration-slow) var(--ease-spring) forwards;
+}
+
+/* Continuous animations */
+.liquid-pulse {
+  animation: pulse 2s var(--ease-smooth) infinite;
+}
+
+.liquid-float {
+  animation: float 3s var(--ease-smooth) infinite;
+}
+
+.liquid-shimmer {
+  background: linear-gradient(90deg, 
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s var(--ease-linear) infinite;
+}
+
+.liquid-spin {
+  animation: spin 1s var(--ease-linear) infinite;
+}
+
+.liquid-glow {
+  animation: glow 2s var(--ease-smooth) infinite;
+}
+
+.liquid-border-glow {
+  animation: borderGlow 2s var(--ease-smooth) infinite;
+}
+
+/* One-time trigger animations */
+.liquid-shake {
+  animation: shake 0.5s var(--ease-smooth);
+}
+
+.liquid-success-pop {
+  animation: scaleBounce var(--duration-slow) var(--ease-spring);
+}
+
+/* Stagger container */
+.liquid-stagger > * {
+  animation: staggerEnter var(--duration-base) var(--ease-dramatic) backwards;
+  opacity: 0;
+}
+
+.liquid-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.liquid-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.liquid-stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.liquid-stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.liquid-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.liquid-stagger > *:nth-child(6) { animation-delay: 0.3s; }
+.liquid-stagger > *:nth-child(7) { animation-delay: 0.35s; }
+.liquid-stagger > *:nth-child(8) { animation-delay: 0.4s; }
+
+/* ========================================
+   GLASSMORPHISM UTILITIES
+   ======================================== */
+
+.liquid-glass {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.6) 100%);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--border-subtle);
+}
+
+.liquid-glass-strong {
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, rgba(255, 255, 255, 0.65) 100%);
+  backdrop-filter: blur(60px) saturate(200%);
+  -webkit-backdrop-filter: blur(60px) saturate(200%);
+  border: 2px solid var(--border-subtle);
+}
+
+.liquid-glass-subtle {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ========================================
+   REDUCED MOTION SUPPORT
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .liquid-page,
+  .liquid-modal,
+  .liquid-card,
+  .liquid-fade-in,
+  .liquid-fade-in-up,
+  .liquid-fade-in-left,
+  .liquid-scale-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .liquid-pulse,
+  .liquid-float,
+  .liquid-shimmer,
+  .liquid-spin,
+  .liquid-glow,
+  .liquid-border-glow {
+    animation: none !important;
+  }
+
+  .liquid-hover-lift:hover,
+  .liquid-hover-scale:hover,
+  .liquid-hover-lift-glow:hover,
+  .liquid-card:hover,
+  .liquid-button:hover {
+    transform: none !important;
+  }
+}
+
+/* ========================================
+   FOCUS STATES (Accessibility)
+   ======================================== */
+
+.liquid-button:focus-visible,
+.liquid-card:focus-visible,
+.liquid-hover-lift:focus-visible,
+.liquid-hover-scale:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(110, 154, 66, 0.2);
+}
+
+/* ========================================
+   DARK MODE SUPPORT (Future-proofing)
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-elevated: rgba(30, 35, 25, 0.75);
+    --bg-card: rgba(30, 35, 25, 0.70);
+    --bg-card-hover: rgba(40, 45, 35, 0.85);
+    --border-subtle: rgba(255, 255, 255, 0.1);
+  }
+}

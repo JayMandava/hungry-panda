@@ -7,6 +7,10 @@
     <title>Hungry Panda — AI-Powered Instagram Growth</title>
     <link rel="manifest" href="/static/manifest.json">
     <link rel="stylesheet" href="voice-styles.css">
+    <link rel="stylesheet" href="../shared/liquid-ui.css">
+    <script type="module" src="../shared/animations.js"></script>
+    <script type="module" src="../shared/quotes.js"></script>
+    <script type="module" src="../shared/ticker-modal.js"></script>
     <style>
         /* ========================================
            HUNGRY PANDA - PREMIUM DESIGN SYSTEM
@@ -87,6 +91,19 @@
             --transition-fast: 150ms ease;
             --transition-base: 250ms ease;
             --transition-slow: 350ms ease;
+
+            /* Liquid UI Easings */
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+            --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+            /* Liquid UI Durations */
+            --duration-instant: 100ms;
+            --duration-fast: 150ms;
+            --duration-base: 250ms;
+            --duration-slow: 400ms;
+            --duration-dramatic: 600ms;
         }
         
         /* Reset & Base */
@@ -217,23 +234,40 @@
         }
 
         .brand-icon {
-            width: 52px;
-            height: 52px;
+            width: 44px;
+            height: 44px;
             border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: var(--shadow-glow);
-            overflow: hidden;
             flex-shrink: 0;
-            background: linear-gradient(135deg, rgba(110, 154, 66, 0.2) 0%, rgba(138, 184, 90, 0.1) 100%);
-            border: 1px solid var(--border-accent);
+            box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+            overflow: hidden;
         }
 
         .brand-icon img {
-            width: 44px;
-            height: 44px;
+            width: 32px;
+            height: 32px;
             object-fit: contain;
+        }
+
+        /* Panda emoji with gentle bounce animation */
+        .brand-emoji {
+            font-size: 28px;
+            line-height: 1;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .brand-icon:hover .brand-emoji {
+            animation: pandaBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes pandaBounce {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.15) rotate(-5deg); }
+            50% { transform: scale(1.1) rotate(3deg); }
+            75% { transform: scale(1.05) rotate(-2deg); }
         }
 
         .brand-text h1 {
@@ -301,6 +335,10 @@
             border-radius: 50%;
             animation: pulse-dot 2s infinite;
             box-shadow: 0 0 8px var(--brand-primary);
+        }
+
+        .status-dot.active {
+            animation: pulse-dot 1.5s infinite, liquidPulse 1.5s var(--ease-smooth) infinite;
         }
 
         @keyframes pulse-dot {
@@ -393,6 +431,11 @@
                 inset 0 1px 0 rgba(255, 255, 255, 1),
                 inset 0 -1px 0 rgba(110, 154, 66, 0.1);
         }
+
+        .metric-card:nth-child(1) { animation-delay: 0.05s; }
+        .metric-card:nth-child(2) { animation-delay: 0.1s; }
+        .metric-card:nth-child(3) { animation-delay: 0.15s; }
+        .metric-card:nth-child(4) { animation-delay: 0.2s; }
 
         .metric-card:nth-child(1) { animation-delay: 0.05s; }
         .metric-card:nth-child(2) { animation-delay: 0.1s; }
@@ -2228,12 +2271,209 @@
             }
 
             .upload-icon-large,
-            .voice-btn.recording {
+            .voice-btn.recording,
+            .brand-icon:hover .brand-emoji {
                 animation: none !important;
             }
 
-            .recording-dot {
+            .recording-dot,
+            .liquid-pulse,
+            .liquid-float,
+            .liquid-shimmer {
                 animation: none !important;
+            }
+
+            .liquid-hover-lift:hover,
+            .liquid-hover-scale:hover,
+            .liquid-card:hover {
+                transform: none !important;
+            }
+        }
+
+        /* ========================================
+           LIQUID UI UTILITY CLASSES
+           ======================================== */
+
+        /* Hover lift effect */
+        .liquid-hover-lift {
+            transition: transform var(--duration-fast) var(--ease-smooth),
+                        box-shadow var(--duration-fast) var(--ease-smooth);
+        }
+
+        .liquid-hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .liquid-hover-lift:active {
+            transform: translateY(-2px);
+        }
+
+        /* Fade in animation */
+        .liquid-fade-in {
+            animation: fadeInUp var(--duration-base) var(--ease-smooth) forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Pulse animation for active states */
+        .liquid-pulse {
+            animation: liquidPulse 2s var(--ease-smooth) infinite;
+        }
+
+        @keyframes liquidPulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+
+        /* Shimmer effect for loading states */
+        .liquid-shimmer {
+            background: linear-gradient(90deg,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.4) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 2s linear infinite;
+        }
+
+        /* Drag over pulse for upload area */
+        .upload-hero.dragover {
+            animation: dragPulse 1.5s var(--ease-smooth) infinite;
+        }
+
+        @keyframes dragPulse {
+            0%, 100% {
+                border-color: var(--brand-primary);
+                box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.4);
+            }
+            50% {
+                border-color: var(--brand-primary);
+                box-shadow: 0 0 0 12px rgba(110, 154, 66, 0);
+            }
+        }
+
+        /* Button micro-interactions */
+        .btn {
+            transition: all var(--duration-fast) var(--ease-smooth);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(110, 154, 66, 0.45), 0 0 30px rgba(110, 154, 66, 0.15);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Card lift effect */
+        .card {
+            transition: all var(--duration-base) var(--ease-smooth);
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Liquid Modal Enhancements */
+        .liquid-modal-backdrop {
+            animation: backdropBlur var(--duration-base) var(--ease-smooth) forwards;
+        }
+
+        @keyframes backdropBlur {
+            from {
+                opacity: 0;
+                backdrop-filter: blur(0px);
+            }
+            to {
+                opacity: 1;
+                backdrop-filter: blur(20px);
+            }
+        }
+
+        .liquid-modal {
+            animation: modalSpring var(--duration-dramatic) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes modalSpring {
+            from {
+                opacity: 0;
+                transform: translateY(40px) scale(0.95);
+                filter: blur(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                filter: blur(0px);
+            }
+        }
+
+        /* Staggered content animation inside modal */
+        .liquid-modal .recommendation-section {
+            animation: staggerIn var(--duration-slow) var(--ease-dramatic) backwards;
+        }
+
+        .liquid-modal .recommendation-section:nth-child(1) { animation-delay: 0.05s; }
+        .liquid-modal .recommendation-section:nth-child(2) { animation-delay: 0.1s; }
+        .liquid-modal .recommendation-section:nth-child(3) { animation-delay: 0.15s; }
+        .liquid-modal .recommendation-section:nth-child(4) { animation-delay: 0.2s; }
+        .liquid-modal .recommendation-section:nth-child(5) { animation-delay: 0.25s; }
+
+        @keyframes staggerIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Status indicator pulse */
+        .status-indicator.active {
+            animation: statusPulse 1.5s var(--ease-smooth) infinite;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.4);
+            }
+            50% {
+                opacity: 0.7;
+                box-shadow: 0 0 0 8px rgba(110, 154, 66, 0);
+            }
+        }
+
+        /* Upload area pulse on drag */
+        .upload-hero.pulse-drag {
+            animation: uploadPulse 1.2s var(--ease-smooth) infinite;
+        }
+
+        @keyframes uploadPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 0 20px rgba(110, 154, 66, 0);
             }
         }
         
@@ -2732,7 +2972,7 @@
         }
     </style>
 </head>
-<body>
+<body class="liquid-page">
      <!-- Premium Nature Ambient Background -->
     <div class="ambient-bg" aria-hidden="true"></div>
 
@@ -2741,7 +2981,7 @@
         <div class="header-content">
             <div class="brand">
                 <div class="brand-icon" aria-hidden="true">
-                    <img src="assets/panda-icon.png" alt="Hungry Panda" width="44" height="44">
+                    <span class="brand-emoji">🐼</span>
                 </div>
                 <div class="brand-text">
                     <h1>Hungry Panda</h1>
@@ -2770,7 +3010,7 @@
     <!-- Main Container -->
     <main class="app-container">
         <!-- Metrics Section -->
-        <section class="metrics-section">
+        <section class="metrics-section liquid-fade-in">
             <div class="metrics-grid">
                 <div class="metric-card">
                     <div class="metric-label">Current Followers</div>
@@ -2813,7 +3053,7 @@
                 <!-- Upload Hero Section -->
                 <section class="section" style="margin-bottom: var(--space-8);">
                     <div class="section-body" style="padding: 0;">
-                        <div class="upload-hero" id="uploadArea">
+                        <div class="upload-hero liquid-hover-lift" id="uploadArea">
                             <div class="upload-hero-content">
                                 <div class="upload-icon-large" aria-hidden="true">
                                     <svg class="icon icon-2xl"><use href="assets/ui-icons.svg#camera"></use></svg>
@@ -2871,8 +3111,8 @@
                 </section>
                 
                 <!-- Content Queue Section -->
-                <section class="section">
-                    <div class="section-header">
+                <section class="section liquid-hover-lift">
+                    <div class="section-header liquid-fade-in">
                         <div class="section-title">
                             <div class="section-icon" aria-hidden="true">
                                 <svg class="icon icon-md"><use href="assets/ui-icons.svg#list"></use></svg>
@@ -2903,7 +3143,7 @@
             <!-- Right Column -->
             <div class="right-column">
                 <!-- Strategy Section -->
-                <section class="section strategy-section">
+                <section class="section strategy-section liquid-hover-lift">
                     <div class="section-body">
                         <div class="strategy-header">
                             <span class="strategy-badge">Active Strategy</span>
@@ -2928,8 +3168,8 @@
                 </section>
                 
                 <!-- Competitor Insights -->
-                <section class="section">
-                    <div class="section-header">
+                <section class="section liquid-hover-lift">
+                    <div class="section-header liquid-fade-in">
                         <div class="section-title">
                             <div class="section-icon" aria-hidden="true">
                                 <svg class="icon icon-md"><use href="assets/ui-icons.svg#user"></use></svg>
@@ -2953,8 +3193,8 @@
                 </section>
                 
                 <!-- Trending Hashtags -->
-                <section class="section">
-                    <div class="section-header">
+                <section class="section liquid-hover-lift">
+                    <div class="section-header liquid-fade-in">
                         <div class="section-title">
                             <div class="section-icon" aria-hidden="true">
                                 <svg class="icon icon-md"><use href="assets/ui-icons.svg#flame"></use></svg>
@@ -2977,8 +3217,8 @@
     </main>
     
     <!-- Recommendation Modal -->
-    <div class="modal-overlay" id="recommendationModal">
-        <div class="modal">
+    <div class="modal-overlay liquid-modal-backdrop" id="recommendationModal">
+        <div class="modal liquid-modal">
             <div class="modal-header">
                 <h2>
                     <svg class="icon icon-lg"><use href="assets/ui-icons.svg#sparkles"></use></svg>
@@ -3000,7 +3240,10 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
     
-    <script>
+    <script type="module">
+        // Import Ticker Modal
+        import { showTicker, updateProgress, closeTicker } from '../shared/ticker-modal.js';
+
         // Global state
         let currentTab = 'pending';
         let selectedFile = null;
@@ -3008,6 +3251,27 @@
         let recognition = null;
         let currentRecommendation = null;
         const iconSprite = 'assets/ui-icons.svg';
+
+        // Expose ticker functions to window for non-module access
+        window.tickerModal = { showTicker, updateProgress, closeTicker };
+
+        // Expose all functions needed by HTML event handlers
+        window.handleFileSelect = handleFileSelect;
+        window.toggleVoiceRecording = toggleVoiceRecording;
+        window.uploadWithContext = uploadWithContext;
+        window.loadPendingContent = loadPendingContent;
+        window.switchTab = switchTab;
+        window.getRecommendations = getRecommendations;
+        window.deleteContent = deleteContent;
+        window.addCompetitor = addCompetitor;
+        window.refreshTrendingHashtags = refreshTrendingHashtags;
+        window.generateNewStrategy = generateNewStrategy;
+        window.selectVariant = selectVariant;
+        window.toggleHashtag = toggleHashtag;
+        window.scheduleContent = scheduleContent;
+        window.publishNow = publishNow;
+        window.closeModal = closeModal;
+        window.showConfirm = showConfirm;
 
         function icon(name, className = 'icon', hidden = true) {
             const ariaHidden = hidden ? 'true' : 'false';
@@ -3078,27 +3342,30 @@
         function setupUploadHandlers() {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
-            
+
             // File input change
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length) {
                     handleFileSelect(e.target.files[0]);
                 }
             });
-            
-            // Drag and drop
+
+            // Drag and drop with pulse animation
             uploadArea.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 uploadArea.classList.add('dragover');
+                uploadArea.classList.add('pulse-drag');
             });
-            
+
             uploadArea.addEventListener('dragleave', () => {
                 uploadArea.classList.remove('dragover');
+                uploadArea.classList.remove('pulse-drag');
             });
-            
+
             uploadArea.addEventListener('drop', (e) => {
                 e.preventDefault();
                 uploadArea.classList.remove('dragover');
+                uploadArea.classList.remove('pulse-drag');
                 if (e.dataTransfer.files.length) {
                     handleFileSelect(e.dataTransfer.files[0]);
                 }
@@ -3143,50 +3410,92 @@
             document.getElementById('voiceWave').classList.remove('active');
         }
         
-        // Upload with context
+        // Upload with context - with Ticker Modal integration
         async function uploadWithContext() {
             if (!selectedFile) {
                 showToast('Please select a photo or video first', 'error');
                 return;
             }
-            
+
             const context = document.getElementById('contextInput').value;
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('context', context);
             formData.append('auto_optimize', 'true');
-            
-            showToast('Analyzing your content with AI...');
-            
+
+            // Show ticker modal for upload/analysis flow
+            const ticker = showTicker({
+                type: 'analysis',
+                title: 'Analyzing your content...',
+                showCancel: true,
+                cancelText: 'Cancel',
+                estimatedTime: 30,
+                onCancel: () => {
+                    showToast('Analysis cancelled', 'error');
+                }
+            });
+
+            // Update progress through the steps
+            const progressSteps = [
+                { percent: 10, step: 0, message: 'Uploading your photo...' },
+                { percent: 25, step: 1, message: 'Analyzing composition...' },
+                { percent: 40, step: 2, message: 'Detecting food type...' },
+                { percent: 55, step: 3, message: 'Identifying ingredients...' },
+                { percent: 70, step: 4, message: 'Generating caption...' },
+                { percent: 85, step: 5, message: 'Optimizing hashtags...' },
+                { percent: 95, step: 6, message: 'Finalizing recommendations...' }
+            ];
+
+            let stepIndex = 0;
+            const progressInterval = setInterval(() => {
+                if (stepIndex < progressSteps.length) {
+                    const step = progressSteps[stepIndex];
+                    updateProgress(step.percent, step.step);
+                    stepIndex++;
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 2500);
+
             try {
                 const response = await fetch('/api/content/upload', {
                     method: 'POST',
                     body: formData
                 });
-                
+
+                clearInterval(progressInterval);
+                updateProgress(100, 7);
+
                 const data = await response.json();
-                
-                if (data.error) {
-                    showToast(data.detail || 'Upload failed. Please try again.', 'error');
-                    return;
-                }
-                
-                if (data.recommendation) {
-                    currentRecommendation = data;
-                    showRecommendationModal(data);
-                }
-                
-                // Reset
-                selectedFile = null;
-                document.getElementById('contextInput').value = '';
-                document.getElementById('contextSection').style.display = 'none';
-                document.getElementById('fileInput').value = '';
-                
-                // Refresh queue
-                loadPendingContent();
-                loadDashboardData();
-                
+
+                // Close ticker modal with slight delay for smooth transition
+                setTimeout(async () => {
+                    await closeTicker({ animate: true });
+
+                    if (data.error) {
+                        showToast(data.detail || 'Upload failed. Please try again.', 'error');
+                        return;
+                    }
+
+                    if (data.recommendation) {
+                        currentRecommendation = data;
+                        showRecommendationModal(data);
+                    }
+
+                    // Reset
+                    selectedFile = null;
+                    document.getElementById('contextInput').value = '';
+                    document.getElementById('contextSection').style.display = 'none';
+                    document.getElementById('fileInput').value = '';
+
+                    // Refresh queue
+                    loadPendingContent();
+                    loadDashboardData();
+                }, 500);
+
             } catch (err) {
+                clearInterval(progressInterval);
+                await closeTicker({ animate: true });
                 showToast('Unable to upload. Please check your connection and try again.', 'error');
             }
         }
@@ -3561,25 +3870,66 @@
             return icon('utensils', 'icon icon-md');
         }
         
-        // Get recommendations for existing content
+        // Get recommendations for existing content - with Ticker Modal
         async function getRecommendations(contentId) {
-            showToast('Generating AI recommendations for your content...');
-            
+            // Show ticker modal for analysis flow
+            const ticker = showTicker({
+                type: 'analysis',
+                title: 'Generating AI recommendations...',
+                showCancel: true,
+                cancelText: 'Cancel',
+                estimatedTime: 20,
+                onCancel: () => {
+                    showToast('Analysis cancelled', 'error');
+                }
+            });
+
+            // Update progress through the steps
+            const progressSteps = [
+                { percent: 15, step: 1, message: 'Analyzing composition...' },
+                { percent: 30, step: 2, message: 'Detecting food type...' },
+                { percent: 50, step: 3, message: 'Identifying ingredients...' },
+                { percent: 70, step: 5, message: 'Generating caption...' },
+                { percent: 85, step: 6, message: 'Optimizing hashtags...' },
+                { percent: 95, step: 7, message: 'Finalizing recommendations...' }
+            ];
+
+            let stepIndex = 0;
+            const progressInterval = setInterval(() => {
+                if (stepIndex < progressSteps.length) {
+                    const step = progressSteps[stepIndex];
+                    updateProgress(step.percent, step.step);
+                    stepIndex++;
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 2000);
+
             try {
                 const response = await fetch(`/api/content/${contentId}/recommendation`);
                 const data = await response.json();
 
-                if (!response.ok) {
-                    showToast(data.detail || 'Unable to generate recommendations right now.', 'error');
-                    return;
-                }
+                clearInterval(progressInterval);
+                updateProgress(100, 7);
 
-                currentRecommendation = {
-                    content_id: contentId,
-                    recommendation: data
-                };
-                showRecommendationModal(currentRecommendation);
+                // Close ticker modal with slight delay for smooth transition
+                setTimeout(async () => {
+                    await closeTicker({ animate: true });
+
+                    if (!response.ok) {
+                        showToast(data.detail || 'Unable to generate recommendations right now.', 'error');
+                        return;
+                    }
+
+                    currentRecommendation = {
+                        content_id: contentId,
+                        recommendation: data
+                    };
+                    showRecommendationModal(currentRecommendation);
+                }, 500);
             } catch (err) {
+                clearInterval(progressInterval);
+                await closeTicker({ animate: true });
                 showToast('Unable to generate recommendations right now.', 'error');
             }
         }
