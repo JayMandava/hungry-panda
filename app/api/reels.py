@@ -814,8 +814,8 @@ class UpdateProjectRequest(BaseModel):
 
 
 class UpdateStyleRequest(BaseModel):
-    transition_style: str = Field(..., description="Transition style: auto, cut, smooth, fade")
-    visual_filter: str = Field(..., description="Visual filter: none, natural, warm, rich, fresh")
+    transition_style: Optional[str] = Field(None, description="Transition style: auto, cut, smooth, fade")
+    visual_filter: Optional[str] = Field(None, description="Visual filter: none, natural, warm, rich, fresh")
 
 
 @router.post("/projects/{project_id}/update")
@@ -856,43 +856,53 @@ async def update_project_style(project_id: str, request: UpdateStyleRequest):
     """
     Update project style settings (transition and filter).
     These settings persist for generate and regenerate operations.
+    Accepts partial updates - only provided fields are updated.
     """
     project = get_project_db(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Validate transition_style
-    valid_transitions = ["auto", "cut", "smooth", "fade"]
-    if request.transition_style not in valid_transitions:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid transition_style. Must be one of: {', '.join(valid_transitions)}"
-        )
+    # Track which fields to update
+    update_fields = []
+    params = []
+    result = {"status": "updated", "project_id": project_id}
     
-    # Validate visual_filter
-    valid_filters = ["none", "natural", "warm", "rich", "fresh"]
-    if request.visual_filter not in valid_filters:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid visual_filter. Must be one of: {', '.join(valid_filters)}"
-        )
+    # Validate and update transition_style if provided
+    if request.transition_style is not None:
+        valid_transitions = ["auto", "cut", "smooth", "fade"]
+        if request.transition_style not in valid_transitions:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid transition_style. Must be one of: {', '.join(valid_transitions)}"
+            )
+        update_fields.append("transition_style = ?")
+        params.append(request.transition_style)
+        result["transition_style"] = request.transition_style
+    
+    # Validate and update visual_filter if provided
+    if request.visual_filter is not None:
+        valid_filters = ["none", "natural", "warm", "rich", "fresh"]
+        if request.visual_filter not in valid_filters:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid visual_filter. Must be one of: {', '.join(valid_filters)}"
+            )
+        update_fields.append("visual_filter = ?")
+        params.append(request.visual_filter)
+        result["visual_filter"] = request.visual_filter
+    
+    # If no fields to update, return early
+    if not update_fields:
+        return result
     
     try:
-        execute_insert(
-            """UPDATE reel_projects 
-               SET transition_style = ?, visual_filter = ?, updated_at = CURRENT_TIMESTAMP 
-               WHERE id = ?""",
-            (request.transition_style, request.visual_filter, project_id)
-        )
+        query = f"UPDATE reel_projects SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        params.append(project_id)
+        execute_insert(query, tuple(params))
         
-        logger.info(f"Updated style settings for project {project_id}: transition={request.transition_style}, filter={request.visual_filter}")
+        logger.info(f"Updated style settings for project {project_id}: {result}")
         
-        return {
-            "status": "updated", 
-            "project_id": project_id,
-            "transition_style": request.transition_style,
-            "visual_filter": request.visual_filter
-        }
+        return result
     except DatabaseError as e:
         logger.error(f"Failed to update style settings for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update style settings")
