@@ -531,14 +531,6 @@ class TickerModal {
       }, 500);
     } else {
       // Reduced motion: show immediately
-      this.overlay.style.opacity = '1';
-      this.modal.style.opacity = '1';
-      this.modal.style.transform = 'scale(1)';
-    }
-          }
-        }
-      }, 100);
-    } else {
       console.log('[TickerModal] Reduced motion enabled, setting opacity directly');
       this.overlay.style.opacity = '1';
       this.modal.style.opacity = '1';
