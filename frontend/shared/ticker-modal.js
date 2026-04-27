@@ -106,14 +106,15 @@ const STYLES = {
     box-shadow: 0 8px 32px rgba(110, 154, 66, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
     max-width: 600px;
     width: calc(100% - 32px);
-    max-height: calc(100vh - 32px);
+    max-height: min(calc(100vh - 32px), 90svh);
     margin: auto;
-    padding: 40px 32px;
+    padding: clamp(20px, 4vh, 40px) 32px;
     text-align: center;
     opacity: 0;
     transform: scale(0.9);
     position: relative;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     box-sizing: border-box;
   `,
   pandaContainer: `
@@ -509,27 +510,21 @@ class TickerModal {
 
       // Safety fallback: ensure visibility and proper positioning (500ms is safer)
       setTimeout(() => {
-        if (this.overlay && this.isOpen) {
-          const computedOpacity = window.getComputedStyle(this.overlay).opacity;
-          const modalRect = this.modal.getBoundingClientRect();
-          console.log('[TickerModal] Fallback check - opacity:', computedOpacity, 'modal top:', modalRect.top);
+        if (!this.overlay || !this.isOpen) return;
 
-          // Fix positioning if modal is off-screen
-          if (modalRect.top < 0 || modalRect.top > window.innerHeight) {
-            console.warn('[TickerModal] Modal off-screen, forcing center position');
-            this.modal.style.position = 'relative';
-            this.modal.style.margin = 'auto';
+        // Fix overlay independently
+        const overlayOpacity = parseFloat(window.getComputedStyle(this.overlay).opacity);
+        if (overlayOpacity < 0.5) {
+          this.overlay.style.opacity = '1';
+          this.overlay.style.display = 'flex';
+        }
+
+        // Fix modal card independently (covers Bug 1 scenario)
+        if (this.modal) {
+          const modalOpacity = parseFloat(window.getComputedStyle(this.modal).opacity);
+          if (modalOpacity < 0.5) {
+            this.modal.style.opacity = '1';
             this.modal.style.transform = 'scale(1)';
-            this.modal.style.top = 'auto';
-            this.modal.style.left = 'auto';
-          }
-
-          if (parseFloat(computedOpacity) < 0.5) {
-            console.warn('[TickerModal] Animation failed, forcing visibility');
-            this.overlay.style.cssText += '; opacity: 1 !important; display: flex !important;';
-            if (this.modal) {
-              this.modal.style.cssText += '; opacity: 1 !important; transform: scale(1) !important; margin: auto !important;';
-            }
           }
         }
       }, 500);
@@ -681,6 +676,11 @@ class TickerModal {
     if (this.overlay && this.overlay.parentNode) {
       this.overlay.parentNode.removeChild(this.overlay);
     }
+
+    // Null refs so createModal() always builds fresh on next open
+    // (prevents stale WAAPI fill-forwards state on reuse)
+    this.overlay = null;
+    this.modal = null;
 
     // Restore body scroll
     document.body.style.overflow = '';
