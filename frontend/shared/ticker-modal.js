@@ -106,13 +106,15 @@ const STYLES = {
     box-shadow: 0 8px 32px rgba(110, 154, 66, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
     max-width: 600px;
     width: calc(100% - 32px);
-    margin: 16px;
+    max-height: calc(100vh - 32px);
+    margin: auto;
     padding: 40px 32px;
     text-align: center;
     opacity: 0;
     transform: scale(0.9);
     position: relative;
     overflow: hidden;
+    box-sizing: border-box;
   `,
   pandaContainer: `
     position: relative;
@@ -505,16 +507,28 @@ class TickerModal {
       // Animate panda bounce
       this.startPandaAnimation();
 
-      // Safety fallback: ensure visibility even if animation fails (500ms is safer)
+      // Safety fallback: ensure visibility and proper positioning (500ms is safer)
       setTimeout(() => {
         if (this.overlay && this.isOpen) {
           const computedOpacity = window.getComputedStyle(this.overlay).opacity;
-          console.log('[TickerModal] Fallback check - computed opacity:', computedOpacity);
+          const modalRect = this.modal.getBoundingClientRect();
+          console.log('[TickerModal] Fallback check - opacity:', computedOpacity, 'modal top:', modalRect.top);
+
+          // Fix positioning if modal is off-screen
+          if (modalRect.top < 0 || modalRect.top > window.innerHeight) {
+            console.warn('[TickerModal] Modal off-screen, forcing center position');
+            this.modal.style.position = 'relative';
+            this.modal.style.margin = 'auto';
+            this.modal.style.transform = 'scale(1)';
+            this.modal.style.top = 'auto';
+            this.modal.style.left = 'auto';
+          }
+
           if (parseFloat(computedOpacity) < 0.5) {
             console.warn('[TickerModal] Animation failed, forcing visibility');
             this.overlay.style.cssText += '; opacity: 1 !important; display: flex !important;';
             if (this.modal) {
-              this.modal.style.cssText += '; opacity: 1 !important; transform: scale(1) !important;';
+              this.modal.style.cssText += '; opacity: 1 !important; transform: scale(1) !important; margin: auto !important;';
             }
           }
         }
