@@ -997,7 +997,20 @@ function isVisible() {
 }
 
 // ========================================
-// Default Export
+// Exports
 // ========================================
 
 export default tickerModal;
+
+// Named exports for convenience
+export {
+  showTicker,
+  updateProgress,
+  updateMessage,
+  closeTicker,
+  onCancel,
+  setType,
+  getProgress,
+  getCurrentStep,
+  isVisible
+};
