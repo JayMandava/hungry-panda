@@ -231,16 +231,6 @@ const STYLES = {
   `,
   cancelButtonActive: `
     transform: scale(0.98);
-  `,
-  glowEffect: `
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle at center, rgba(110, 154, 66, 0.1) 0%, transparent 60%);
-    pointer-events: none;
-    z-index: 0;
   `
 };
 
@@ -289,11 +279,6 @@ class TickerModal {
     this.modal = document.createElement('div');
     this.modal.className = 'ticker-modal-card';
     this.modal.style.cssText = STYLES.modal;
-
-    // Add glow effect
-    const glow = document.createElement('div');
-    glow.style.cssText = STYLES.glowEffect;
-    this.modal.appendChild(glow);
 
     // Create panda container with progress ring
     const pandaContainer = document.createElement('div');
