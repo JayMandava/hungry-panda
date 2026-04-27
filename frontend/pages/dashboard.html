@@ -4104,6 +4104,9 @@
                 
                 if (data.theme) {
                     showToast('Your new growth strategy is ready');
+                    // Store as current recommendation and show modal
+                    currentRecommendation = data;
+                    showRecommendationModal(data);
                     loadDashboardData();
                 }
             } catch (err) {

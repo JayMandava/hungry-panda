@@ -421,12 +421,15 @@ class TickerModal {
    * });
    */
   showTicker(options = {}) {
+    console.log('[TickerModal] showTicker called with options:', options);
+
     if (this.isOpen) {
-      console.warn('TickerModal is already open');
+      console.warn('[TickerModal] Already open, returning');
       return this;
     }
 
     const config = { ...DEFAULT_OPTIONS, ...options };
+    console.log('[TickerModal] Config:', config);
     this.currentType = config.type;
     this.steps = DEFAULT_STEPS[config.type] || DEFAULT_STEPS[MODAL_TYPES.ANALYSIS];
     this.totalSteps = this.steps.length;
@@ -438,7 +441,10 @@ class TickerModal {
 
     // Create modal if not exists
     if (!this.overlay) {
+      console.log('[TickerModal] Creating modal (overlay not exists)');
       this.createModal();
+    } else {
+      console.log('[TickerModal] Reusing existing modal overlay');
     }
 
     // Update content
@@ -459,7 +465,9 @@ class TickerModal {
     this.updateTimeEstimate();
 
     // Add to DOM
+    console.log('[TickerModal] Appending overlay to body...');
     document.body.appendChild(this.overlay);
+    console.log('[TickerModal] Overlay appended, setting body overflow');
     document.body.style.overflow = 'hidden'; // Prevent body scroll
 
     // Add keyboard listener
@@ -467,26 +475,46 @@ class TickerModal {
 
     // Animate in
     this.isOpen = true;
+    console.log('[TickerModal] isOpen set to true, starting animation');
 
     if (!prefersReducedMotion()) {
+      console.log('[TickerModal] Animating with reduced motion = false');
       // Animate overlay
-      animate(this.overlay, [{ opacity: 0 }, { opacity: 1 }], {
+      const overlayAnim = animate(this.overlay, [{ opacity: 0 }, { opacity: 1 }], {
         duration: DURATION_BASE,
         easing: EASING_SMOOTH
       });
+      console.log('[TickerModal] Overlay animation started:', overlayAnim);
 
       // Animate modal
-      animate(this.modal, [
+      const modalAnim = animate(this.modal, [
         { opacity: 0, transform: 'scale(0.9)' },
         { opacity: 1, transform: 'scale(1)' }
       ], {
         duration: DURATION_DRAMATIC,
         easing: EASING_DRAMATIC
       });
+      console.log('[TickerModal] Modal animation started:', modalAnim);
 
       // Animate panda bounce
       this.startPandaAnimation();
+
+      // Safety fallback: ensure visibility even if animation fails
+      setTimeout(() => {
+        if (this.overlay && this.isOpen) {
+          const currentOpacity = parseFloat(this.overlay.style.opacity || window.getComputedStyle(this.overlay).opacity);
+          if (currentOpacity < 0.5) {
+            console.warn('[TickerModal] Animation may have failed, forcing visibility');
+            this.overlay.style.opacity = '1';
+            if (this.modal) {
+              this.modal.style.opacity = '1';
+              this.modal.style.transform = 'scale(1)';
+            }
+          }
+        }
+      }, 100);
     } else {
+      console.log('[TickerModal] Reduced motion enabled, setting opacity directly');
       this.overlay.style.opacity = '1';
       this.modal.style.opacity = '1';
       this.modal.style.transform = 'scale(1)';
@@ -494,10 +522,13 @@ class TickerModal {
 
     // Start time update interval
     this.timeInterval = setInterval(() => this.updateTimeEstimate(), 1000);
+    console.log('[TickerModal] Time interval started');
 
     // Focus management
     this.cancelButton.focus();
+    console.log('[TickerModal] Focus set to cancel button');
 
+    console.log('[TickerModal] showTicker complete, modal should be visible');
     return this;
   }
 
