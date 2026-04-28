@@ -95,7 +95,6 @@ const STYLES = {
     justify-content: center;
     z-index: 9999;
     opacity: 0;
-    transition: opacity 250ms ease;
   `,
   modal: `
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.75) 100%);
