@@ -2875,12 +2875,21 @@
         async function getReelRecommendations(projectId) {
             const btn = document.getElementById('getRecommendationsBtn');
             btn.disabled = true;
-            btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;margin-right:8px;"></span> Generating...`;
+
+            showTicker({
+                type: 'analysis',
+                title: 'Getting AI Recommendations...',
+                estimatedTime: 20,
+                showCancel: false
+            });
+            updateProgress(10);
 
             try {
                 // Get context from input if provided
                 const contextInput = document.getElementById('reelContextText');
                 const context = contextInput ? contextInput.value.trim() : '';
+
+                updateProgress(30);
 
                 const response = await fetch(`${API_BASE}/projects/${projectId}/recommendations`, {
                     method: 'POST',
@@ -2888,16 +2897,22 @@
                     body: JSON.stringify({ context: context })
                 });
 
+                updateProgress(80);
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'Failed to get recommendations');
                 }
 
                 const data = await response.json();
+                updateProgress(100);
                 currentReelRecommendation = data;
+
+                await closeTicker({ animate: true });
                 showRecommendationModal(data);
             } catch (error) {
                 console.error('Failed to get recommendations:', error);
+                await closeTicker({ animate: false });
                 showToast('Failed to get recommendations: ' + error.message, 'error');
             } finally {
                 btn.disabled = false;
