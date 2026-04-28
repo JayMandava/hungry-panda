@@ -1666,6 +1666,51 @@ async def get_competitor_detail(username: str):
         raise HTTPException(status_code=500, detail=f"Failed to load competitor detail: {str(e)}")
 
 
+@app.delete("/api/competitors/{username}", response_model=Dict[str, str])
+async def delete_competitor(username: str):
+    """
+    Delete a tracked competitor.
+    
+    Removes the competitor from tracking and all associated data.
+    """
+    if not config.ENABLE_COMPETITOR_TRACKING:
+        raise HTTPException(status_code=403, detail="Competitor tracking is disabled")
+    
+    try:
+        normalized = username.strip().replace("@", "")
+        if not normalized:
+            raise HTTPException(status_code=400, detail="Username is required")
+        
+        # Check if competitor exists
+        rows = execute_query(
+            "SELECT id FROM competitors WHERE username = ?",
+            (normalized,)
+        )
+        
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"Competitor @{normalized} not found")
+        
+        # Delete the competitor
+        execute_insert(
+            "DELETE FROM competitors WHERE username = ?",
+            (normalized,)
+        )
+        
+        logger.info(f"Competitor deleted: {normalized}")
+        
+        return {
+            "status": "deleted",
+            "competitor": normalized,
+            "message": f"@{normalized} removed from tracking"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete competitor error for {username}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete competitor: {str(e)}")
+
+
 @app.post("/api/strategy/generate", response_model=Dict[str, Any])
 async def generate_strategy():
     """
