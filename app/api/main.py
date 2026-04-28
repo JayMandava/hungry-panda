@@ -117,6 +117,11 @@ frontend_assets_dir = Path(__file__).parent.parent.parent / "frontend" / "assets
 if frontend_assets_dir.exists():
     app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="frontend-assets")
 
+# Mount shared directory for shared JS/CSS files
+shared_dir = Path(__file__).parent.parent.parent / "frontend" / "shared"
+if shared_dir.exists():
+    app.mount("/shared", StaticFiles(directory=shared_dir), name="shared")
+
 # Mount static directory for manifest and icons
 static_dir = Path(__file__).parent.parent.parent / "static"
 if static_dir.exists():

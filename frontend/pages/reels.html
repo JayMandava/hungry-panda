@@ -10,6 +10,11 @@
     <title>Reel Maker — Hungry Panda</title>
     <link rel="manifest" href="/static/manifest.json?v=2">
     <link rel="stylesheet" href="voice-styles.css?v=2026-04-25">
+    <!-- Liquid UI Imports -->
+    <link rel="stylesheet" href="../shared/liquid-ui.css?v=6">
+    <script type="module" src="../shared/animations.js"></script>
+    <script type="module" src="../shared/quotes.js"></script>
+    <script type="module" src="../shared/ticker-modal.js"></script>
     <style>
         /* ========================================
            REEL MAKER - PREMIUM GLASSMORPHISM
@@ -86,6 +91,19 @@
             /* Transitions */
             --transition-fast: 150ms ease;
             --transition-base: 250ms ease;
+
+            /* Liquid UI Easings */
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+            --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+            /* Liquid UI Durations */
+            --duration-instant: 100ms;
+            --duration-fast: 150ms;
+            --duration-base: 250ms;
+            --duration-slow: 400ms;
+            --duration-dramatic: 600ms;
         }
         
         *, *::before, *::after {
@@ -202,6 +220,7 @@
             justify-content: center;
             flex-shrink: 0;
             box-shadow: 0 4px 12px rgba(110, 154, 66, 0.3);
+            overflow: hidden;
         }
 
         .brand-icon img {
@@ -210,16 +229,38 @@
             object-fit: contain;
         }
 
+        /* Panda emoji with gentle bounce animation - matches dashboard */
+        .brand-emoji {
+            font-size: 28px;
+            line-height: 1;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .brand-icon:hover .brand-emoji {
+            animation: pandaBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes pandaBounce {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.15) rotate(-5deg); }
+            50% { transform: scale(1.1) rotate(3deg); }
+            75% { transform: scale(1.05) rotate(-2deg); }
+        }
+
         .brand-text h1 {
             font-size: var(--text-xl);
-            font-weight: var(--font-bold);
-            color: var(--text-primary);
+            font-weight: var(--font-semibold);
             letter-spacing: -0.02em;
+            line-height: 1.2;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--brand-primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .brand-text p {
             font-size: var(--text-sm);
-            color: var(--text-secondary);
+            color: var(--text-tertiary);
+            margin-top: 2px;
         }
 
         .header-actions {
@@ -393,6 +434,13 @@
         .project-card {
             padding: var(--space-5);
             cursor: pointer;
+            transition: transform var(--transition-base), box-shadow var(--transition-base);
+        }
+
+        /* Liquid hover lift for project cards */
+        .project-card.liquid-hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px rgba(110, 154, 66, 0.25);
         }
 
         .project-card-header {
@@ -458,10 +506,13 @@
             height: 14px;
         }
 
+        /* Delete Button - Consistent size during processing */
         .icon-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            min-width: 32px;
+            min-height: 32px;
             width: 32px;
             height: 32px;
             border-radius: var(--radius-md);
@@ -470,6 +521,7 @@
             color: var(--brand-error);
             cursor: pointer;
             transition: all var(--transition-fast);
+            padding: 0;
         }
 
         .icon-btn:hover {
@@ -480,6 +532,47 @@
         .icon-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        /* Delete button with text - maintains size during processing */
+        .btn-danger {
+            min-width: 140px;
+            min-height: 40px;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--brand-error);
+            border: 1px solid rgba(239, 68, 68, 0.22);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--text-sm);
+            font-weight: var(--font-semibold);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.16);
+            border-color: rgba(239, 68, 68, 0.34);
+        }
+
+        .btn-danger:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Spinner inside button */
+        .btn-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
         }
 
         .icon-btn svg {
@@ -550,11 +643,33 @@
             justify-content: center;
             z-index: 100;
             padding: var(--space-4);
+            opacity: 0;
+            transition: opacity 250ms ease;
         }
 
         .modal-overlay.active,
         .modal-overlay.show {
             display: flex;
+            opacity: 1;
+        }
+
+        /* Liquid modal backdrop */
+        .modal-overlay.liquid-modal-backdrop {
+            animation: backdropEnter 250ms ease forwards;
+        }
+
+        .modal-overlay.liquid-modal-backdrop-exit {
+            animation: backdropExit 150ms ease forwards;
+        }
+
+        @keyframes backdropEnter {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes backdropExit {
+            from { opacity: 1; }
+            to { opacity: 0; }
         }
 
         .modal {
@@ -571,12 +686,64 @@
             max-width: 560px;
             max-height: 90vh;
             overflow-y: auto;
-            animation: modal-enter 0.3s ease;
+            opacity: 0;
+            transform: scale(0.95);
         }
 
-        @keyframes modal-enter {
-            from { opacity: 0; transform: scale(0.95) translateY(20px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
+        /* Liquid modal with spring animation */
+        .modal.liquid-modal {
+            animation: modalEnter 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .modal.liquid-modal-exit {
+            animation: modalExit 250ms ease forwards;
+        }
+
+        @keyframes modalEnter {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+                filter: blur(10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        @keyframes modalExit {
+            from {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+                filter: blur(10px);
+            }
+        }
+
+        /* Stagger children in liquid modal */
+        .liquid-modal > * {
+            animation: staggerIn 400ms ease backwards;
+        }
+
+        .liquid-modal > *:nth-child(1) { animation-delay: 0.05s; }
+        .liquid-modal > *:nth-child(2) { animation-delay: 0.1s; }
+        .liquid-modal > *:nth-child(3) { animation-delay: 0.15s; }
+        .liquid-modal > *:nth-child(4) { animation-delay: 0.2s; }
+
+        @keyframes staggerIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .modal-header {
@@ -748,6 +915,16 @@
         .upload-zone.dragover {
             background: rgba(110, 154, 66, 0.1);
             border-color: var(--brand-primary);
+            animation: uploadPulse 1.5s ease infinite;
+        }
+
+        @keyframes uploadPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(110, 154, 66, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 0 12px rgba(110, 154, 66, 0);
+            }
         }
 
         .upload-zone svg {
@@ -755,6 +932,11 @@
             height: 48px;
             color: var(--brand-primary);
             margin-bottom: var(--space-4);
+            transition: transform var(--transition-fast);
+        }
+
+        .upload-zone:hover svg {
+            transform: translateY(-2px);
         }
 
         .upload-text {
@@ -873,6 +1055,22 @@
             width: 100%;
             padding: var(--space-4);
             font-size: var(--text-base);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Pulse animation for generate button when enabled */
+        .generate-btn:not(:disabled).liquid-pulse {
+            animation: btnPulse 2s ease infinite;
+        }
+
+        @keyframes btnPulse {
+            0%, 100% {
+                box-shadow: 0 4px 16px rgba(110, 154, 66, 0.35), 0 0 20px rgba(110, 154, 66, 0.1);
+            }
+            50% {
+                box-shadow: 0 6px 24px rgba(110, 154, 66, 0.45), 0 0 30px rgba(110, 154, 66, 0.2);
+            }
         }
 
         /* ========================================
@@ -1073,12 +1271,40 @@
             border-color: rgba(239, 68, 68, 0.34);
         }
 
+        /* Processing status in sidebar */
+        .processing-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-3);
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            color: var(--brand-warning);
+            margin-top: var(--space-3);
+        }
+
+        .processing-status .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: var(--brand-warning);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
         .confirm-overlay {
             position: fixed; inset: 0; z-index: 10000;
             background: rgba(0, 0, 0, 0.55);
             display: flex; align-items: center; justify-content: center;
             padding: 16px; backdrop-filter: blur(4px);
         }
+
+        .confirm-overlay.liquid-modal-backdrop {
+            animation: backdropEnter 250ms ease forwards;
+        }
+
         .confirm-dialog {
             background: var(--bg-card);
             border: 1px solid var(--border-subtle);
@@ -1087,9 +1313,15 @@
             display: flex; flex-direction: column; gap: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
         }
+
+        .confirm-dialog.liquid-modal {
+            animation: modalEnter 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
         .confirm-message {
             font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.55; margin: 0;
         }
+
         .confirm-actions {
             display: flex; gap: 10px; justify-content: flex-end;
         }
@@ -1102,14 +1334,54 @@
             border-radius: var(--radius-md);
         }
 
+        .skeleton.liquid-shimmer {
+            animation: shimmer 2s linear infinite;
+        }
+
         @keyframes skeleton-loading {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
 
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
         /* Utility */
         .hidden {
             display: none !important;
+        }
+
+        /* ========================================
+           REDUCED MOTION SUPPORT
+           ======================================== */
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            .project-card:hover,
+            .glass-card:hover,
+            .btn:hover,
+            .upload-zone.dragover,
+            .generate-btn:not(:disabled).liquid-pulse {
+                animation: none !important;
+                transform: none !important;
+            }
+
+            .liquid-modal,
+            .liquid-modal-backdrop,
+            .liquid-fade-in {
+                animation: none !important;
+                opacity: 1 !important;
+            }
         }
 
         /* Mobile Adjustments */
@@ -1557,7 +1829,7 @@
         <div class="header-content">
             <div class="brand">
                 <div class="brand-icon">
-                    <img src="assets/panda-icon.png" alt="Panda">
+                    <span class="brand-emoji">🐼</span>
                 </div>
                 <div class="brand-text">
                     <h1>Reel Maker</h1>
@@ -1571,7 +1843,7 @@
                     </svg>
                     Back to Dashboard
                 </a>
-                <button class="btn btn-primary" id="newProjectBtn">
+                <button class="btn btn-primary liquid-hover-lift" id="newProjectBtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 5v14M5 12h14"/>
                     </svg>
@@ -1582,24 +1854,24 @@
     </header>
 
     <!-- Main Container -->
-    <main class="app-container">
+    <main class="app-container liquid-page">
         <!-- Projects List View -->
         <div id="projectsListView">
-            <div class="page-header">
+            <div class="page-header liquid-fade-in">
                 <h2 class="page-title">Your Reel Projects</h2>
                 <p class="page-subtitle">Upload photos and videos, then generate beautiful Instagram Reels</p>
             </div>
 
             <section class="projects-section">
-                <div class="section-header">
+                <div class="section-header liquid-fade-in">
                     <h3 class="section-title">Recent Projects</h3>
                 </div>
 
                 <div id="projectsGrid" class="projects-grid">
                     <!-- Projects will be loaded here -->
-                    <div class="skeleton" style="height: 160px;"></div>
-                    <div class="skeleton" style="height: 160px;"></div>
-                    <div class="skeleton" style="height: 160px;"></div>
+                    <div class="skeleton liquid-shimmer" style="height: 160px;"></div>
+                    <div class="skeleton liquid-shimmer" style="height: 160px;"></div>
+                    <div class="skeleton liquid-shimmer" style="height: 160px;"></div>
                 </div>
 
                 <!-- Empty State -->
@@ -1613,7 +1885,7 @@
                     </div>
                     <h3 class="empty-title">No Reel Projects Yet</h3>
                     <p class="empty-text">Create your first Reel by uploading photos and videos</p>
-                    <button class="btn btn-primary" id="emptyStateNewBtn">
+                    <button class="btn btn-primary liquid-hover-lift" id="emptyStateNewBtn">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 5v14M5 12h14"/>
                         </svg>
@@ -1625,7 +1897,7 @@
 
         <!-- Project Detail View -->
         <div id="projectDetailView" class="hidden">
-            <a href="#" class="back-btn" id="backToList">
+            <a href="#" class="back-btn liquid-hover-lift" id="backToList">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
@@ -1634,11 +1906,11 @@
 
             <div class="detail-layout">
                 <div class="main-content">
-                    <div class="glass-card" style="padding: var(--space-6);">
+                    <div class="glass-card liquid-hover-lift" style="padding: var(--space-6);">
                         <div class="detail-header">
                             <h2 id="detailTitle" class="page-title" style="margin-bottom: 0;">Project Title</h2>
                             <div class="detail-actions">
-                                <button class="btn btn-danger" id="deleteProjectBtn" type="button">
+                                <button class="btn btn-danger liquid-hover-lift" id="deleteProjectBtn" type="button">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M3 6h18"/>
                                         <path d="M8 6V4h8v2"/>
@@ -1670,7 +1942,7 @@
                 <!-- Sidebar -->
                 <aside class="sidebar">
                     <!-- Status Card -->
-                    <div class="glass-card sidebar-card">
+                    <div class="glass-card sidebar-card liquid-hover-lift">
                         <h3 class="sidebar-title">Generation Status</h3>
                         <div class="status-list">
                             <div class="status-item">
@@ -1690,10 +1962,16 @@
                                 Video rendering
                             </div>
                         </div>
+                        <div id="processingStatusContainer" style="display: none;">
+                            <div class="processing-status">
+                                <div class="spinner"></div>
+                                <span id="processingStatusText">Processing...</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Style Controls Card -->
-                    <div class="glass-card sidebar-card" id="styleControlsCard">
+                    <div class="glass-card sidebar-card liquid-hover-lift" id="styleControlsCard">
                         <h3 class="sidebar-title">Style Settings</h3>
                         
                         <!-- Transition Style -->
@@ -1749,7 +2027,7 @@
                     </div>
 
                     <!-- Preview Card -->
-                    <div class="glass-card sidebar-card">
+                    <div class="glass-card sidebar-card liquid-hover-lift">
                         <h3 class="sidebar-title">Preview</h3>
                         <div class="preview-player">
                             <div class="preview-placeholder">
@@ -1761,7 +2039,7 @@
                                 <p>Generate to see preview</p>
                             </div>
                         </div>
-                        <button class="btn btn-primary generate-btn" id="generateBtn" disabled>
+                        <button class="btn btn-primary generate-btn liquid-hover-lift" id="generateBtn" disabled>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                             </svg>
@@ -1776,7 +2054,7 @@
                                 <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Describe your reel (helps AI recommendations)</label>
                                 <input type="text" id="reelContextText" class="form-input" style="font-size: 13px; margin-bottom: 8px;" placeholder="e.g., Crispy dosa preparation with chutney...">
                             </div>
-                            <button class="btn btn-secondary" id="getRecommendationsBtn" style="width: 100%; margin-bottom: 8px;">
+                            <button class="btn btn-secondary liquid-hover-lift" id="getRecommendationsBtn" style="width: 100%; margin-bottom: 8px;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
                                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                 </svg>
@@ -1790,8 +2068,8 @@
     </main>
 
     <!-- New Project Modal -->
-    <div class="modal-overlay" id="newProjectModal">
-        <div class="modal">
+    <div class="modal-overlay liquid-modal-backdrop" id="newProjectModal">
+        <div class="modal liquid-modal">
             <div class="modal-header">
                 <h2 class="modal-title">Create New Reel</h2>
             </div>
@@ -1809,21 +2087,25 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="cancelModal">Cancel</button>
-                <button class="btn btn-primary" id="createProjectBtn">Create Project</button>
+                <button class="btn btn-secondary liquid-hover-lift" id="cancelModal">Cancel</button>
+                <button class="btn btn-primary liquid-hover-lift" id="createProjectBtn">Create Project</button>
             </div>
         </div>
     </div>
 
-    <script>
+    <script type="module">
         // ========================================
-        // REEL MAKER - UI Controller
+        // REEL MAKER - UI Controller with Ticker Modal
         // ========================================
+
+        import tickerModal, { showTicker, updateProgress, updateMessage, closeTicker } from '../shared/ticker-modal.js';
 
         const API_BASE = '/api/reels';
         let currentProject = null;
         let selectedTemplate = 'dish_showcase';
         let templates = {};
+        let currentJobId = null;
+        let isCancelled = false;
 
         // Icon helper function - matches dashboard exactly
         const iconSprite = 'assets/ui-icons.svg';
@@ -1904,13 +2186,13 @@
             }
 
             emptyState.classList.add('hidden');
-            projectsGrid.innerHTML = projects.map(project => `
-                <div class="glass-card project-card" data-id="${project.id}">
+            projectsGrid.innerHTML = projects.map((project, index) => `
+                <div class="glass-card project-card liquid-hover-lift" data-id="${project.id}" style="animation-delay: ${index * 0.05}s;">
                     <div class="project-card-header">
                         <h3 class="project-title">${escapeHtml(project.title)}</h3>
                         <div class="project-card-actions">
                             <span class="project-status status-${project.status}">${project.status}</span>
-                            <button class="icon-btn project-delete" data-id="${project.id}" data-title="${escapeHtml(project.title)}" type="button" aria-label="Delete project">
+                            <button class="icon-btn project-delete liquid-hover-lift" data-id="${project.id}" data-title="${escapeHtml(project.title)}" type="button" aria-label="Delete project">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M3 6h18"/>
                                     <path d="M8 6V4h8v2"/>
@@ -1980,10 +2262,18 @@
                 `;
             }).join('');
 
-            // Enable generate button if we have assets (Phase 1: shows Phase 2 notice when clicked)
+            // Enable generate button if we have assets
             const generateBtn = document.getElementById('generateBtn');
             const hasAssets = assets.length > 0;
             generateBtn.disabled = !hasAssets;
+            
+            // Add pulse animation when enabled
+            if (hasAssets) {
+                generateBtn.classList.add('liquid-pulse');
+            } else {
+                generateBtn.classList.remove('liquid-pulse');
+            }
+            
             const generateBtnText = document.getElementById('generateBtnText');
             if (generateBtnText) {
                 generateBtnText.textContent = hasAssets
@@ -2005,11 +2295,13 @@
                 const data = await response.json();
 
                 currentProject = data.project;
+                isCancelled = false;
 
                 // Update UI
                 document.getElementById('detailTitle').textContent = data.project.title;
                 renderAssets(data.assets);
                 updateStatusIndicators(data.project.status);
+                updateProcessingStatus(data.project.status);
 
                 // Update preview player
                 updatePreviewPlayer(data.project, data.latest_render);
@@ -2024,9 +2316,12 @@
                 // Update style buttons to match project settings
                 updateStyleButtons();
                 
-                // Switch views
+                // Switch views with animation
                 projectsListView.classList.add('hidden');
                 projectDetailView.classList.remove('hidden');
+                
+                // Add liquid page animation
+                projectDetailView.classList.add('liquid-page');
             } catch (error) {
                 console.error('Failed to load project:', error);
                 alert('Failed to load project. Please try again.');
@@ -2098,11 +2393,13 @@
                     Regenerate
                 `;
                 generateBtn.disabled = false;
+                generateBtn.classList.remove('liquid-pulse');
                 // Change click handler to regenerate
                 generateBtn.onclick = () => regenerateReel();
             } else if (status === 'plan_ready' || status === 'rendering') {
                 // Generation in progress
                 generateBtn.disabled = true;
+                generateBtn.classList.remove('liquid-pulse');
                 generateBtn.onclick = null;
             } else {
                 // Ready to generate
@@ -2113,6 +2410,14 @@
                     </svg>
                     <span id="generateBtnText">${defaultLabel}</span>
                 `;
+                
+                // Add pulse animation when enabled
+                if (hasAssets) {
+                    generateBtn.classList.add('liquid-pulse');
+                } else {
+                    generateBtn.classList.remove('liquid-pulse');
+                }
+                
                 generateBtn.onclick = null; // Use default click handler
             }
         }
@@ -2121,23 +2426,28 @@
             if (!currentProject) return;
 
             const generateBtn = document.getElementById('generateBtn');
-            const statusText = document.getElementById('generationStatus');
 
-            // Confirm regeneration
+            // Show confirmation
             if (!await showConfirm('Regenerate this Reel? This will create a new version with the current template.', 'Regenerate')) {
                 return;
             }
 
+            // Show ticker modal
+            showTicker({
+                type: 'reel',
+                title: 'Creating new version...',
+                showCancel: true,
+                estimatedTime: 60,
+                onCancel: () => {
+                    isCancelled = true;
+                    showToast('Reel generation cancelled', 'error');
+                }
+            });
+
             try {
+                isCancelled = false;
                 generateBtn.disabled = true;
-                generateBtn.innerHTML = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                    </svg>
-                    Regenerating...
-                `;
-                statusText.style.display = 'block';
-                statusText.textContent = 'Starting regeneration...';
+                generateBtn.classList.remove('liquid-pulse');
 
                 const response = await fetch(`${API_BASE}/projects/${currentProject.id}/regenerate`, {
                     method: 'POST',
@@ -2154,15 +2464,17 @@
                 }
 
                 const data = await response.json();
+                currentJobId = data.job_id;
                 
-                // Start polling for status
-                pollJobStatus(data.job_id);
+                // Start polling for status with ticker updates
+                pollJobStatusWithTicker(data.job_id, true);
             } catch (error) {
                 console.error('Regeneration failed:', error);
-                statusText.textContent = 'Error: ' + error.message;
-                statusText.style.color = 'var(--brand-error)';
+                closeTicker({ animate: true });
+                showToast('Error: ' + error.message, 'error');
                 
                 generateBtn.disabled = false;
+                generateBtn.classList.add('liquid-pulse');
                 generateBtn.innerHTML = `
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
@@ -2178,15 +2490,15 @@
             const confirmed = await showConfirm(`Delete "${projectTitle}"? This will remove the project, assets, previews, and generated output.`, 'Delete Project');
             if (!confirmed) return;
 
-            const originalButtonHtml = triggerButton ? triggerButton.innerHTML : null;
+            // Store original content for restoration
+            const originalContent = triggerButton ? triggerButton.innerHTML : null;
 
             try {
                 if (triggerButton) {
                     triggerButton.disabled = true;
+                    // Keep text visible, add spinner
                     triggerButton.innerHTML = `
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-                            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
-                        </svg>
+                        <span class="btn-spinner"></span>
                     `;
                 }
 
@@ -2206,14 +2518,14 @@
                 }
 
                 await loadProjects();
+                showToast('Project deleted successfully', 'success');
             } catch (error) {
                 console.error('Delete project failed:', error);
                 alert(`Failed to delete project: ${error.message}`);
                 if (triggerButton) {
                     triggerButton.disabled = false;
-                    triggerButton.innerHTML = originalButtonHtml;
+                    triggerButton.innerHTML = originalContent;
                 }
-                return;
             }
         }
 
@@ -2243,6 +2555,26 @@
                     }
                 }
             });
+        }
+
+        function updateProcessingStatus(status) {
+            const container = document.getElementById('processingStatusContainer');
+            const text = document.getElementById('processingStatusText');
+            
+            const processingStatuses = ['queued', 'analyzing', 'plan_ready', 'rendering'];
+            
+            if (processingStatuses.includes(status)) {
+                container.style.display = 'block';
+                const statusMessages = {
+                    'queued': 'Waiting to start...',
+                    'analyzing': 'Analyzing your assets...',
+                    'plan_ready': 'Edit plan ready - rendering video...',
+                    'rendering': 'Rendering video...'
+                };
+                text.textContent = statusMessages[status] || 'Processing...';
+            } else {
+                container.style.display = 'none';
+            }
         }
 
         async function createProject() {
@@ -2292,6 +2624,7 @@
                 
                 // Refresh project data
                 openProject(currentProject.id);
+                showToast('Files uploaded successfully', 'success');
             } catch (error) {
                 console.error('Upload failed:', error);
                 alert('Failed to upload files. Please try again.');
@@ -2300,23 +2633,28 @@
             }
         }
 
-        // Phase 2: Real generation with async processing
+        // Phase 2: Real generation with async processing and Ticker Modal
         async function generateReel() {
             if (!currentProject) return;
 
             const generateBtn = document.getElementById('generateBtn');
-            const statusText = document.getElementById('generationStatus');
+
+            // Show ticker modal immediately
+            showTicker({
+                type: 'reel',
+                title: 'Generating your Reel...',
+                showCancel: true,
+                estimatedTime: 60,
+                onCancel: () => {
+                    isCancelled = true;
+                    showToast('Reel generation cancelled', 'error');
+                }
+            });
 
             try {
+                isCancelled = false;
                 generateBtn.disabled = true;
-                generateBtn.innerHTML = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                    </svg>
-                    Starting...
-                `;
-                statusText.style.display = 'block';
-                statusText.textContent = 'Queueing analysis job...';
+                generateBtn.classList.remove('liquid-pulse');
 
                 const response = await fetch(`${API_BASE}/projects/${currentProject.id}/generate`, {
                     method: 'POST',
@@ -2333,15 +2671,19 @@
                 }
 
                 const data = await response.json();
+                currentJobId = data.job_id;
                 
-                // Start polling for status
-                pollJobStatus(data.job_id);
+                // Start polling for status with ticker updates
+                pollJobStatusWithTicker(data.job_id, false);
             } catch (error) {
                 console.error('Generation failed:', error);
-                statusText.textContent = 'Error: ' + error.message;
-                statusText.style.color = 'var(--brand-error)';
+                closeTicker({ animate: true });
+                showToast('Error: ' + error.message, 'error');
                 
                 generateBtn.disabled = false;
+                if (document.querySelectorAll('.asset-item').length > 0) {
+                    generateBtn.classList.add('liquid-pulse');
+                }
                 generateBtn.innerHTML = `
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
@@ -2351,31 +2693,61 @@
             }
         }
 
-        async function pollJobStatus(jobId) {
+        // Ticker modal step definitions
+        const REEL_STEPS = [
+            { status: 'queued', message: 'Analyzing your assets...', progress: 0 },
+            { status: 'analyzing', message: 'Planning reel structure...', progress: 15 },
+            { status: 'analyzing', message: 'Selecting best moments...', progress: 30 },
+            { status: 'running', message: 'Applying visual style...', progress: 50 },
+            { status: 'running', message: 'Rendering transitions...', progress: 75 },
+            { status: 'plan_ready', message: 'Finalizing video...', progress: 90 },
+            { status: 'completed', message: 'Reel complete!', progress: 100 }
+        ];
+
+        async function pollJobStatusWithTicker(jobId, isRegenerate = false) {
             if (!currentProject) return;
 
-            const statusText = document.getElementById('generationStatus');
             const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('generationStatus');
 
             const checkStatus = async () => {
+                if (isCancelled) {
+                    closeTicker({ animate: true });
+                    return;
+                }
+
                 try {
                     const response = await fetch(`${API_BASE}/projects/${currentProject.id}/jobs/${jobId}`);
                     const data = await response.json();
                     
                     updateStatusIndicators(data.status);
+                    updateProcessingStatus(data.status);
                     
-                    // Update status message
+                    // Map status to ticker progress
+                    const stepIndex = REEL_STEPS.findIndex(step => step.status === data.status);
+                    const currentStep = stepIndex >= 0 ? REEL_STEPS[stepIndex] : REEL_STEPS[0];
+                    
+                    // Update ticker progress
+                    if (tickerModal.isVisible()) {
+                        updateProgress(currentStep.progress);
+                        updateMessage(currentStep.message);
+                    }
+                    
+                    // Update status message in UI
                     const statusMessages = {
                         'queued': 'Waiting to start...',
                         'analyzing': 'AI analyzing your assets...',
                         'running': 'Creating edit plan...',
-                        'plan_ready': 'Edit plan ready! Phase 3 (video rendering) coming soon.',
-                        'completed': 'Video rendered successfully!',  // Phase 3
+                        'plan_ready': 'Edit plan ready! Rendering video...',
+                        'completed': 'Video rendered successfully!',
                         'failed': 'Analysis failed: ' + (data.error_message || 'Unknown error')
                     };
                     statusText.textContent = statusMessages[data.status] || `Status: ${data.status}`;
                     
                     if (data.status === 'plan_ready' || data.status === 'completed') {
+                        // Close ticker modal with animation
+                        await closeTicker({ animate: true });
+                        
                         const isPlanReady = data.status === 'plan_ready';
                         generateBtn.innerHTML = `
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2384,9 +2756,15 @@
                             ${isPlanReady ? 'Analysis Complete' : 'Video Ready'}
                         `;
                         statusText.style.color = 'var(--brand-success)';
-                        // Refresh to show any updates
+                        
+                        // Show success toast
+                        showToast(isPlanReady ? 'Reel analysis complete!' : 'Video rendered successfully!', 'success');
+                        
+                        // Refresh to show updates
                         openProject(currentProject.id);
                     } else if (data.status === 'failed') {
+                        await closeTicker({ animate: true });
+                        
                         generateBtn.disabled = false;
                         generateBtn.innerHTML = `
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2395,6 +2773,8 @@
                             Retry Generation
                         `;
                         statusText.style.color = 'var(--brand-error)';
+                        
+                        showToast('Generation failed: ' + (data.error_message || 'Unknown error'), 'error');
                     } else {
                         // Continue polling
                         setTimeout(checkStatus, 2000);
@@ -2407,6 +2787,12 @@
             };
 
             checkStatus();
+        }
+
+        // Legacy poll function for backward compatibility
+        async function pollJobStatus(jobId) {
+            // Redirect to new ticker-based polling
+            await pollJobStatusWithTicker(jobId, false);
         }
 
         async function removeAsset(assetId) {
@@ -2426,7 +2812,12 @@
                 // Update generate button based on remaining assets
                 const remaining = assetsGrid.querySelectorAll('.asset-item').length;
                 updateGenerateButton(currentProject.status, remaining);
-                if (remaining === 0) document.getElementById('statusAssets').classList.remove('complete');
+                if (remaining === 0) {
+                    document.getElementById('statusAssets').classList.remove('complete');
+                    const generateBtn = document.getElementById('generateBtn');
+                    generateBtn.classList.remove('liquid-pulse');
+                }
+                showToast('Asset removed', 'success');
             } catch (err) {
                 console.error('Remove asset error:', err);
                 showToast('Failed to remove asset', 'error');
@@ -2484,12 +2875,21 @@
         async function getReelRecommendations(projectId) {
             const btn = document.getElementById('getRecommendationsBtn');
             btn.disabled = true;
-            btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;margin-right:8px;"></span> Generating...`;
+
+            showTicker({
+                type: 'analysis',
+                title: 'Getting AI Recommendations...',
+                estimatedTime: 20,
+                showCancel: false
+            });
+            updateProgress(10);
 
             try {
                 // Get context from input if provided
                 const contextInput = document.getElementById('reelContextText');
                 const context = contextInput ? contextInput.value.trim() : '';
+
+                updateProgress(30);
 
                 const response = await fetch(`${API_BASE}/projects/${projectId}/recommendations`, {
                     method: 'POST',
@@ -2497,16 +2897,22 @@
                     body: JSON.stringify({ context: context })
                 });
 
+                updateProgress(80);
+
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'Failed to get recommendations');
                 }
 
                 const data = await response.json();
+                updateProgress(100);
                 currentReelRecommendation = data;
+
+                await closeTicker({ animate: true });
                 showRecommendationModal(data);
             } catch (error) {
                 console.error('Failed to get recommendations:', error);
+                await closeTicker({ animate: false });
                 showToast('Failed to get recommendations: ' + error.message, 'error');
             } finally {
                 btn.disabled = false;
@@ -2594,19 +3000,19 @@
                     </div>
                 </div>
                 <div class="modal-actions recommendation-section" style="--section-index: 4;">
-                    <button class="btn btn-primary" id="modalScheduleBtn">
+                    <button class="btn btn-primary liquid-hover-lift" id="modalScheduleBtn">
                         ${icon('calendar', 'icon icon-sm')} Schedule Reel
                     </button>
                     ${instagramCanPublish ? `
-                    <button class="btn btn-secondary" id="modalPublishBtn">
+                    <button class="btn btn-secondary liquid-hover-lift" id="modalPublishBtn">
                         ${icon('send', 'icon icon-sm')} Publish Now
                     </button>
                     ` : `
-                    <button class="btn btn-secondary" id="modalPublishBtn" disabled title="Connect Instagram to publish">
+                    <button class="btn btn-secondary liquid-hover-lift" id="modalPublishBtn" disabled title="Connect Instagram to publish">
                         ${icon('send', 'icon icon-sm')} Publish Now (Connect Instagram)
                     </button>
                     `}
-                    <button class="btn btn-secondary" onclick="closeRecommendationModal()">
+                    <button class="btn btn-secondary liquid-hover-lift" onclick="closeRecommendationModal()">
                         Save for Later
                     </button>
                 </div>
@@ -2621,7 +3027,7 @@
         }
 
         // Select variant - updates display and tracks selection index
-        function selectReelVariant(element, type, index) {
+        window.selectReelVariant = function(element, type, index) {
             document.querySelectorAll(`#${type}Variants .variant-card`).forEach(c => c.classList.remove('selected'));
             element.classList.add('selected');
             selectedReelVariant = index;
@@ -2636,12 +3042,12 @@
                     selectedCaption.classList.add('content-swap');
                 }
             }
-        }
+        };
 
         // Toggle hashtag - matches dashboard
-        function toggleHashtag(chip) {
+        window.toggleHashtag = function(chip) {
             chip.classList.toggle('selected');
-        }
+        };
 
         // Execute schedule directly from modal
         async function executeModalSchedule() {
@@ -2717,11 +3123,11 @@
         }
 
         // Close recommendation modal - matches dashboard
-        function closeRecommendationModal() {
+        window.closeRecommendationModal = function() {
             const modal = document.getElementById('recommendationModal');
             modal.classList.remove('show');
             document.body.style.overflow = '';
-        }
+        };
 
         // Track selected variant index (used as fallback; DOM is the primary source of truth)
         let selectedReelVariant = 0;
@@ -3060,8 +3466,8 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- Recommendation Modal -->
-    <div class="modal-overlay" id="recommendationModal">
-        <div class="modal">
+    <div class="modal-overlay liquid-modal-backdrop" id="recommendationModal">
+        <div class="modal liquid-modal">
             <div class="modal-header">
                 <h2>
                     <svg class="icon icon-lg"><use href="assets/ui-icons.svg#sparkles"></use></svg>

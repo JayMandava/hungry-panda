@@ -3,13 +3,14 @@
  * Basic caching strategy for PWA support
  */
 
-const CACHE_NAME = 'hungry-panda-v3-2026-04-26';
+const CACHE_NAME = 'hungry-panda-v6-2026-04-28';
 const STATIC_ASSETS = [
   '/',
-  '/dashboard.html',
   '/reels.html',
-  '/voice-styles.css',
-  '/static/manifest.json',
+  '/shared/ticker-modal.js',
+  '/shared/animations.js',
+  '/shared/quotes.js',
+  '/shared/liquid-ui.css',
   '/static/icons/icon-72x72.png',
   '/static/icons/icon-96x96.png',
   '/static/icons/icon-128x128.png',
@@ -66,7 +67,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone and cache successful responses
           if (response.status === 200) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -75,9 +75,25 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(request);
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Shared JS/CSS — always network first so code changes are picked up immediately
+  if (url.pathname.startsWith('/shared/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
         })
+        .catch(() => caches.match(request))
     );
     return;
   }

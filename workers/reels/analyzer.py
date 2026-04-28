@@ -593,16 +593,10 @@ def _ensure_minimum_reel_duration(
         current_dur = segment["duration"]
         
         if asset.get("media_type") == "video":
-            # Videos capped by source duration
-            source_duration = _get_video_source_duration(asset)
-            if source_duration is not None:
-                max_for_video = max(0.0, source_duration - current_dur)
-                extendable_room.append((i, current_dur, max_for_video))
-                total_extendable += max_for_video
-            else:
-                # Unknown source, allow some extension
-                extendable_room.append((i, current_dur, 5.0))
-                total_extendable += 5.0
+            # Allow extending beyond source duration — renderer pads short videos with tpad (freeze last frame)
+            max_for_video = 15.0
+            extendable_room.append((i, current_dur, max_for_video))
+            total_extendable += max_for_video
         else:
             # Images can extend arbitrarily (Ken Burns can run longer)
             # But set a reasonable max per image to avoid excessive still time
@@ -883,9 +877,10 @@ def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
     if total > target + 2:  # Allow 2 second tolerance
         return False, f"Total duration ({total}s) exceeds target ({target}s)"
     
-    if total < 30:
-        return False, f"Total duration ({total}s) below 30s minimum for Instagram Reels"
-    
+    # Short plans (< 30s) are padded to 30s by the renderer via tpad — not a hard failure
+    if total < 3:
+        return False, f"Total duration ({total}s) too short — need at least a few seconds of content"
+
     return True, None
 
 
