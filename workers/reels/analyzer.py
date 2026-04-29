@@ -111,16 +111,22 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
                 "analysis_source": "video_multi_frame"
             }
         
-        # Score for reel suitability
+        # Phase 1: Generate quality scores first
         analysis["quality_scores"] = _score_asset_quality(analysis["visual_facts"], media_type)
-        analysis["reel_suitability"] = _score_reel_suitability(analysis["visual_facts"], analysis["quality_scores"])
         
-        # Phase 1: Enhanced advanced analysis
+        # Phase 1: Generate enhanced advanced analysis (needed for smart selection)
         analysis["advanced_analysis"] = _generate_advanced_analysis(
             analysis["visual_facts"], 
             analysis["quality_scores"],
             media_type,
             source_path
+        )
+        
+        # Phase 1: Score reel suitability using advanced metrics
+        analysis["reel_suitability"] = _score_reel_suitability(
+            analysis["visual_facts"], 
+            analysis["quality_scores"],
+            analysis["advanced_analysis"]  # Now passed for enhanced scoring
         )
         
     except Exception as e:
@@ -350,12 +356,23 @@ def _extract_and_analyze_video_frame(source_path: str, asset_id: str, timestamp:
 def _analyze_video_multi_frame(source_path: str, asset_id: str, duration: float) -> Dict[str, Any]:
     """
     Analyze multiple frames from a video for richer quality assessment.
-    Samples frames at: 1s, 25%, 50%, 75% of duration (up to 4 frames max).
+    Samples frames at: 0.5s (or 25% if <1s), 25%, 50%, 75% of duration (up to 4 frames max).
     Returns aggregated visual facts across all frames.
     """
-    # Calculate sample timestamps
-    timestamps = [1.0]  # Always sample at 1 second
+    # Calculate sample timestamps based on video duration
+    timestamps = []
     
+    if duration < 1.0:
+        # Sub-second videos: sample at 25% of duration (avoid going past end)
+        timestamps.append(duration * 0.25)
+    elif duration < 2.0:
+        # Very short clips: sample at 0.5s
+        timestamps.append(0.5)
+    else:
+        # Normal videos: start at 1s
+        timestamps.append(1.0)
+    
+    # Add percentage-based samples for longer videos
     if duration > 4:
         timestamps.append(duration * 0.25)
     if duration > 8:
@@ -700,80 +717,304 @@ def _score_asset_quality(visual_facts: Dict, media_type: str) -> Dict[str, float
     return scores
 
 
-def _score_reel_suitability(visual_facts: Dict, quality_scores: Dict) -> Dict[str, Any]:
-    """Score asset for specific reel roles (intro, body, outro)"""
+def _score_reel_suitability(
+    visual_facts: Dict, 
+    quality_scores: Dict,
+    advanced_analysis: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """
+    Score asset for specific reel roles (intro, body, outro).
+    Phase 1: Now uses advanced_analysis fields for smarter scoring.
+    """
     overall = quality_scores.get("overall", 0.7)
+    advanced = advanced_analysis or {}
     
-    # Determine best role
+    # Get enhanced metrics (fallback to neutral if not available)
+    hook_strength = advanced.get("hook_strength", overall)
+    orientation_fit = advanced.get("orientation_fit", 0.7)
+    motion_quality = advanced.get("motion_quality", 0.6)
+    rejection_reason = advanced.get("rejection_reason")
+    
+    # Check for hard disqualifiers from rejection_reason
+    disqualified = False
+    if rejection_reason:
+        # Parse rejection reasons - some are hard blocks, some are warnings
+        hard_blocks = [
+            "Video too short",
+            "Poor orientation for 9:16 reels",
+            "file not found",
+            "corrupted"
+        ]
+        for block in hard_blocks:
+            if block.lower() in rejection_reason.lower():
+                disqualified = True
+                break
+    
+    # Severe orientation misfit is a hard disqualifier
+    if orientation_fit < 0.2:
+        disqualified = True
+    
+    # Determine best role using enhanced metrics
     role_scores = {
-        "intro": overall * 0.9,   # Slightly penalized - need strong hook
-        "body": overall,          # Standard
-        "outro": overall * 0.95   # Slightly penalized - need CTA potential
+        "intro": hook_strength * 0.95,  # Use hook_strength directly for intro
+        "body": overall * 0.9,            # Slightly penalized - body needs balance
+        "outro": overall * 0.85           # More penalized - outro needs CTA + closure
     }
     
-    # Boost intro score for high-confidence hero shots
+    # Apply multipliers based on quality signals
     confidence = visual_facts.get("confidence", 0.7)
     is_food = visual_facts.get("is_food_content", True)
     dish = visual_facts.get("dish_detected")
     
-    if confidence > 0.8 and is_food and dish:
-        role_scores["intro"] = overall * 1.1  # Good hook potential
+    # Boost intro for hero shots with all quality signals
+    if hook_strength > 0.7 and is_food and dish and orientation_fit > 0.7:
+        role_scores["intro"] *= 1.15
+    
+    # Motion quality affects all roles (better motion = more engaging)
+    if motion_quality > 0.7:
+        role_scores["intro"] *= 1.05
+        role_scores["body"] *= 1.1
+    elif motion_quality < 0.4:
+        # Poor motion hurts body more (intro can be static hero, outro can be CTA)
+        role_scores["body"] *= 0.85
+    
+    # Orientation fit penalty for all roles
+    if orientation_fit < 0.5:
+        penalty = 0.7 + (orientation_fit * 0.3)  # 0.5 fit = 0.85 penalty, 0.2 fit = 0.76 penalty
+        for role in role_scores:
+            role_scores[role] *= penalty
     
     # Determine best role
     best_role = max(role_scores, key=role_scores.get)
+    final_score = role_scores[best_role]
+    
+    # Disqualified assets get low score and not recommended
+    if disqualified:
+        final_score = min(final_score, 0.3)
+        is_recommended = False
+    else:
+        # Normal recommendation threshold
+        is_recommended = final_score >= 0.55 and orientation_fit >= 0.3
     
     return {
         "role": best_role,
         "role_scores": role_scores,
-        "score": role_scores[best_role],
-        "recommended": role_scores[best_role] >= 0.6
+        "score": round(final_score, 2),
+        "recommended": is_recommended,
+        "disqualified": disqualified,
+        "orientation_penalty": orientation_fit < 0.5,
+        "motion_bonus": motion_quality > 0.7
     }
+
+
+def _detect_duplicate_assets(assets: List[Dict]) -> Dict[str, str]:
+    """
+    Detect duplicate assets by content_hash.
+    Returns dict mapping duplicate asset_id -> original asset_id.
+    First occurrence is kept as original.
+    """
+    seen_hashes: Dict[str, str] = {}  # hash -> first asset_id
+    duplicates: Dict[str, str] = {}  # duplicate_id -> original_id
+    
+    for asset in assets:
+        analysis = asset.get("analysis_json", {})
+        advanced = analysis.get("advanced_analysis", {})
+        content_hash = advanced.get("content_hash")
+        asset_id = asset["id"]
+        
+        if content_hash:
+            if content_hash in seen_hashes:
+                # This is a duplicate
+                duplicates[asset_id] = seen_hashes[content_hash]
+                logger.info(f"Detected duplicate: {asset_id} is duplicate of {seen_hashes[content_hash]}")
+            else:
+                # First occurrence
+                seen_hashes[content_hash] = asset_id
+    
+    return duplicates
 
 
 def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> List[Dict]:
     """
-    Select and rank assets for reel inclusion.
-    PRESERVES STRICT UPLOAD ORDER - does not reorder by score.
-    Returns ordered list of selected assets with their roles.
+    Phase 1 Enhanced: Select and rank assets for reel inclusion.
+    
+    Key improvements:
+    - Uses hook_strength, motion_quality, orientation_fit for ranking
+    - Filters out disqualified assets (poor orientation, rejection_reason)
+    - Detects and suppresses duplicate uploads
+    - Assigns intro/body/outro based on quality scores, not just position
     """
     if not assets:
         return []
     
-    # Sort by upload order (sort_order) - strict preservation
-    sorted_assets = sorted(assets, key=lambda x: x.get("sort_order", 0))
+    # Phase 1: Detect duplicates first
+    duplicates = _detect_duplicate_assets(assets)
     
-    # Filter to recommended assets only (but keep upload order)
-    recommended = [
-        a for a in sorted_assets
-        if a.get("analysis_json", {}).get("reel_suitability", {}).get("recommended", True)
-    ]
+    # Filter out duplicates from consideration (keep originals)
+    unique_assets = [a for a in assets if a["id"] not in duplicates]
     
-    if not recommended:
-        # Fall back to all assets if none recommended (still in upload order)
-        recommended = sorted_assets
+    # Sort by upload order initially
+    sorted_assets = sorted(unique_assets, key=lambda x: x.get("sort_order", 0))
     
-    # Assign roles based on upload order position (not by score)
+    # Filter to qualified assets only
+    qualified = []
+    disqualified = []
+    
+    for asset in sorted_assets:
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        advanced = analysis.get("advanced_analysis", {})
+        
+        # Hard disqualifiers
+        is_disqualified = suitability.get("disqualified", False)
+        orientation_fit = advanced.get("orientation_fit", 0.7)
+        rejection_reason = advanced.get("rejection_reason")
+        
+        if is_disqualified or orientation_fit < 0.2:
+            disqualified.append({
+                "asset_id": asset["id"],
+                "reason": rejection_reason or f"orientation_fit={orientation_fit:.2f}"
+            })
+            continue
+        
+        qualified.append(asset)
+    
+    if not qualified:
+        # Emergency fallback: use assets with highest scores, even if not recommended
+        logger.warning("No qualified assets found, falling back to best available")
+        # Score all unique assets by overall quality
+        scored = []
+        for asset in sorted_assets:
+            analysis = asset.get("analysis_json", {})
+            suitability = analysis.get("reel_suitability", {})
+            score = suitability.get("score", 0.5)
+            scored.append((score, asset))
+        
+        scored.sort(reverse=True)
+        qualified = [a for _, a in scored[:4]]  # Take top 4 at most
+    
+    # Log disqualified assets
+    if disqualified:
+        logger.info(f"Disqualified {len(disqualified)} assets: {disqualified}")
+    
+    # Phase 1: Score-based role assignment
+    # First, identify the best intro candidate by hook_strength
+    intro_candidates = []
+    for asset in qualified:
+        analysis = asset.get("analysis_json", {})
+        advanced = analysis.get("advanced_analysis", {})
+        suitability = analysis.get("reel_suitability", {})
+        
+        hook_strength = advanced.get("hook_strength", 0.5)
+        score = suitability.get("score", 0.5)
+        orientation_fit = advanced.get("orientation_fit", 0.7)
+        
+        # Combined intro score: hook + quality + orientation
+        intro_score = (hook_strength * 0.5) + (score * 0.3) + (orientation_fit * 0.2)
+        intro_candidates.append((intro_score, asset))
+    
+    # Sort by intro potential
+    intro_candidates.sort(reverse=True, key=lambda x: x[0])
+    
+    # Assign intro to the best candidate (not just first uploaded)
+    intro_asset = intro_candidates[0][1] if intro_candidates else None
+    intro_id = intro_asset["id"] if intro_asset else None
+    
+    # Remaining assets for body/outro
+    remaining = [a for a in qualified if a["id"] != intro_id]
+    
+    # Score remaining for body vs outro
+    body_outro_candidates = []
+    for asset in remaining:
+        analysis = asset.get("analysis_json", {})
+        advanced = analysis.get("advanced_analysis", {})
+        suitability = analysis.get("reel_suitability", {})
+        
+        score = suitability.get("score", 0.5)
+        motion_quality = advanced.get("motion_quality", 0.6)
+        food_clarity = advanced.get("food_clarity", 0.5)
+        
+        # Body assets need good motion + clarity
+        body_score = (score * 0.4) + (motion_quality * 0.35) + (food_clarity * 0.25)
+        
+        # Outro needs clarity for CTA but can have less motion
+        outro_score = (score * 0.5) + (food_clarity * 0.3) + (motion_quality * 0.2)
+        
+        body_outro_candidates.append((body_score, outro_score, asset))
+    
+    # Sort by body score (descending)
+    body_outro_candidates.sort(reverse=True, key=lambda x: x[0])
+    
+    # Take last 1-2 as outro candidates (best remaining that aren't body)
+    total_needed = min(len(qualified), 6)  # Max 6 assets total
+    num_outro = min(2, max(0, len(body_outro_candidates) - 2))  # 0-2 outro
+    num_body = total_needed - 1 - num_outro  # Rest are body (minus intro)
+    
+    body_assets = [c[2] for c in body_outro_candidates[:num_body]]
+    outro_assets = [c[2] for c in body_outro_candidates[-num_outro:]] if num_outro > 0 else []
+    
+    # Build final selection with assigned roles
     selected = []
-    for idx, asset in enumerate(recommended[:8]):  # Max 8 assets
-        # Get score for reference (but don't use it for ordering)
-        score = asset.get("analysis_json", {}).get("reel_suitability", {}).get("score", 0.5)
-        
-        # Assign roles based on position in upload sequence
-        role = "body"
-        if idx == 0:
-            role = "intro"  # First uploaded asset is intro
-        elif idx >= len(recommended) - 2 and len(recommended) > 2:
-            role = "outro"  # Last 1-2 assets are outro
-        
+    
+    # Intro first
+    if intro_asset:
+        analysis = intro_asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        selected.append({
+            "asset_id": intro_asset["id"],
+            "source_path": intro_asset["source_path"],
+            "media_type": intro_asset["media_type"],
+            "sort_order": intro_asset.get("sort_order", 0),
+            "role": "intro",
+            "score": suitability.get("score", 0.5),
+            "hook_strength": analysis.get("advanced_analysis", {}).get("hook_strength", 0),
+            "selection_reason": "Highest hook_strength for intro",
+            "analysis": analysis
+        })
+    
+    # Body assets
+    for asset in body_assets:
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        advanced = analysis.get("advanced_analysis", {})
         selected.append({
             "asset_id": asset["id"],
             "source_path": asset["source_path"],
             "media_type": asset["media_type"],
-            "sort_order": asset.get("sort_order", idx),
-            "role": role,
-            "score": score,  # Kept for reference only
-            "analysis": asset.get("analysis_json", {})
+            "sort_order": asset.get("sort_order", 0),
+            "role": "body",
+            "score": suitability.get("score", 0.5),
+            "motion_quality": advanced.get("motion_quality", 0),
+            "selection_reason": "Strong motion + food clarity for body",
+            "analysis": analysis
         })
+    
+    # Outro assets
+    for asset in outro_assets:
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        advanced = analysis.get("advanced_analysis", {})
+        selected.append({
+            "asset_id": asset["id"],
+            "source_path": asset["source_path"],
+            "media_type": asset["media_type"],
+            "sort_order": asset.get("sort_order", 0),
+            "role": "outro",
+            "score": suitability.get("score", 0.5),
+            "food_clarity": advanced.get("food_clarity", 0),
+            "selection_reason": "Clear food visibility for outro CTA",
+            "analysis": analysis
+        })
+    
+    # Mark duplicates with references
+    for dup_id, orig_id in duplicates.items():
+        if orig_id in [s["asset_id"] for s in selected]:
+            # Find the selected asset that this is a duplicate of
+            for sel in selected:
+                if sel["asset_id"] == orig_id:
+                    sel["has_duplicates"] = sel.get("has_duplicates", []) + [dup_id]
+    
+    logger.info(f"Selected {len(selected)} assets: {[(s['asset_id'][:8], s['role']) for s in selected]}")
     
     return selected
 
