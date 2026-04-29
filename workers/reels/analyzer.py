@@ -884,14 +884,15 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
         logger.warning("No qualified assets found, falling back to best available")
         # Score all unique assets by overall quality
         scored = []
-        for asset in sorted_assets:
+        for idx, asset in enumerate(sorted_assets):
             analysis = asset.get("analysis_json", {})
             suitability = analysis.get("reel_suitability", {})
             score = suitability.get("score", 0.5)
-            scored.append((score, asset))
+            # Include index as tie-breaker to avoid dict comparison errors
+            scored.append((score, idx, asset))
         
-        scored.sort(reverse=True)
-        qualified = [a for _, a in scored[:4]]  # Take top 4 at most
+        scored.sort(reverse=True, key=lambda x: (x[0], -x[1]))  # Higher score wins, lower index breaks ties
+        qualified = [asset for _, _, asset in scored[:4]]  # Take top 4 at most
     
     # Log disqualified assets
     if disqualified:
@@ -937,21 +938,38 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
         # Body assets need good motion + clarity
         body_score = (score * 0.4) + (motion_quality * 0.35) + (food_clarity * 0.25)
         
-        # Outro needs clarity for CTA but can have less motion
-        outro_score = (score * 0.5) + (food_clarity * 0.3) + (motion_quality * 0.2)
+        # Outro needs HIGH clarity for CTA visibility, score still matters, motion less important
+        outro_score = (food_clarity * 0.45) + (score * 0.4) + (motion_quality * 0.15)
         
-        body_outro_candidates.append((body_score, outro_score, asset))
+        body_outro_candidates.append({
+            'asset': asset,
+            'body_score': body_score,
+            'outro_score': outro_score,
+            'food_clarity': food_clarity
+        })
     
-    # Sort by body score (descending)
-    body_outro_candidates.sort(reverse=True, key=lambda x: x[0])
-    
-    # Take last 1-2 as outro candidates (best remaining that aren't body)
+    # Calculate how many of each role we need
     total_needed = min(len(qualified), 6)  # Max 6 assets total
     num_outro = min(2, max(0, len(body_outro_candidates) - 2))  # 0-2 outro
     num_body = total_needed - 1 - num_outro  # Rest are body (minus intro)
     
-    body_assets = [c[2] for c in body_outro_candidates[:num_body]]
-    outro_assets = [c[2] for c in body_outro_candidates[-num_outro:]] if num_outro > 0 else []
+    # Strategy: Pick best outro FIRST by outro_score, then fill body with what's left
+    # This ensures outro gets assets optimized for CTA/clarity, not leftovers
+    
+    # Sort by outro_score (descending) to find best outro candidates
+    outro_sorted = sorted(body_outro_candidates, reverse=True, key=lambda x: x['outro_score'])
+    outro_selection = outro_sorted[:num_outro]
+    outro_ids = {c['asset']['id'] for c in outro_selection}
+    
+    # Remaining candidates for body (exclude outro picks)
+    remaining_for_body = [c for c in body_outro_candidates if c['asset']['id'] not in outro_ids]
+    
+    # Sort remaining by body_score (motion + clarity + quality)
+    body_sorted = sorted(remaining_for_body, reverse=True, key=lambda x: x['body_score'])
+    body_selection = body_sorted[:num_body]
+    
+    body_assets = [c['asset'] for c in body_selection]
+    outro_assets = [c['asset'] for c in outro_selection]
     
     # Build final selection with assigned roles
     selected = []
