@@ -1668,7 +1668,52 @@
             color: var(--text-muted);
             margin-top: 2px;
         }
-        
+
+        .competitor-actions {
+            display: flex;
+            gap: var(--space-2);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .competitor-item:hover .competitor-actions {
+            opacity: 1;
+        }
+
+        .competitor-actions .action-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: var(--radius-md);
+            border: 1px solid transparent;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-tertiary);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .competitor-actions .action-btn.danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #dc2626;
+        }
+
+        .competitor-actions .action-btn.danger:hover svg {
+            transform: scale(1.1);
+        }
+
+        .competitor-actions .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .competitor-actions {
+                opacity: 1;
+            }
+        }
+
         /* Hashtag Chips - Liquid Glass Style */
         .hashtag-cloud {
             display: flex;
@@ -3263,6 +3308,7 @@
         window.switchTab = switchTab;
         window.getRecommendations = getRecommendations;
         window.deleteContent = deleteContent;
+        window.deleteCompetitor = deleteCompetitor;
         window.addCompetitor = addCompetitor;
         window.refreshTrendingHashtags = refreshTrendingHashtags;
         window.generateNewStrategy = generateNewStrategy;
@@ -3980,13 +4026,18 @@
                 }
                 
                 list.innerHTML = competitors.map(comp => `
-                    <div class="competitor-item">
+                    <div class="competitor-item" data-username="${comp.username}">
                         <div class="competitor-avatar">${icon('user', 'icon icon-md')}</div>
                         <div class="competitor-info">
                             <div class="competitor-name">@${comp.username}</div>
                             <div class="competitor-stats">
                                 ${comp.follower_count ? comp.follower_count.toLocaleString() + ' followers' : 'Analysis pending'}
                             </div>
+                        </div>
+                        <div class="competitor-actions">
+                            <button class="action-btn danger" onclick="deleteCompetitor('${comp.username}')" title="Remove competitor">
+                                ${icon('trash', 'icon icon-sm')}
+                            </button>
                         </div>
                     </div>
                 `).join('');
@@ -4019,7 +4070,35 @@
                 showToast('Failed to add competitor', 'error');
             }
         }
-        
+
+        // Delete competitor
+        async function deleteCompetitor(username) {
+            if (!confirm(`Stop tracking @${username}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/competitors/${encodeURIComponent(username)}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'deleted') {
+                    showToast(`@${username} removed from tracking`);
+                    await loadCompetitors();
+                    await loadDashboardData();
+                    return;
+                }
+
+                console.error('Delete competitor failed:', data);
+                showToast(data.detail || 'Unable to remove competitor. Please try again.', 'error');
+            } catch (err) {
+                console.error('Delete competitor error:', err);
+                showToast('Unable to remove competitor. Please try again.', 'error');
+            }
+        }
+
         function setTrendingHashtagsLoading() {
             const container = document.getElementById('trendingHashtags');
             container.innerHTML = `
