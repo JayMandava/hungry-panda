@@ -4,7 +4,8 @@ Asset analysis, scoring, and edit plan generation
 """
 import json
 import uuid
-from typing import List, Dict, Any, Optional
+import hashlib
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -39,6 +40,10 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
     """
     Analyze a reel asset using existing visual analysis primitives.
     Returns structured facts and quality scores for reel suitability.
+    
+    Phase 1 Enhancement: Extended analysis with hook_strength, food_clarity,
+    motion_quality, lighting_score, orientation_fit, duplicate_group,
+    usable_duration_seconds, recommended_trim_ranges, and rejection_reason.
     """
     analysis = {
         "asset_id": asset_id,
@@ -46,7 +51,8 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
         "visual_facts": {},
         "quality_scores": {},
-        "reel_suitability": {}
+        "reel_suitability": {},
+        "advanced_analysis": {}  # New: Phase 1 enhanced fields
     }
     
     try:
@@ -55,6 +61,16 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
             if LLM_AVAILABLE:
                 try:
                     visual_result = analyze_visual_asset(source_path)
+                    visual_summary = visual_result.get("visual_summary", "").lower()
+                    
+                    # Infer lighting from visual summary
+                    if "bright" in visual_summary or "well-lit" in visual_summary or "natural light" in visual_summary:
+                        lighting_score = 0.9
+                    elif "dark" in visual_summary or "dim" in visual_summary or "shadow" in visual_summary:
+                        lighting_score = 0.4
+                    else:
+                        lighting_score = 0.7
+                    
                     analysis["visual_facts"] = {
                         "dish_detected": visual_result.get("dish_detected"),
                         "meal_type": visual_result.get("meal_type"),
@@ -63,32 +79,49 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
                         "primary_subject": visual_result.get("primary_subject"),
                         "confidence": visual_result.get("confidence"),
                         "is_food_content": visual_result.get("is_food_content", True),
-                        "contradicts_user_text": visual_result.get("contradicts_user_text", False)
+                        "contradicts_user_text": visual_result.get("contradicts_user_text", False),
+                        "lighting_score": lighting_score,
+                        "motion_quality": 0.0  # Images have no motion
                     }
                 except Exception as e:
                     logger.warning(f"Visual analysis failed for {asset_id}: {e}")
-                    analysis["visual_facts"] = {"error": str(e), "confidence": 0.5}
+                    analysis["visual_facts"] = {
+                        "error": str(e), 
+                        "confidence": 0.5,
+                        "lighting_score": 0.5,
+                        "motion_quality": 0.0
+                    }
             else:
                 # Heuristic fallback when LLM unavailable
                 analysis["visual_facts"] = _heuristic_image_analysis(source_path)
         
         elif media_type == "video":
-            # For videos: extract metadata AND analyze a representative frame
+            # For videos: extract metadata AND analyze multiple frames for richer data
             metadata = _analyze_video_metadata(source_path)
+            duration = metadata.get("duration_seconds", 0)
             
-            # Extract a frame for visual analysis (at 1 second mark)
-            visual_analysis = _extract_and_analyze_video_frame(source_path, asset_id)
+            # Multi-frame sampling: analyze at 1s, 25%, 50%, 75% of duration
+            frame_analyses = _analyze_video_multi_frame(source_path, asset_id, duration)
             
-            # Merge metadata with visual analysis
+            # Merge metadata with aggregated visual analysis
             analysis["visual_facts"] = {
                 **metadata,  # resolution, duration, frame_rate
-                **visual_analysis,  # dish_detected, is_food_content, etc.
-                "analysis_source": "video_frame"
+                **frame_analyses,  # aggregated dish_detected, is_food_content, etc.
+                "frame_count": frame_analyses.get("frame_count", 1),
+                "analysis_source": "video_multi_frame"
             }
         
         # Score for reel suitability
         analysis["quality_scores"] = _score_asset_quality(analysis["visual_facts"], media_type)
         analysis["reel_suitability"] = _score_reel_suitability(analysis["visual_facts"], analysis["quality_scores"])
+        
+        # Phase 1: Enhanced advanced analysis
+        analysis["advanced_analysis"] = _generate_advanced_analysis(
+            analysis["visual_facts"], 
+            analysis["quality_scores"],
+            media_type,
+            source_path
+        )
         
     except Exception as e:
         logger.error(f"Asset analysis failed for {asset_id}: {e}")
@@ -111,18 +144,32 @@ def _heuristic_image_analysis(source_path: str) -> Dict[str, Any]:
             # Basic quality metrics
             resolution_score = min(1.0, (width * height) / (1080 * 1920))
             
+            # Estimate lighting from image statistics (simple brightness check)
+            try:
+                import numpy as np
+                img_gray = img.convert('L')
+                brightness = np.array(img_gray).mean() / 255.0
+                # Scale to lighting score (0.3-1.0 range)
+                lighting_score = 0.3 + (brightness * 0.7)
+            except:
+                lighting_score = 0.6  # Default middle value
+            
             return {
                 "resolution": f"{width}x{height}",
                 "aspect_ratio": round(aspect, 2),
                 "confidence": 0.5,
                 "is_food_content": True,  # Assume food for heuristic
-                "heuristic_analysis": True
+                "heuristic_analysis": True,
+                "lighting_score": round(lighting_score, 2),
+                "motion_quality": 0.0  # Images have no motion
             }
     except Exception as e:
         return {
             "error": str(e),
             "confidence": 0.3,
-            "heuristic_analysis": True
+            "heuristic_analysis": True,
+            "lighting_score": 0.5,
+            "motion_quality": 0.0
         }
 
 
@@ -298,6 +345,301 @@ def _extract_and_analyze_video_frame(source_path: str, asset_id: str, timestamp:
                 temp_frame.unlink()
             except:
                 pass
+
+
+def _analyze_video_multi_frame(source_path: str, asset_id: str, duration: float) -> Dict[str, Any]:
+    """
+    Analyze multiple frames from a video for richer quality assessment.
+    Samples frames at: 1s, 25%, 50%, 75% of duration (up to 4 frames max).
+    Returns aggregated visual facts across all frames.
+    """
+    # Calculate sample timestamps
+    timestamps = [1.0]  # Always sample at 1 second
+    
+    if duration > 4:
+        timestamps.append(duration * 0.25)
+    if duration > 8:
+        timestamps.append(duration * 0.50)
+    if duration > 12:
+        timestamps.append(duration * 0.75)
+    
+    # Cap at 4 frames to control LLM cost
+    timestamps = timestamps[:4]
+    
+    frame_results = []
+    for ts in timestamps:
+        frame_analysis = _extract_and_analyze_video_frame(source_path, asset_id, timestamp=ts)
+        frame_results.append({
+            "timestamp": ts,
+            **frame_analysis
+        })
+    
+    # Aggregate results across frames
+    confidences = [f.get("confidence", 0.5) for f in frame_results]
+    avg_confidence = sum(confidences) / len(confidences) if confidences else 0.5
+    min_confidence = min(confidences) if confidences else 0.5
+    
+    # Check food content consistency across frames
+    food_content_votes = sum(1 for f in frame_results if f.get("is_food_content", True))
+    is_food_consistent = food_content_votes >= len(frame_results) * 0.5
+    
+    # Aggregate dish detection (any frame detecting dish counts)
+    dishes_detected = set()
+    for f in frame_results:
+        dish = f.get("dish_detected")
+        if dish:
+            dishes_detected.add(dish)
+    
+    # Calculate motion quality based on consistency across frames
+    visual_summaries = [f.get("visual_summary", "") for f in frame_results]
+    motion_quality = _calculate_motion_quality(frame_results, duration)
+    
+    # Lighting consistency
+    lighting_scores = []
+    for f in frame_results:
+        summary = f.get("visual_summary", "").lower()
+        if "bright" in summary or "well-lit" in summary:
+            lighting_scores.append(0.9)
+        elif "dark" in summary or "dim" in summary:
+            lighting_scores.append(0.4)
+        else:
+            lighting_scores.append(0.7)
+    avg_lighting = sum(lighting_scores) / len(lighting_scores) if lighting_scores else 0.7
+    
+    return {
+        "dish_detected": list(dishes_detected)[0] if len(dishes_detected) == 1 else ("multiple" if len(dishes_detected) > 1 else None),
+        "all_dishes_detected": list(dishes_detected),
+        "meal_type": frame_results[0].get("meal_type") if frame_results else None,
+        "cuisine_type": frame_results[0].get("cuisine_type") if frame_results else None,
+        "visual_summary": visual_summaries[0] if visual_summaries else "",
+        "frame_summaries": visual_summaries,
+        "primary_subject": frame_results[0].get("primary_subject") if frame_results else None,
+        "confidence": avg_confidence,
+        "min_confidence": min_confidence,
+        "is_food_content": is_food_consistent,
+        "contradicts_user_text": any(f.get("contradicts_user_text", False) for f in frame_results),
+        "frame_count": len(frame_results),
+        "motion_quality": motion_quality,
+        "lighting_score": avg_lighting,
+        "frame_analysis": frame_results
+    }
+
+
+def _calculate_motion_quality(frame_results: List[Dict], duration: float) -> float:
+    """
+    Calculate motion quality score based on frame consistency and variety.
+    Higher score = more engaging motion for reels.
+    """
+    if len(frame_results) < 2:
+        return 0.6  # Default for single frame
+    
+    # Check for variety in visual summaries (indicates camera movement)
+    summaries = [f.get("visual_summary", "").lower() for f in frame_results]
+    
+    # Indicators of good motion
+    motion_keywords = ["moving", "pan", "zoom", "tracking", "motion", "handheld", "dynamic"]
+    static_keywords = ["static", "still", "fixed", "tripod", "stable shot"]
+    
+    motion_score = 0.6  # Base score
+    
+    # Boost for detected motion keywords
+    for summary in summaries:
+        if any(kw in summary for kw in motion_keywords):
+            motion_score += 0.15
+    
+    # Penalty for explicitly static shots
+    for summary in summaries:
+        if any(kw in summary for kw in static_keywords):
+            motion_score -= 0.1
+    
+    # Duration factor: very short clips (<3s) or very long (>60s) are less ideal
+    if 3 <= duration <= 15:
+        motion_score += 0.1
+    elif duration > 60:
+        motion_score -= 0.1
+    
+    return max(0.3, min(1.0, motion_score))
+
+
+def _generate_advanced_analysis(
+    visual_facts: Dict, 
+    quality_scores: Dict,
+    media_type: str,
+    source_path: str
+) -> Dict[str, Any]:
+    """
+    Generate Phase 1 enhanced analysis fields:
+    - hook_strength: 0-1 score for intro potential
+    - food_clarity: 0-1 score for food visibility
+    - motion_quality: 0-1 score for videos (engaging movement)
+    - lighting_score: 0-1 score for illumination quality
+    - orientation_fit: how well it fits 9:16 reels
+    - duplicate_group: ID if this is a duplicate of another asset
+    - usable_duration_seconds: for videos, how much is usable
+    - recommended_trim_ranges: start/end suggestions
+    - rejection_reason: if not suitable
+    """
+    advanced = {
+        "hook_strength": 0.0,
+        "food_clarity": 0.0,
+        "motion_quality": 0.0,
+        "lighting_score": 0.0,
+        "orientation_fit": 0.0,
+        "duplicate_group": None,
+        "usable_duration_seconds": None,
+        "recommended_trim_ranges": None,
+        "rejection_reason": None,
+        "version": "phase_1_enhanced"
+    }
+    
+    # Calculate hook strength (good for intro)
+    confidence = visual_facts.get("confidence", 0.5)
+    is_food = visual_facts.get("is_food_content", False)
+    dish = visual_facts.get("dish_detected")
+    overall_quality = quality_scores.get("overall", 0.5)
+    
+    hook_score = overall_quality * 0.4
+    if confidence > 0.8:
+        hook_score += 0.25
+    if is_food:
+        hook_score += 0.15
+    if dish:
+        hook_score += 0.15
+    if visual_facts.get("lighting_score", 0.7) > 0.8:
+        hook_score += 0.05
+    
+    advanced["hook_strength"] = round(min(1.0, hook_score), 2)
+    
+    # Food clarity: how clearly food is visible
+    if is_food:
+        clarity_base = confidence * 0.5
+        if dish:
+            clarity_base += 0.3
+        if visual_facts.get("primary_subject") == "food":
+            clarity_base += 0.2
+        advanced["food_clarity"] = round(min(1.0, clarity_base), 2)
+    else:
+        advanced["food_clarity"] = 0.1
+    
+    # Motion quality (videos only)
+    if media_type == "video":
+        advanced["motion_quality"] = round(visual_facts.get("motion_quality", 0.6), 2)
+    else:
+        # For images, motion quality represents dynamism potential (Ken Burns, etc.)
+        # Higher for interesting compositions that could animate well
+        composition = quality_scores.get("composition", 0.7)
+        advanced["motion_quality"] = round(composition * 0.8, 2)
+    
+    # Lighting score
+    advanced["lighting_score"] = round(visual_facts.get("lighting_score", 0.7), 2)
+    
+    # Orientation fit for 9:16 reels
+    resolution = visual_facts.get("resolution", "")
+    aspect_ratio = visual_facts.get("aspect_ratio", 1.0)
+    
+    if resolution and "x" in resolution.lower():
+        try:
+            w, h = map(int, resolution.lower().split('x'))
+            aspect_ratio = w / h if h > 0 else 1.0
+        except:
+            pass
+    
+    # 9:16 = 0.5625 aspect ratio. Closer = better fit
+    target_aspect = 9 / 16  # 0.5625
+    if aspect_ratio > 0:  # Vertical/portrait
+        fit = 1.0 - min(1.0, abs(aspect_ratio - target_aspect) / target_aspect)
+    else:  # Landscape - needs cropping
+        fit = max(0, 0.5 - abs(aspect_ratio - target_aspect))
+    
+    advanced["orientation_fit"] = round(fit, 2)
+    
+    # Usable duration and trim ranges for videos
+    if media_type == "video":
+        duration = visual_facts.get("duration_seconds", 0)
+        
+        if duration > 0:
+            # Calculate usable portion (skip bad start/end if needed)
+            usable_start = 0
+            usable_end = duration
+            
+            # For very short clips, use full duration
+            if duration <= 3:
+                usable_start = 0
+                usable_end = duration
+            elif duration <= 10:
+                # Good clips - maybe trim tiny bit from start if needed
+                usable_start = min(0.5, duration * 0.1)
+                usable_end = duration
+            else:
+                # Longer clips - focus on middle section for best content
+                usable_start = min(1.0, duration * 0.05)
+                usable_end = duration - min(1.0, duration * 0.05)
+            
+            usable_duration = usable_end - usable_start
+            advanced["usable_duration_seconds"] = round(usable_duration, 1)
+            advanced["recommended_trim_ranges"] = {
+                "start_seconds": round(usable_start, 1),
+                "end_seconds": round(usable_end, 1),
+                "rationale": "Focus on middle content for best quality"
+            }
+    
+    # Generate file hash for duplicate detection
+    advanced["content_hash"] = _compute_file_hash(source_path)
+    
+    # Determine rejection reason if not suitable
+    rejection_reasons = []
+    
+    if advanced["orientation_fit"] < 0.3:
+        rejection_reasons.append("Poor orientation for 9:16 reels (landscape video)")
+    
+    if advanced["food_clarity"] < 0.3 and is_food:
+        rejection_reasons.append("Food not clearly visible")
+    
+    if overall_quality < 0.4:
+        rejection_reasons.append("Low visual quality")
+    
+    if media_type == "video" and duration < 1:
+        rejection_reasons.append("Video too short (<1 second)")
+    
+    if media_type == "video" and advanced["motion_quality"] < 0.3:
+        rejection_reasons.append("Poor motion quality (too static or shaky)")
+    
+    if rejection_reasons:
+        advanced["rejection_reason"] = "; ".join(rejection_reasons)
+    
+    return advanced
+
+
+def _compute_file_hash(source_path: str) -> Optional[str]:
+    """Compute a quick hash of file for duplicate detection."""
+    try:
+        # Sample-based hash: read first 8KB + middle 8KB + last 8KB for speed
+        import os
+        file_size = os.path.getsize(source_path)
+        
+        if file_size == 0:
+            return None
+        
+        hasher = hashlib.md5()
+        
+        with open(source_path, 'rb') as f:
+            # First 8KB
+            hasher.update(f.read(8192))
+            
+            # Middle 8KB if file is large enough
+            if file_size > 24576:  # > 24KB
+                f.seek(file_size // 2)
+                hasher.update(f.read(8192))
+            
+            # Last 8KB
+            if file_size > 8192:
+                f.seek(-8192, 2)
+                hasher.update(f.read(8192))
+        
+        return hasher.hexdigest()[:16]  # 16 chars is enough for deduplication
+    except Exception as e:
+        logger.warning(f"Failed to compute file hash for {source_path}: {e}")
+        return None
 
 
 def _score_asset_quality(visual_facts: Dict, media_type: str) -> Dict[str, float]:
