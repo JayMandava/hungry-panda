@@ -1681,23 +1681,27 @@
         }
 
         .competitor-actions .action-btn {
-            width: 28px;
-            height: 28px;
+            width: 34px;
+            height: 34px;
             border-radius: var(--radius-md);
-            border: 1px solid var(--border-subtle);
+            border: 1px solid transparent;
             background: transparent;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
+            color: var(--text-tertiary);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .competitor-actions .action-btn:hover {
-            background: var(--surface-danger);
-            border-color: var(--danger);
-            color: var(--danger);
+        .competitor-actions .action-btn.danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #dc2626;
+        }
+
+        .competitor-actions .action-btn.danger:hover svg {
+            transform: scale(1.1);
         }
 
         .competitor-actions .action-btn:active {
@@ -3304,6 +3308,7 @@
         window.switchTab = switchTab;
         window.getRecommendations = getRecommendations;
         window.deleteContent = deleteContent;
+        window.deleteCompetitor = deleteCompetitor;
         window.addCompetitor = addCompetitor;
         window.refreshTrendingHashtags = refreshTrendingHashtags;
         window.generateNewStrategy = generateNewStrategy;

@@ -453,8 +453,39 @@
         .project-card-actions {
             display: flex;
             align-items: center;
-            gap: var(--space-2);
-            flex-shrink: 0;
+            gap: var(--space-1);
+            padding-left: var(--space-2);
+        }
+
+        /* Action buttons - matches dashboard content queue */
+        .project-card-actions .action-btn {
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--radius-md);
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .project-card-actions .action-btn svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+        }
+
+        .project-card-actions .action-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        .project-card-actions .action-btn.danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #dc2626;
         }
 
         .project-title {
@@ -2192,13 +2223,8 @@
                         <h3 class="project-title">${escapeHtml(project.title)}</h3>
                         <div class="project-card-actions">
                             <span class="project-status status-${project.status}">${project.status}</span>
-                            <button class="icon-btn project-delete liquid-hover-lift" data-id="${project.id}" data-title="${escapeHtml(project.title)}" type="button" aria-label="Delete project">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 6h18"/>
-                                    <path d="M8 6V4h8v2"/>
-                                    <path d="M19 6l-1 14H6L5 6"/>
-                                    <path d="M10 11v6M14 11v6"/>
-                                </svg>
+                            <button class="action-btn danger" onclick="event.stopPropagation(); deleteProject('${project.id}', '${escapeHtml(project.title)}', this);" title="Delete project">
+                                ${icon('trash', 'icon icon-sm')}
                             </button>
                         </div>
                     </div>
@@ -2224,7 +2250,7 @@
                 button.addEventListener('click', async (event) => {
                     event.stopPropagation();
                     const { id, title } = button.dataset;
-                    await deleteProject(id, title, button);
+                    await window.deleteProject(id, title, button);
                 });
             });
         }
@@ -3048,6 +3074,9 @@
         window.toggleHashtag = function(chip) {
             chip.classList.toggle('selected');
         };
+
+        // Expose deleteProject for inline handlers
+        window.deleteProject = deleteProject;
 
         // Execute schedule directly from modal
         async function executeModalSchedule() {
