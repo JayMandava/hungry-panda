@@ -1037,6 +1037,60 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
     return selected
 
 
+def mark_duplicate_groups_in_project(project_id: str, assets: List[Dict]):
+    """
+    Post-analysis pass: Populate duplicate_group field for assets that are duplicates.
+    Should be called after all assets in a project have been analyzed.
+    """
+    # Build hash -> list of assets map
+    hash_groups: Dict[str, List[Dict]] = {}
+    
+    for asset in assets:
+        analysis = asset.get("analysis_json", {})
+        advanced = analysis.get("advanced_analysis", {})
+        content_hash = advanced.get("content_hash")
+        
+        if content_hash:
+            if content_hash not in hash_groups:
+                hash_groups[content_hash] = []
+            hash_groups[content_hash].append(asset)
+    
+    # For each group with duplicates, mark all but first as duplicates
+    for content_hash, group in hash_groups.items():
+        if len(group) > 1:
+            # First asset is the "original", rest are duplicates
+            original_id = group[0]["id"]
+            duplicate_group_id = str(uuid.uuid4())[:8]  # Short group ID
+            
+            for idx, asset in enumerate(group):
+                asset_id = asset["id"]
+                analysis = asset.get("analysis_json", {})
+                advanced = analysis.get("advanced_analysis", {})
+                
+                if idx == 0:
+                    # Original asset
+                    advanced["duplicate_group"] = None
+                    advanced["is_original"] = True
+                    advanced["duplicate_count"] = len(group) - 1
+                else:
+                    # Duplicate asset
+                    advanced["duplicate_group"] = duplicate_group_id
+                    advanced["is_original"] = False
+                    advanced["duplicate_of"] = original_id
+                
+                # Update database with new duplicate info
+                try:
+                    # Re-serialize the updated analysis_json
+                    execute_insert(
+                        "UPDATE reel_assets SET analysis_json = ? WHERE id = ?",
+                        (json.dumps(analysis), asset_id)
+                    )
+                except DatabaseError as e:
+                    logger.error(f"Failed to update duplicate_group for asset {asset_id}: {e}")
+            
+            logger.info(f"Marked duplicate group {duplicate_group_id}: {original_id} is original, {len(group)-1} duplicates")
+
+
 def _generate_ai_edit_plan_prompt(selected_assets: List[Dict], template_key: str, template: Dict, target_duration: int) -> str:
     """Generate a prompt for AI to create edit plan decisions"""
     
