@@ -1093,6 +1093,15 @@ except ImportError as e:
     logger.warning(f"Reel renderer not available: {e}")
     RENDERER_AVAILABLE = False
 
+# Phase 5: Import Remotion renderer behind feature flag
+try:
+    from workers.reels.remotion_renderer import RemotionRenderer, RemotionRenderResult
+    from infra.config.feature_flags import is_remotion_enabled
+    REMOTION_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Remotion renderer not available: {e}")
+    REMOTION_AVAILABLE = False
+
 
 def _resolve_auto_duration(assets: List[Dict]) -> int:
     """
@@ -1467,6 +1476,27 @@ async def render_project(project_id: str, background_tasks: BackgroundTasks):
     }
 
 
+def _generate_poster_ffmpeg(video_path: str, poster_path: str, time_seconds: float = 1.0) -> bool:
+    """
+    Generate poster frame using ffmpeg directly.
+    Used by Remotion renderer which doesn't have built-in poster generation.
+    """
+    try:
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', str(time_seconds),
+            '-i', video_path,
+            '-vframes', '1',
+            '-q:v', '2',
+            poster_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        return result.returncode == 0 and os.path.exists(poster_path)
+    except Exception as e:
+        logger.error(f"Poster generation failed: {e}")
+        return False
+
+
 async def process_reel_render_only(project_id: str, job_id: str, edit_plan: Dict):
     """
     Finding 2 Fix: Render phase only - assumes plan is already created.
@@ -1502,9 +1532,26 @@ async def process_reel_render_only(project_id: str, job_id: str, edit_plan: Dict
         output_path = dirs["output"] / output_filename
         poster_path = dirs["output"] / f"reel_{job_id[:8]}_poster.jpg"
 
-        # Render the reel with visual filter
-        renderer = FFmpegRenderer(visual_filter=visual_filter)
-        render_result = renderer.render_reel(edit_plan, str(output_path))
+        # Phase 5: Choose renderer based on feature flag
+        use_remotion = REMOTION_AVAILABLE and is_remotion_enabled()
+        
+        if use_remotion:
+            logger.info(f"Using Remotion renderer for project {project_id}")
+            from workers.reels.remotion_renderer import RemotionRenderer
+            renderer = RemotionRenderer()
+            render_result = renderer.render_reel(edit_plan, str(output_path))
+            # Convert Remotion result to compatible format
+            render_result = RenderResult(
+                success=render_result.success,
+                output_path=render_result.output_path,
+                error_message=render_result.error_message,
+                duration=render_result.duration,
+                diagnostics=render_result.diagnostics
+            )
+        else:
+            logger.info(f"Using FFmpeg renderer for project {project_id}")
+            renderer = FFmpegRenderer(visual_filter=visual_filter)
+            render_result = renderer.render_reel(edit_plan, str(output_path))
 
         if not render_result.success:
             logger.error(f"Render failed for project {project_id}: {render_result.error_message}")
@@ -1512,10 +1559,16 @@ async def process_reel_render_only(project_id: str, job_id: str, edit_plan: Dict
             update_project_status(project_id, "failed")
             return
 
-        # Generate poster frame
-        poster_success = renderer.generate_poster_frame(str(output_path), str(poster_path))
-        if poster_success:
-            logger.info(f"Poster generated for project {project_id}: {poster_path}")
+        # Generate poster frame (FFmpeg only - Remotion doesn't have this method)
+        if not use_remotion:
+            poster_success = renderer.generate_poster_frame(str(output_path), str(poster_path))
+            if poster_success:
+                logger.info(f"Poster generated for project {project_id}: {poster_path}")
+        else:
+            # For Remotion, extract poster using ffmpeg directly
+            poster_success = _generate_poster_ffmpeg(str(output_path), str(poster_path))
+            if poster_success:
+                logger.info(f"Poster generated (ffmpeg) for project {project_id}: {poster_path}")
 
         # Update project with output info
         output_url = f"/uploads/reels/{project_id}/output/{output_filename}"
@@ -1820,3 +1873,29 @@ async def get_publish_status(project_id: str, job_id: str):
         raise HTTPException(status_code=404, detail="Publish job not found for this project")
     
     return job
+
+
+# Phase 5: Feature flag status endpoint
+@router.get("/feature-flags")
+async def get_feature_flags():
+    """
+    Get current feature flag status.
+    Shows which experimental features are enabled.
+    """
+    from infra.config.feature_flags import feature_flags, REMOTION_AVAILABLE, is_remotion_enabled
+    
+    flags = feature_flags.get_all_flags()
+    
+    return {
+        "flags": flags,
+        "renderer": {
+            "ffmpeg_available": RENDERER_AVAILABLE,
+            "remotion_available": REMOTION_AVAILABLE,
+            "remotion_enabled": is_remotion_enabled(),
+            "active_renderer": "remotion" if is_remotion_enabled() else "ffmpeg"
+        },
+        "environment": {
+            "ENABLE_REMOTION_RENDERER": config.ENABLE_REMOTION_RENDERER,
+            "REMOTION_OUTPUT_DIR": config.REMOTION_OUTPUT_DIR
+        }
+    }

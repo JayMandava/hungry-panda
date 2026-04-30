@@ -93,6 +93,11 @@ class Config:
     ENABLE_AUTO_HASHTAGS: bool = os.getenv("ENABLE_AUTO_HASHTAGS", "true").lower() == "true"
     ENABLE_ANALYTICS: bool = os.getenv("ENABLE_ANALYTICS", "true").lower() == "true"
     
+    # Phase 5: Remotion Renderer Feature Flag
+    # When enabled, uses Remotion for video rendering instead of FFmpeg
+    ENABLE_REMOTION_RENDERER: bool = os.getenv("ENABLE_REMOTION_RENDERER", "false").lower() == "true"
+    REMOTION_OUTPUT_DIR: str = os.getenv("REMOTION_OUTPUT_DIR", str(PROJECT_ROOT / "remotion_output"))
+    
     @classmethod
     def get_cors_origins(cls) -> list:
         """Parse CORS_ORIGINS string into a list of origins.
