@@ -80,18 +80,33 @@ class FFmpegRenderer:
     
     def render_reel(self, edit_plan: Dict[str, Any], output_path: str, visual_filter: Optional[str] = None) -> RenderResult:
         """
-        Render a complete reel from edit plan.
+        Phase 3: Render a complete reel from edit plan.
         Returns RenderResult with output path or error.
-        
+
+        Consumes the full edit_plan contract including:
+        - segments with source_metadata and transitions
+        - global_settings (visual_filter, transition_style, output specs)
+        - validation metadata
+
         Args:
-            edit_plan: The edit plan with segments to render
+            edit_plan: The edit plan with segments to render (Phase 3 schema v1.0.0)
             output_path: Path for the final output video
             visual_filter: Optional override for visual filter (none, natural, warm, rich, fresh)
         """
-        # Update visual filter if provided
+        # Phase 3: Read visual_filter from edit_plan if not provided as override
         if visual_filter and visual_filter in self.FILTER_PRESETS:
             self.visual_filter = visual_filter
-            logger.info(f"Using visual filter: {visual_filter}")
+            logger.info(f"Using visual filter (override): {visual_filter}")
+        else:
+            # Read from edit_plan global_settings (Phase 3 contract)
+            global_settings = edit_plan.get("global_settings", {})
+            plan_filter = global_settings.get("visual_filter")
+            if plan_filter and plan_filter in self.FILTER_PRESETS:
+                self.visual_filter = plan_filter
+                logger.info(f"Using visual filter from edit_plan: {plan_filter}")
+            elif plan_filter:
+                logger.warning(f"Visual filter '{plan_filter}' from edit_plan not supported, using 'none'")
+                self.visual_filter = "none"
         
         segments = edit_plan.get("segments", [])
         if not segments:

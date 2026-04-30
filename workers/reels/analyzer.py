@@ -1551,17 +1551,29 @@ def _ensure_minimum_reel_duration(
                 if remaining_needed <= 0:
                     break
 
-def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_key: str, target_duration: int = 30, transition_style: str = "auto") -> Dict[str, Any]:
+def generate_edit_plan(
+    project_id: str,
+    selected_assets: List[Dict],
+    template_key: str,
+    target_duration: int = 30,
+    transition_style: str = "auto",
+    visual_filter: str = "none",
+    all_assets: Optional[List[Dict]] = None
+) -> Dict[str, Any]:
     """
     Generate a structured edit plan for the reel using AI-driven decisions.
     Hybrid approach: AI makes creative decisions, structure is deterministic.
-    
+
+    Phase 3: Enhanced edit plan with schema versioning and complete metadata.
+
     Args:
         project_id: The reel project ID
         selected_assets: List of selected assets for the reel
         template_key: Template to use for styling
         target_duration: Target duration in seconds
         transition_style: Transition style - auto, cut, smooth, fade (user override wins)
+        visual_filter: Visual filter preset - none, natural, warm, rich, fresh
+        all_assets: Optional list of all project assets for selection rationale
     """
     from shared.reel_templates import REEL_TEMPLATES
     
@@ -1693,29 +1705,119 @@ def generate_edit_plan(project_id: str, selected_assets: List[Dict], template_ke
             break
 
     _ensure_minimum_reel_duration(segments, selected_assets, target_duration)
-    
+
     # Validate total duration
     total_duration = sum(s["duration"] for s in segments)
-    
+
+    # Build enhanced segments with complete source metadata
+    enhanced_segments = []
+    for idx, seg in enumerate(segments):
+        asset = selected_assets[idx] if idx < len(selected_assets) else {}
+        analysis = asset.get("analysis", {})
+        advanced = analysis.get("advanced_analysis", {})
+
+        enhanced_seg = {
+            # Core segment info
+            "segment_id": seg["segment_id"],
+            "asset_id": seg["asset_id"],
+            "source_path": seg["source_path"],
+            "media_type": seg["media_type"],
+            "role": seg["role"],
+            "start_time": seg["start_time"],
+            "duration": seg["duration"],
+            "transition": seg["transition"],
+            "overlay": seg["overlay"],
+            "effects": seg["effects"],
+            "ai_planned": seg.get("ai_planned", False),
+            # Source metadata for renderer contract
+            "source_metadata": {
+                "file_exists": Path(seg["source_path"]).exists(),
+                "media_type": seg["media_type"],
+                "role": seg["role"],
+                "analysis_summary": {
+                    "hook_strength": advanced.get("hook_strength", 0),
+                    "food_clarity": advanced.get("food_clarity", 0),
+                    "motion_quality": advanced.get("motion_quality", 0),
+                    "lighting_score": advanced.get("lighting_score", 0),
+                    "orientation_fit": advanced.get("orientation_fit", 0.7),
+                    "overall_score": analysis.get("reel_suitability", {}).get("score", 0.5)
+                },
+                "selection_reason": asset.get("selection_reason", "Selected by director"),
+                "selection_source": asset.get("selection_source", "deterministic")
+            }
+        }
+        enhanced_segments.append(enhanced_seg)
+
+    # Build selection rationale (selected vs skipped)
+    selection_rationale = {
+        "selected_count": len(selected_assets),
+        "selected_asset_ids": [s["asset_id"] for s in selected_assets],
+        "selection_strategy": selected_assets[0].get("selection_strategy", "deterministic_scoring") if selected_assets else "none",
+        "skipped_assets": []
+    }
+
+    # Add skipped asset info if all_assets provided
+    if all_assets:
+        selected_ids = {s["asset_id"] for s in selected_assets}
+        for asset in all_assets:
+            asset_id = asset["id"]
+            if asset_id not in selected_ids:
+                analysis = asset.get("analysis_json", {})
+                advanced = analysis.get("advanced_analysis", {})
+                skip_entry = {
+                    "asset_id": asset_id,
+                    "reason": advanced.get("skip_reason", "Not selected by director"),
+                    "duplicate_of": advanced.get("duplicate_of"),
+                    "disqualified": analysis.get("reel_suitability", {}).get("disqualified", False)
+                }
+                selection_rationale["skipped_assets"].append(skip_entry)
+
+    # Generate edit plan with schema versioning (Phase 3)
     edit_plan = {
+        # Schema versioning for contract stability
+        "plan_schema_version": "1.0.0",
         "plan_id": f"plan_{uuid.uuid4().hex[:12]}",
         "project_id": project_id,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+
+        # Target specifications
         "template_key": template_key,
         "target_duration": target_duration,
         "actual_duration": round(total_duration, 2),
-        "segment_count": len(segments),
-        "segments": segments,
+        "duration_tolerance_seconds": 2.0,
+        "segment_count": len(enhanced_segments),
+
+        # Segments with complete source metadata
+        "segments": enhanced_segments,
+
+        # Selection rationale
+        "selection_rationale": selection_rationale,
+
+        # Global render settings (renderer contract)
         "global_settings": {
             "output_resolution": "1080x1920",
             "frame_rate": 30,
             "video_codec": "libx264",
             "audio_codec": "aac",
+            "pixel_format": "yuv420p",
             "transition_duration": 0.5,
             "transition_style": transition_style,
-            "effective_transition": effective_transition
+            "effective_transition": effective_transition,
+            "visual_filter": visual_filter,
+            "supported_filters": ["none", "natural", "warm", "rich", "fresh"],
+            "supported_transitions": ["hard_cut", "crossfade", "fade", "fade_in"]
+        },
+
+        # Validation metadata
+        "validation": {
+            "validated": False,  # Will be set by validate_edit_plan
+            "validation_timestamp": None,
+            "validation_errors": [],
+            "duration_within_tolerance": abs(total_duration - target_duration) <= 2.0,
+            "total_duration_seconds": round(total_duration, 2)
         }
     }
-    
+
     return edit_plan
 
 
@@ -1764,44 +1866,90 @@ def _get_segment_effects(media_type: str, role: str, template_key: str) -> Dict[
 
 def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
     """
-    Validate an edit plan before rendering.
+    Phase 3: Enhanced validation of edit plan as renderer contract.
     Returns (is_valid, error_message)
+
+    Validates:
+    - Schema version compatibility
+    - Required fields presence
+    - Segment integrity (asset_id, source_path, duration, transition)
+    - Source file existence
+    - Total duration within tolerance
+    - Renderer-supported fields only
     """
+    validation_errors = []
+    is_valid = True
+
+    # Check schema version (Phase 3)
+    schema_version = edit_plan.get("plan_schema_version")
+    if not schema_version:
+        validation_errors.append("Missing plan_schema_version")
+        is_valid = False
+    elif schema_version != "1.0.0":
+        # Future: handle version migration
+        validation_errors.append(f"Schema version {schema_version} may require migration")
+
     # Check required fields
-    required = ["plan_id", "project_id", "segments", "target_duration", "actual_duration"]
+    required = ["plan_id", "project_id", "segments", "target_duration", "actual_duration", "global_settings"]
     for field in required:
         if field not in edit_plan:
-            return False, f"Missing required field: {field}"
-    
+            validation_errors.append(f"Missing required field: {field}")
+            is_valid = False
+
     segments = edit_plan.get("segments", [])
     if not segments:
-        return False, "No segments in edit plan"
-    
+        validation_errors.append("No segments in edit plan")
+        is_valid = False
+
     # Validate each segment
+    supported_transitions = edit_plan.get("global_settings", {}).get("supported_transitions", ["hard_cut", "crossfade", "fade", "fade_in"])
     for idx, seg in enumerate(segments):
         if "asset_id" not in seg:
-            return False, f"Segment {idx}: missing asset_id"
+            validation_errors.append(f"Segment {idx}: missing asset_id")
+            is_valid = False
         if "source_path" not in seg:
-            return False, f"Segment {idx}: missing source_path"
+            validation_errors.append(f"Segment {idx}: missing source_path")
+            is_valid = False
         if "duration" not in seg or seg["duration"] <= 0:
-            return False, f"Segment {idx}: invalid duration"
-        
+            validation_errors.append(f"Segment {idx}: invalid duration")
+            is_valid = False
+        if "transition" not in seg:
+            validation_errors.append(f"Segment {idx}: missing transition")
+            is_valid = False
+        elif seg.get("transition") not in supported_transitions:
+            validation_errors.append(f"Segment {idx}: unsupported transition '{seg.get('transition')}'")
+            is_valid = False
+
         # Check source file exists
         if not Path(seg["source_path"]).exists():
-            return False, f"Segment {idx}: source file not found"
-    
+            validation_errors.append(f"Segment {idx}: source file not found: {seg.get('source_path', 'unknown')}")
+            is_valid = False
+
     # Check total duration
     total = sum(s["duration"] for s in segments)
     target = edit_plan.get("target_duration", 30)
-    
-    if total > target + 2:  # Allow 2 second tolerance
-        return False, f"Total duration ({total}s) exceeds target ({target}s)"
-    
+    tolerance = edit_plan.get("duration_tolerance_seconds", 2.0)
+
+    if total > target + tolerance:
+        validation_errors.append(f"Total duration ({total:.1f}s) exceeds target ({target}s) + tolerance ({tolerance}s)")
+        is_valid = False
+
     # Short plans (< 30s) are padded to 30s by the renderer via tpad — not a hard failure
     if total < 3:
-        return False, f"Total duration ({total}s) too short — need at least a few seconds of content"
+        validation_errors.append(f"Total duration ({total:.1f}s) too short — need at least 3 seconds of content")
+        is_valid = False
 
-    return True, None
+    # Update validation metadata in edit_plan (Phase 3)
+    validation_meta = edit_plan.get("validation", {})
+    validation_meta["validated"] = is_valid
+    validation_meta["validation_timestamp"] = datetime.now(timezone.utc).isoformat()
+    validation_meta["validation_errors"] = validation_errors
+    validation_meta["duration_within_tolerance"] = abs(total - target) <= tolerance
+    validation_meta["total_duration_seconds"] = round(total, 2)
+    edit_plan["validation"] = validation_meta
+
+    error_msg = "; ".join(validation_errors) if validation_errors else None
+    return is_valid, error_msg
 
 
 def update_asset_analysis_db(asset_id: str, analysis: Dict):

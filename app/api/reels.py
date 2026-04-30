@@ -1124,9 +1124,9 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         except Exception as e:
             logger.warning(f"Failed to update asset selected status: {e}")
         
-        # Step 4: Generate edit plan with transition style
-        logger.info(f"Generating edit plan for project {project_id} with transition={transition_style}")
-        edit_plan = generate_edit_plan(project_id, selected_assets, template_key, target_duration, transition_style)
+        # Step 4: Generate edit plan with transition style (Phase 3: enhanced with visual_filter)
+        logger.info(f"Generating edit plan for project {project_id} with transition={transition_style}, filter={visual_filter}")
+        edit_plan = generate_edit_plan(project_id, selected_assets, template_key, target_duration, transition_style, visual_filter, assets)
         
         # Step 5: Validate edit plan
         is_valid, error_msg = validate_edit_plan(edit_plan)
