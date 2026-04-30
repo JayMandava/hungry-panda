@@ -2030,7 +2030,7 @@
                             </svg>
                         </div>
 
-                        <div class="collapsible-content" id="advancedStyleContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease; padding: 4px;">
+                        <div class="collapsible-content" id="advancedStyleContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease; padding: 0;">
                             <!-- Applied Style Summary (shown after generation) -->
                             <div id="appliedStyleSummary" style="display: none; margin-bottom: 16px; padding: 12px; background: var(--bg-subtle); border-radius: var(--radius-md);">
                                 <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.05em;">Applied Style</p>
@@ -3656,9 +3656,11 @@
                     const isExpanded = advancedContent.style.maxHeight && advancedContent.style.maxHeight !== '0px';
                     if (isExpanded) {
                         advancedContent.style.maxHeight = '0px';
+                        advancedContent.style.padding = '0';
                         advancedChevron.style.transform = 'rotate(0deg)';
                     } else {
                         advancedContent.style.maxHeight = advancedContent.scrollHeight + 'px';
+                        advancedContent.style.padding = '4px';
                         advancedChevron.style.transform = 'rotate(180deg)';
                     }
                 });
@@ -3696,6 +3698,7 @@
             const advancedChevron = document.getElementById('advancedStyleChevron');
             if (advancedContent && parts.length > 0) {
                 advancedContent.style.maxHeight = advancedContent.scrollHeight + 'px';
+                advancedContent.style.padding = '4px';
                 if (advancedChevron) advancedChevron.style.transform = 'rotate(180deg)';
             }
         }

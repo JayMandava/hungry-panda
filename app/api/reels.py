@@ -1107,11 +1107,13 @@ except ImportError as e:
 def _resolve_auto_duration(assets: List[Dict]) -> int:
     """
     Phase 2 Work Item 5: Resolve Auto duration based on content quality and available footage.
+    
+    FIX: Now considers total usable duration to ensure the resolved target is achievable.
 
     Strategy:
-    - 30s: Limited or low-quality clips (< 3 qualified assets, avg score < 0.5)
-    - 45s: Moderate quality sets (3-5 qualified assets, avg score 0.5-0.7)
-    - 60s: Enough strong footage (5+ qualified assets or avg score > 0.7)
+    - 30s: Limited or low-quality clips (< 3 qualified assets OR avg score < 0.5 OR usable duration < 30s)
+    - 45s: Moderate quality sets (3-5 qualified assets, avg score 0.5-0.7, usable duration >= 45s)
+    - 60s: Enough strong footage (5+ qualified assets, avg score > 0.65, usable duration >= 60s)
 
     Returns: 30, 45, or 60
     """
@@ -1146,18 +1148,23 @@ def _resolve_auto_duration(assets: List[Dict]) -> int:
 
     avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
 
-    # Decision logic
-    if qualified_count >= 5 and avg_quality > 0.65:
-        # Plenty of good content -> 60s
+    # FIX: Check usable duration can support the target before resolving higher
+    # Decision logic - now considers if we actually have enough footage
+    can_do_60 = (qualified_count >= 5 and 
+                 avg_quality > 0.65 and 
+                 total_usable_duration >= 55)  # Need ~55s usable for 60s target
+    
+    can_do_45 = ((qualified_count >= 3 and avg_quality > 0.5) or
+                 total_usable_duration >= 40)  # Need ~40s usable for 45s target
+    
+    if can_do_60:
+        # Plenty of good content with enough duration -> 60s
         resolved = 60
-    elif qualified_count >= 3 and avg_quality > 0.5:
-        # Moderate content -> 45s
-        resolved = 45
-    elif total_usable_duration >= 20:
-        # Enough raw footage even if lower quality
+    elif can_do_45:
+        # Moderate content with enough duration -> 45s
         resolved = 45
     else:
-        # Limited content -> 30s
+        # Limited content or insufficient duration -> 30s (safest)
         resolved = 30
 
     logger.info(f"Auto duration resolved: {resolved}s (qualified={qualified_count}, avg_quality={avg_quality:.2f}, usable_duration={total_usable_duration:.1f}s)")

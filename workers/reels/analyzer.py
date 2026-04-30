@@ -1667,22 +1667,32 @@ def _ensure_minimum_reel_duration(
     segments: List[Dict[str, Any]],
     selected_assets: List[Dict[str, Any]],
     target_duration: int,
-    minimum_duration: float = 30.0,
+    tolerance: float = 2.0,
 ) -> None:
     """
-    Stretch ALL segments when the plan is too short to reach minimum 30s for Instagram.
-    Extends segments proportionally - images can extend freely, videos capped by source duration.
+    Stretch segments to reach target duration within tolerance.
+    Extends segments proportionally - images can extend freely, videos capped reasonably.
+    
+    FIX: Now targets the actual requested duration (30/45/60), not just minimum 30s.
     """
     current_total = sum(segment["duration"] for segment in segments)
-    if current_total >= minimum_duration or not segments:
+    if not segments:
+        return
+    
+    # Check if we're already within tolerance of target
+    if abs(current_total - target_duration) <= tolerance:
+        return
+    
+    # If we're over target, we need to trim (but this shouldn't happen with current logic)
+    if current_total >= target_duration:
         return
 
-    remaining_budget = float(target_duration) - current_total
-    if remaining_budget <= 0:
-        return
-
-    required_extension = minimum_duration - current_total
-    extension_budget = min(required_extension, remaining_budget)
+    # Calculate how much we need to extend to reach target
+    required_extension = target_duration - current_total
+    
+    # Maximum extension per segment type
+    MAX_VIDEO_EXTENSION = 15.0
+    MAX_IMAGE_EXTENSION = 15.0
     
     # Calculate how much each segment CAN be extended
     extendable_room = []  # (segment_idx, current_duration, max_extendable)
@@ -1696,32 +1706,29 @@ def _ensure_minimum_reel_duration(
         
         if asset.get("media_type") == "video":
             # Allow extending beyond source duration — renderer pads short videos with tpad (freeze last frame)
-            max_for_video = 15.0
-            extendable_room.append((i, current_dur, max_for_video))
-            total_extendable += max_for_video
+            extendable_room.append((i, current_dur, MAX_VIDEO_EXTENSION))
+            total_extendable += MAX_VIDEO_EXTENSION
         else:
             # Images can extend arbitrarily (Ken Burns can run longer)
-            # But set a reasonable max per image to avoid excessive still time
-            max_for_image = 15.0  # Allow images to stretch up to 15s each
-            extendable_room.append((i, current_dur, max_for_image))
-            total_extendable += max_for_image
+            extendable_room.append((i, current_dur, MAX_IMAGE_EXTENSION))
+            total_extendable += MAX_IMAGE_EXTENSION
     
     if total_extendable <= 0:
         return  # Nothing can be extended
     
-    # Distribute extension proportionally
-    extension_ratio = min(1.0, extension_budget / total_extendable)
+    # Distribute extension proportionally to reach target
+    extension_ratio = min(1.0, required_extension / total_extendable)
     
     for seg_idx, current_dur, max_extendable in extendable_room:
         extension = max_extendable * extension_ratio
         if extension > 0.1:  # Only apply meaningful extensions
             segments[seg_idx]["duration"] = round(current_dur + extension, 2)
     
-    # Verify we reached minimum - if not, try one more aggressive pass
+    # Verify we reached target - if not, try one more aggressive pass
     final_total = sum(s["duration"] for s in segments)
-    if final_total < minimum_duration and total_extendable > 0:
-        # Aggressive pass: use all remaining room
-        remaining_needed = minimum_duration - final_total
+    if final_total < target_duration - tolerance and total_extendable > 0:
+        # Aggressive pass: use all remaining room to get closer to target
+        remaining_needed = target_duration - final_total
         for seg_idx, current_dur, max_extendable in extendable_room:
             current_extended = segments[seg_idx]["duration"]
             already_added = current_extended - current_dur
