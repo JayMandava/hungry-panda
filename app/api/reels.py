@@ -1284,6 +1284,52 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         # Phase 5: Track render failure
         update_reels_metrics("render", status="failed")
 
+def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]) -> Optional[Dict]:
+    """
+    Preflight check: verify assets can support requested duration.
+    Returns None if feasible, or structured error dict if not.
+    """
+    if not assets:
+        return None  # Will be caught by caller
+    
+    # Count qualified assets (not disqualified)
+    qualified_count = 0
+    for asset in assets:
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        if not suitability.get("disqualified", False):
+            qualified_count += 1
+    
+    # Max achievable: ~15s per asset (with stretching for 60s targets)
+    max_per_asset = 15.0
+    max_achievable = qualified_count * max_per_asset
+    tolerance = 2.0
+    
+    # Auto mode - will be resolved later, skip check
+    if target_duration is None:
+        return None
+    
+    # Check if target is achievable
+    if target_duration > max_achievable + tolerance:
+        # Suggest feasible duration
+        if max_achievable >= 55:
+            suggested = 60
+        elif max_achievable >= 40:
+            suggested = 45
+        else:
+            suggested = 30
+        
+        return {
+            "requested_duration": target_duration,
+            "feasible_duration": suggested,
+            "max_achievable": int(max_achievable),
+            "qualified_assets": qualified_count,
+            "reason": f"Only {qualified_count} usable assets selected (need ~{target_duration // 15} for {target_duration}s)",
+            "recommendation": f"Switch to {suggested}s or use Auto duration"
+        }
+    
+    return None  # Feasible
+
 @router.post("/projects/{project_id}/generate")
 async def generate_reel(project_id: str, request: GenerateRequest, background_tasks: BackgroundTasks):
     """Analyze assets and enqueue Reel generation"""
@@ -1295,6 +1341,17 @@ async def generate_reel(project_id: str, request: GenerateRequest, background_ta
     assets = get_project_assets_db(project_id)
     if not assets:
         raise HTTPException(status_code=400, detail="No assets in project. Upload assets first.")
+    
+    # Preflight capacity check (returns 422 if target not achievable)
+    capacity_error = _preflight_capacity_check(assets, request.target_duration_seconds)
+    if capacity_error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Duration target not achievable with current assets",
+                **capacity_error
+            }
+        )
     
     # Validate template if provided
     template = request.template_key or project["template_key"]
@@ -1339,6 +1396,17 @@ async def regenerate_reel(project_id: str, request: GenerateRequest, background_
     assets = get_project_assets_db(project_id)
     if not assets:
         raise HTTPException(status_code=400, detail="No assets in project. Upload assets first.")
+    
+    # Preflight capacity check (same as generate)
+    capacity_error = _preflight_capacity_check(assets, request.target_duration_seconds)
+    if capacity_error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Duration target not achievable with current assets",
+                **capacity_error
+            }
+        )
     
     # Validate template if provided (or use existing)
     template = request.template_key or project["template_key"]
