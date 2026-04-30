@@ -2584,7 +2584,16 @@
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.detail || 'Regeneration failed');
+                    
+                    // FIX: Handle 422 capacity error with structured response (same as generate)
+                    if (response.status === 422 && error.detail?.requested_duration) {
+                        closeTicker({ animate: true });
+                        showCapacityModal(error.detail);
+                        generateBtn.disabled = false;
+                        return;  // Don't throw, modal handles it
+                    }
+                    
+                    throw new Error(error.detail?.error || error.detail || 'Regeneration failed');
                 }
 
                 const data = await response.json();
@@ -3645,8 +3654,9 @@
 
         async function switchToAutoDuration() {
             closeCapacityModal();
-            // Set duration to null (Auto)
+            // FIX: Set both currentProject and pendingDuration so saveStyleSettings includes it
             currentProject.target_duration_seconds = null;
+            pendingDuration = null;  // null = Auto mode
             await saveStyleSettings();
             showToast('Switched to Auto duration. Generating...', 'success');
             generateReel();
@@ -3654,8 +3664,9 @@
 
         async function switchToFeasibleDuration(duration) {
             closeCapacityModal();
-            // Set duration to feasible value
+            // FIX: Set both currentProject and pendingDuration so saveStyleSettings includes it
             currentProject.target_duration_seconds = duration;
+            pendingDuration = duration;  // Explicit duration
             await saveStyleSettings();
             showToast(`Switched to ${duration}s duration. Generating...`, 'success');
             generateReel();
