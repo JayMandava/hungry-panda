@@ -959,15 +959,34 @@ Asset indices are 1-based (Asset 1 = index 1)."""
                     "source": "ai_director"
                 })
         
-        if len(valid_selections) < 2:
-            logger.warning(f"AI director selected only {len(valid_selections)} assets, need at least 2")
+        # Phase 2: Validate role contract - must have 1 intro + 1-3 body + 1 outro
+        role_counts = {"intro": 0, "body": 0, "outro": 0}
+        for sel in valid_selections:
+            role = sel.get("role", "body")
+            if role in role_counts:
+                role_counts[role] += 1
+        
+        # Contract: exactly 1 intro, 1-3 body, exactly 1 outro
+        has_valid_structure = (
+            role_counts["intro"] == 1 and
+            1 <= role_counts["body"] <= 3 and
+            role_counts["outro"] == 1 and
+            3 <= len(valid_selections) <= 5
+        )
+        
+        if not has_valid_structure:
+            logger.warning(
+                f"AI director violated role contract: intro={role_counts['intro']}, "
+                f"body={role_counts['body']}, outro={role_counts['outro']}. "
+                f"Required: 1 intro + 1-3 body + 1 outro. Falling back to deterministic."
+            )
             return None
         
         # Build skipped list
         selected_indices = {s["asset_id"] for s in valid_selections}
         skipped = [a["id"] for a in qualified_assets if a["id"] not in selected_indices]
         
-        logger.info(f"AI director selected {len(valid_selections)} assets with rationale")
+        logger.info(f"AI director selected {len(valid_selections)} assets: {role_counts} with rationale")
         
         return {
             "selections": valid_selections,
@@ -1297,8 +1316,9 @@ def update_asset_selected_status(project_id: str, selected_assets: List[Dict], a
             
             if suitability.get("disqualified"):
                 skip_reason = advanced.get("rejection_reason") or "Disqualified by quality checks"
-            elif analysis.get("duplicate_of"):
-                skip_reason = f"Duplicate of {analysis['duplicate_of'][:8]}"
+            elif advanced.get("duplicate_of"):
+                original_id = advanced['duplicate_of']
+                skip_reason = f"Duplicate of {original_id[:8]}"
             else:
                 skip_reason = "Not selected by director (better alternatives available)"
             
