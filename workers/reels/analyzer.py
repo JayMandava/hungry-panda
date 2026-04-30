@@ -1475,10 +1475,17 @@ def _parse_ai_edit_plan_json(ai_response: str, selected_assets: List[Dict], targ
             logger.warning("AI edit plan has empty or invalid segments")
             return None
 
-        # Validate total duration is within tolerance
+        # Finding 1 Fix: Validate total duration against requested target_duration (not just 25-65 range)
         total = parsed["total_duration_seconds"]
-        if not (25 <= total <= 65):
-            logger.warning(f"AI edit plan total duration {total}s out of valid range (25-65s)")
+        duration_tolerance = 2.0  # Allow 2 second tolerance from target
+
+        # Must be within tolerance of target AND within Instagram's absolute bounds (30-60s)
+        if abs(total - target_duration) > duration_tolerance:
+            logger.warning(f"AI edit plan total duration {total}s deviates from target {target_duration}s by more than {duration_tolerance}s tolerance")
+            return None
+
+        if not (30 <= total <= 60):
+            logger.warning(f"AI edit plan total duration {total}s out of Instagram-safe range (30-60s)")
             return None
 
         # Build decisions from validated segments

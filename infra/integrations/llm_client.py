@@ -578,7 +578,13 @@ Response:"""
                 json_mode=json_mode,
             )
         elif self.provider == "openai":
-            return self._call_openai(system_prompt, user_prompt, max_tokens=max_tokens)
+            # Finding 2 Fix: Pass json_mode to OpenAI as well
+            return self._call_openai(
+                system_prompt,
+                user_prompt,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+            )
         else:
             raise LLMError(f"Provider {self.provider} not implemented")
     
@@ -630,21 +636,31 @@ Response:"""
         system_prompt: str,
         user_prompt: Any,
         max_tokens: Optional[int] = None,
+        json_mode: bool = False,  # Finding 2 Fix: Add json_mode support
     ) -> str:
-        """Call OpenAI API"""
+        """Call OpenAI API with optional JSON mode support."""
         try:
             import openai
             openai.api_key = config.OPENAI_API_KEY
-            
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
+
+            # Finding 2 Fix: Use gpt-4o-mini for JSON mode support (better than gpt-3.5-turbo)
+            model = "gpt-4o-mini" if json_mode else "gpt-3.5-turbo"
+
+            kwargs = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=config.LLM_TEMPERATURE,
-                max_tokens=max_tokens or config.LLM_MAX_TOKENS
-            )
+                "temperature": config.LLM_TEMPERATURE,
+                "max_tokens": max_tokens or config.LLM_MAX_TOKENS
+            }
+
+            # Finding 2 Fix: Enable JSON mode for OpenAI when requested
+            if json_mode:
+                kwargs["response_format"] = {"type": "json_object"}
+
+            response = openai.ChatCompletion.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
