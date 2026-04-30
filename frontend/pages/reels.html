@@ -2001,105 +2001,175 @@
                         </div>
                     </div>
 
-                    <!-- Style Controls Card -->
-                    <div class="glass-card sidebar-card liquid-hover-lift" id="styleControlsCard">
-                        <h3 class="sidebar-title">Style Settings</h3>
-                        
-                        <!-- Transition Style -->
-                        <div class="style-control-group" style="margin-bottom: 16px;">
-                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
-                                Transition Style
-                            </label>
-                            <div class="style-options" id="transitionOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <button class="style-btn ${currentProject?.transition_style === 'auto' ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Auto
-                                </button>
-                                <button class="style-btn ${currentProject?.transition_style === 'cut' ? 'active' : ''}" data-value="cut" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Cut
-                                </button>
-                                <button class="style-btn ${currentProject?.transition_style === 'smooth' ? 'active' : ''}" data-value="smooth" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Smooth
-                                </button>
-                                <button class="style-btn ${currentProject?.transition_style === 'fade' ? 'active' : ''}" data-value="fade" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Fade
-                                </button>
-                            </div>
-                            <p class="style-hint" id="transitionHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
-                                Auto uses template defaults
-                            </p>
-                        </div>
-                        
-                        <!-- Visual Filter -->
-                        <div class="style-control-group">
-                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
-                                Visual Filter
-                            </label>
-                            <div class="style-options" id="filterOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <button class="style-btn ${currentProject?.visual_filter === 'none' ? 'active' : ''}" data-value="none" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    None
-                                </button>
-                                <button class="style-btn ${currentProject?.visual_filter === 'natural' ? 'active' : ''}" data-value="natural" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Natural
-                                </button>
-                                <button class="style-btn ${currentProject?.visual_filter === 'warm' ? 'active' : ''}" data-value="warm" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Warm
-                                </button>
-                                <button class="style-btn ${currentProject?.visual_filter === 'rich' ? 'active' : ''}" data-value="rich" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Rich
-                                </button>
-                                <button class="style-btn ${currentProject?.visual_filter === 'fresh' ? 'active' : ''}" data-value="fresh" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Fresh
-                                </button>
-                            </div>
-                            <p class="style-hint" id="filterHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
-                                None = no filter applied
-                            </p>
-                        </div>
-
-                        <!-- Phase 2: Duration Control -->
-                        <div class="style-control-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-default);">
-                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
-                                Duration
-                            </label>
-                            <div class="style-options" id="durationOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                <button class="style-btn ${currentProject?.target_duration_seconds === null || currentProject?.target_duration_seconds === undefined ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    Auto
-                                </button>
-                                <button class="style-btn ${currentProject?.target_duration_seconds === 30 ? 'active' : ''}" data-value="30" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    30s
-                                </button>
-                                <button class="style-btn ${currentProject?.target_duration_seconds === 45 ? 'active' : ''}" data-value="45" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    45s
-                                </button>
-                                <button class="style-btn ${currentProject?.target_duration_seconds === 60 ? 'active' : ''}" data-value="60" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
-                                    60s
-                                </button>
-                            </div>
-                            <p class="style-hint" id="durationHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
-                                Auto selects based on your content
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Preview Card -->
-                    <div class="glass-card sidebar-card liquid-hover-lift">
-                        <h3 class="sidebar-title">Preview</h3>
-                        <div class="preview-player">
-                            <div class="preview-placeholder">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                    <path d="M3 9h18M9 21V9"/>
-                                    <circle cx="15" cy="15" r="2"/>
-                                </svg>
-                                <p>Generate to see preview</p>
-                            </div>
-                        </div>
-                        <button class="btn btn-primary generate-btn liquid-hover-lift" id="generateBtn" disabled>
+                    <!-- Phase 4: AI Generate Card (Primary Action) -->
+                    <div class="glass-card sidebar-card liquid-hover-lift" id="generateCard" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 51, 234, 0.1)); border-color: rgba(59, 130, 246, 0.3);">
+                        <h3 class="sidebar-title" style="display: flex; align-items: center; gap: 8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                            Generate AI Reel
+                        </h3>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                            Our AI selects the best moments and creates an engaging reel automatically.
+                        </p>
+                        <button class="btn btn-primary generate-btn liquid-hover-lift" id="generateBtn" disabled style="width: 100%; margin-bottom: 8px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                             </svg>
                             <span id="generateBtnText">Generate Reel</span>
                         </button>
+                        <p id="generationStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; display: none;"></p>
+                    </div>
+
+                    <!-- Phase 4: Advanced Style (Collapsible) -->
+                    <div class="glass-card sidebar-card" id="advancedStyleCard">
+                        <div class="collapsible-header" id="advancedStyleHeader" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 8px 0;">
+                            <h3 class="sidebar-title" style="margin: 0;">Advanced Style</h3>
+                            <svg id="advancedStyleChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s;">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+
+                        <div class="collapsible-content" id="advancedStyleContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease;">
+                            <!-- Applied Style Summary (shown after generation) -->
+                            <div id="appliedStyleSummary" style="display: none; margin-bottom: 16px; padding: 12px; background: var(--bg-subtle); border-radius: var(--radius-md);">
+                                <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.05em;">Applied Style</p>
+                                <p id="appliedStyleText" style="font-size: 13px; color: var(--text-primary); margin: 0;">AI-selected</p>
+                            </div>
+
+                            <!-- Transition Style -->
+                            <div class="style-control-group" style="margin-bottom: 16px;">
+                                <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Transition Style
+                                </label>
+                                <div class="style-options" id="transitionOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="style-btn ${currentProject?.transition_style === 'auto' ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Auto
+                                    </button>
+                                    <button class="style-btn ${currentProject?.transition_style === 'cut' ? 'active' : ''}" data-value="cut" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Cut
+                                    </button>
+                                    <button class="style-btn ${currentProject?.transition_style === 'smooth' ? 'active' : ''}" data-value="smooth" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Smooth
+                                    </button>
+                                    <button class="style-btn ${currentProject?.transition_style === 'fade' ? 'active' : ''}" data-value="fade" style="flex: 1; min-width: 60px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Fade
+                                    </button>
+                                </div>
+                                <p class="style-hint" id="transitionHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                    Auto lets AI choose transitions
+                                </p>
+                            </div>
+
+                            <!-- Visual Filter -->
+                            <div class="style-control-group" style="margin-bottom: 16px;">
+                                <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Visual Filter
+                                </label>
+                                <div class="style-options" id="filterOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="style-btn ${currentProject?.visual_filter === 'none' ? 'active' : ''}" data-value="none" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        None
+                                    </button>
+                                    <button class="style-btn ${currentProject?.visual_filter === 'natural' ? 'active' : ''}" data-value="natural" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Natural
+                                    </button>
+                                    <button class="style-btn ${currentProject?.visual_filter === 'warm' ? 'active' : ''}" data-value="warm" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Warm
+                                    </button>
+                                    <button class="style-btn ${currentProject?.visual_filter === 'rich' ? 'active' : ''}" data-value="rich" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Rich
+                                    </button>
+                                    <button class="style-btn ${currentProject?.visual_filter === 'fresh' ? 'active' : ''}" data-value="fresh" style="flex: 1; min-width: 70px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Fresh
+                                    </button>
+                                </div>
+                                <p class="style-hint" id="filterHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                    None = no filter applied
+                                </p>
+                            </div>
+
+                            <!-- Duration Control -->
+                            <div class="style-control-group">
+                                <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Duration
+                                </label>
+                                <div class="style-options" id="durationOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="style-btn ${currentProject?.target_duration_seconds === null || currentProject?.target_duration_seconds === undefined ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        Auto
+                                    </button>
+                                    <button class="style-btn ${currentProject?.target_duration_seconds === 30 ? 'active' : ''}" data-value="30" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        30s
+                                    </button>
+                                    <button class="style-btn ${currentProject?.target_duration_seconds === 45 ? 'active' : ''}" data-value="45" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        45s
+                                    </button>
+                                    <button class="style-btn ${currentProject?.target_duration_seconds === 60 ? 'active' : ''}" data-value="60" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                        60s
+                                    </button>
+                                </div>
+                                <p class="style-hint" id="durationHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                    Auto selects based on your content
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phase 4: Plan Review Card (Post-Generation Explanation) -->
+                    <div class="glass-card sidebar-card" id="planReviewCard" style="display: none;">
+                        <div class="collapsible-header" id="planReviewHeader" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 8px 0;">
+                            <h3 class="sidebar-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 11l3 3L22 4"/>
+                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                                </svg>
+                                How Your Reel Was Made
+                            </h3>
+                            <svg id="planReviewChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s;">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+
+                        <div class="collapsible-content" id="planReviewContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease;">
+                            <!-- Plan Summary -->
+                            <div id="planSummary" style="margin-bottom: 12px; padding: 12px; background: var(--bg-subtle); border-radius: var(--radius-md);">
+                                <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">
+                                    <span id="planDuration">-</span> • <span id="planSegments">-</span> clips
+                                </p>
+                                <p id="planRationale" style="font-size: 11px; color: var(--text-muted); margin: 8px 0 0 0; font-style: italic;"></p>
+                            </div>
+
+                            <!-- Selected Clips -->
+                            <div style="margin-bottom: 12px;">
+                                <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em;">Selected Clips</p>
+                                <div id="selectedClipsList" style="display: flex; flex-direction: column; gap: 6px;">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            <!-- Skipped Clips -->
+                            <div id="skippedClipsSection" style="display: none;">
+                                <p style="font-size: 11px; color: var(--text-muted); margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em;">Not Used</p>
+                                <div id="skippedClipsList" style="display: flex; flex-direction: column; gap: 6px; opacity: 0.7;">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Card (Output Display Only) -->
+                    <div class="glass-card sidebar-card liquid-hover-lift" id="previewCard">
+                        <h3 class="sidebar-title">Preview</h3>
+                        <div class="preview-player">
+                            <div class="preview-placeholder" id="previewPlaceholder">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M3 9h18M9 21V9"/>
+                                    <circle cx="15" cy="15" r="2"/>
+                                </svg>
+                                <p>Your reel will appear here</p>
+                            </div>
+                            <video id="previewVideo" controls style="display: none; width: 100%; border-radius: var(--radius-md);"></video>
+                        </div>
                         <p id="generationStatus" style="font-size: 11px; color: var(--text-tertiary); text-align: center; margin-top: 8px; display: none;"></p>
 
                         <!-- Post-generation actions -->
@@ -2809,7 +2879,7 @@
                     if (data.status === 'plan_ready' || data.status === 'completed') {
                         // Close ticker modal with animation
                         await closeTicker({ animate: true });
-                        
+
                         const isPlanReady = data.status === 'plan_ready';
                         generateBtn.innerHTML = `
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2818,10 +2888,16 @@
                             ${isPlanReady ? 'Analysis Complete' : 'Video Ready'}
                         `;
                         statusText.style.color = 'var(--brand-success)';
-                        
+
                         // Show success toast
                         showToast(isPlanReady ? 'Reel analysis complete!' : 'Video rendered successfully!', 'success');
-                        
+
+                        // Phase 4: Fetch and show applied style and plan review from edit plan
+                        if (data.edit_plan) {
+                            showAppliedStyle(data.edit_plan);
+                            showPlanReview(data.edit_plan);
+                        }
+
                         // Refresh to show updates
                         openProject(currentProject.id);
                     } else if (data.status === 'failed') {
@@ -3422,8 +3498,152 @@
                     await saveStyleSettings();
                 });
             });
+
+            // Phase 4: Advanced Style collapsible panel
+            const advancedHeader = document.getElementById('advancedStyleHeader');
+            const advancedContent = document.getElementById('advancedStyleContent');
+            const advancedChevron = document.getElementById('advancedStyleChevron');
+
+            if (advancedHeader && advancedContent) {
+                advancedHeader.addEventListener('click', () => {
+                    const isExpanded = advancedContent.style.maxHeight && advancedContent.style.maxHeight !== '0px';
+                    if (isExpanded) {
+                        advancedContent.style.maxHeight = '0px';
+                        advancedChevron.style.transform = 'rotate(0deg)';
+                    } else {
+                        advancedContent.style.maxHeight = advancedContent.scrollHeight + 'px';
+                        advancedChevron.style.transform = 'rotate(180deg)';
+                    }
+                });
+            }
         }
-        
+
+        // Phase 4: Show applied style summary after generation
+        function showAppliedStyle(planData) {
+            const summaryDiv = document.getElementById('appliedStyleSummary');
+            const summaryText = document.getElementById('appliedStyleText');
+
+            if (!summaryDiv || !summaryText || !planData) return;
+
+            const settings = planData.global_settings || {};
+            const selection = planData.selection_rationale || {};
+            const isAutoTransition = settings.transition_style === 'auto' || !settings.transition_style;
+            const isAutoFilter = settings.visual_filter === 'none' || !settings.visual_filter;
+            const isAutoDuration = !planData.target_duration || planData.target_duration === selection.selected_duration;
+
+            // Build applied style text
+            const parts = [];
+            if (isAutoTransition && isAutoFilter && isAutoDuration) {
+                parts.push('AI-selected');
+            } else {
+                if (!isAutoTransition) parts.push(`${settings.transition_style} transitions`);
+                if (!isAutoFilter) parts.push(`${settings.visual_filter} filter`);
+                if (!isAutoDuration) parts.push(`${planData.target_duration}s duration`);
+            }
+
+            summaryText.textContent = parts.join(' • ') || 'AI-selected';
+            summaryDiv.style.display = 'block';
+
+            // Expand advanced panel to show user what was applied
+            const advancedContent = document.getElementById('advancedStyleContent');
+            const advancedChevron = document.getElementById('advancedStyleChevron');
+            if (advancedContent && parts.length > 0) {
+                advancedContent.style.maxHeight = advancedContent.scrollHeight + 'px';
+                if (advancedChevron) advancedChevron.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        // Phase 4 Work Item 9: Show detailed plan review after generation
+        function showPlanReview(planData) {
+            const reviewCard = document.getElementById('planReviewCard');
+            if (!reviewCard || !planData) return;
+
+            // Show the card
+            reviewCard.style.display = 'block';
+
+            // Populate summary
+            const duration = planData.actual_duration || planData.target_duration || '-';
+            const segmentCount = planData.segment_count || (planData.segments || []).length;
+            document.getElementById('planDuration').textContent = `${duration}s reel`;
+            document.getElementById('planSegments').textContent = `${segmentCount}`;
+
+            const rationale = planData.selection_rationale || {};
+            const strategy = rationale.selection_strategy || 'AI-selected clips';
+            document.getElementById('planRationale').textContent = strategy;
+
+            // Populate selected clips
+            const selectedList = document.getElementById('selectedClipsList');
+            selectedList.innerHTML = '';
+
+            const segments = planData.segments || [];
+            segments.forEach((seg, idx) => {
+                const role = seg.role || 'body';
+                const roleEmoji = role === 'intro' ? '▶️' : role === 'outro' ? '⏹️' : '•';
+                const duration = seg.duration ? `${seg.duration}s` : '';
+
+                const clipItem = document.createElement('div');
+                clipItem.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); padding: 4px 0; border-bottom: 1px solid var(--border-subtle);';
+                clipItem.innerHTML = `
+                    <span style="font-size: 10px;">${roleEmoji}</span>
+                    <span style="flex: 1; text-transform: capitalize;">${role}</span>
+                    <span style="color: var(--text-muted); font-size: 11px;">${duration}</span>
+                `;
+                selectedList.appendChild(clipItem);
+            });
+
+            // Populate skipped clips if any
+            const skipped = rationale.skipped_assets || [];
+            const skippedSection = document.getElementById('skippedClipsSection');
+            const skippedList = document.getElementById('skippedClipsList');
+
+            if (skipped.length > 0) {
+                skippedSection.style.display = 'block';
+                skippedList.innerHTML = '';
+
+                skipped.slice(0, 3).forEach(skip => {
+                    const reason = skip.reason || 'Not selected';
+                    const skipItem = document.createElement('div');
+                    skipItem.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); padding: 3px 0;';
+                    skipItem.innerHTML = `
+                        <span style="font-size: 10px;">✗</span>
+                        <span style="flex: 1;">${reason}</span>
+                    `;
+                    skippedList.appendChild(skipItem);
+                });
+
+                if (skipped.length > 3) {
+                    const more = document.createElement('div');
+                    more.style.cssText = 'font-size: 11px; color: var(--text-muted); font-style: italic; padding: 3px 0;';
+                    more.textContent = `+ ${skipped.length - 3} more not shown...`;
+                    skippedList.appendChild(more);
+                }
+            } else {
+                skippedSection.style.display = 'none';
+            }
+
+            // Initialize collapsible behavior for plan review
+            const reviewHeader = document.getElementById('planReviewHeader');
+            const reviewContent = document.getElementById('planReviewContent');
+            const reviewChevron = document.getElementById('planReviewChevron');
+
+            if (reviewHeader && reviewContent) {
+                // Remove old listener by cloning
+                const newHeader = reviewHeader.cloneNode(true);
+                reviewHeader.parentNode.replaceChild(newHeader, reviewHeader);
+
+                newHeader.addEventListener('click', () => {
+                    const isExpanded = reviewContent.style.maxHeight && reviewContent.style.maxHeight !== '0px';
+                    if (isExpanded) {
+                        reviewContent.style.maxHeight = '0px';
+                        reviewChevron.style.transform = 'rotate(0deg)';
+                    } else {
+                        reviewContent.style.maxHeight = reviewContent.scrollHeight + 'px';
+                        reviewChevron.style.transform = 'rotate(180deg)';
+                    }
+                });
+            }
+        }
+
         async function saveStyleSettings() {
             if (!currentProject) return;
 

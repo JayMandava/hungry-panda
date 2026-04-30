@@ -428,7 +428,7 @@ def get_latest_render_job_db(project_id: str) -> Optional[Dict]:
         return None
 
 def get_render_job_by_id_db(job_id: str) -> Optional[Dict]:
-    """Get a specific render job by its ID"""
+    """Get a specific render job by its ID, including edit plan."""
     try:
         rows = execute_query(
             "SELECT * FROM reel_render_jobs WHERE id = ?",
@@ -436,7 +436,7 @@ def get_render_job_by_id_db(job_id: str) -> Optional[Dict]:
         )
         if rows:
             row = rows[0]
-            return {
+            result = {
                 "id": row["id"],
                 "project_id": row["project_id"],
                 "status": row["status"],
@@ -445,6 +445,14 @@ def get_render_job_by_id_db(job_id: str) -> Optional[Dict]:
                 "completed_at": row["completed_at"],
                 "created_at": row["created_at"]
             }
+            # Phase 4: Include edit_plan if available
+            edit_plan_json = row.get("edit_plan_json")
+            if edit_plan_json:
+                try:
+                    result["edit_plan"] = json.loads(edit_plan_json)
+                except json.JSONDecodeError:
+                    result["edit_plan"] = None
+            return result
         return None
     except DatabaseError as e:
         logger.error(f"Failed to get render job {job_id}: {e}")
