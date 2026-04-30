@@ -1690,9 +1690,17 @@ def _ensure_minimum_reel_duration(
     # Calculate how much we need to extend to reach target
     required_extension = target_duration - current_total
     
-    # Maximum extension per segment type
-    MAX_VIDEO_EXTENSION = 15.0
-    MAX_IMAGE_EXTENSION = 15.0
+    # Maximum extension per segment type - scale with target for longer reels
+    # For 60s targets with few assets, allow segments up to 15s each
+    if target_duration >= 60:
+        MAX_VIDEO_EXTENSION = 20.0
+        MAX_IMAGE_EXTENSION = 20.0
+    elif target_duration >= 45:
+        MAX_VIDEO_EXTENSION = 15.0
+        MAX_IMAGE_EXTENSION = 15.0
+    else:
+        MAX_VIDEO_EXTENSION = 10.0
+        MAX_IMAGE_EXTENSION = 10.0
     
     # Calculate how much each segment CAN be extended
     extendable_room = []  # (segment_idx, current_duration, max_extendable)
@@ -1791,14 +1799,38 @@ def generate_edit_plan(
     
     logger.info(f"Edit plan for project {project_id}: transition_style={transition_style}, effective={effective_transition}")
     
+    # FIX: Pre-check if target is achievable with available assets
+    # Calculate maximum achievable duration with current selection
+    max_segment_duration = 10.0  # Max per segment after stretching
+    max_achievable = len(selected_assets) * max_segment_duration
+    tolerance = 2.0
+    
+    if target_duration > max_achievable + tolerance:
+        # Target not achievable - raise clear error
+        error_msg = (
+            f"Cannot create {target_duration}s reel: only {len(selected_assets)} assets selected, "
+            f"maximum achievable is ~{max_achievable}s (even with stretching). "
+            f"Please add more assets or reduce target duration to {int(max_achievable)}s or less."
+        )
+        logger.error(f"Project {project_id}: {error_msg}")
+        raise ValueError(error_msg)
+    
     # Calculate base segment durations (deterministic foundation)
+    # FIX: Adjust base duration based on target to help reach longer targets
     pacing = template.get("pacing", "medium")
-    base_segment_duration = {
+    base_durations = {
         "slow": 4.0,
         "medium": 3.0,
         "quick": 2.0,
         "dramatic": 5.0
-    }.get(pacing, 3.0)
+    }
+    base_segment_duration = base_durations.get(pacing, 3.0)
+    
+    # For longer targets, use longer base durations to reduce stretching needed
+    if target_duration >= 60 and len(selected_assets) <= 5:
+        base_segment_duration = 6.0  # Start with 6s segments for 60s targets
+    elif target_duration >= 45 and len(selected_assets) <= 4:
+        base_segment_duration = 5.0  # Start with 5s segments for 45s targets
     
     # Phase 1 Work Item 3: Generate strict JSON AI prompt for creative decisions
     ai_prompt_json = _generate_ai_edit_plan_json_prompt(selected_assets, template_key, template, target_duration)
