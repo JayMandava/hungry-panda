@@ -2462,17 +2462,14 @@
                     </video>
                 `;
             } else if (status === 'plan_ready') {
-                // Phase 2 complete, Phase 3 pending
+                // Phase 2 complete, Phase 3 pending - AWAITING USER REVIEW
                 previewContainer.innerHTML = `
-                    <div class="preview-placeholder">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--brand-primary);">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
+                    <div class="preview-placeholder" style="border: 2px dashed var(--brand-primary); background: rgba(110, 154, 66, 0.05);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--brand-primary); animation: pulse 2s infinite;">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color: var(--brand-primary);">Edit plan ready!</p>
-                        <p style="font-size: 11px;">Video rendering in progress...</p>
+                        <p style="color: var(--brand-primary); font-weight: 600;">✓ Edit Plan Ready!</p>
+                        <p style="font-size: 11px; color: var(--text-secondary);">Review the plan below, then click "Proceed to Render"</p>
                     </div>
                 `;
             } else if (status === 'rendering') {

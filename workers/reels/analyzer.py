@@ -2155,8 +2155,14 @@ def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
     target = edit_plan.get("target_duration", 30)
     tolerance = edit_plan.get("duration_tolerance_seconds", 2.0)
 
-    if total > target + tolerance:
-        validation_errors.append(f"Total duration ({total:.1f}s) exceeds target ({target}s) + tolerance ({tolerance}s)")
+    # FIX: Check both upper and lower bounds against target tolerance
+    if abs(total - target) > tolerance:
+        validation_errors.append(f"Total duration ({total:.1f}s) deviates from target ({target}s) by more than tolerance ({tolerance}s)")
+        is_valid = False
+
+    # Hard limits: must be within Instagram bounds (30-60s) after padding
+    if total > 60:
+        validation_errors.append(f"Total duration ({total:.1f}s) exceeds Instagram maximum of 60s")
         is_valid = False
 
     # Short plans (< 30s) are padded to 30s by the renderer via tpad — not a hard failure
