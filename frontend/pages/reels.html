@@ -2055,6 +2055,30 @@
                                 None = no filter applied
                             </p>
                         </div>
+
+                        <!-- Phase 2: Duration Control -->
+                        <div class="style-control-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-default);">
+                            <label class="style-label" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Duration
+                            </label>
+                            <div class="style-options" id="durationOptions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button class="style-btn ${currentProject?.target_duration_seconds === null || currentProject?.target_duration_seconds === undefined ? 'active' : ''}" data-value="auto" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    Auto
+                                </button>
+                                <button class="style-btn ${currentProject?.target_duration_seconds === 30 ? 'active' : ''}" data-value="30" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    30s
+                                </button>
+                                <button class="style-btn ${currentProject?.target_duration_seconds === 45 ? 'active' : ''}" data-value="45" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    45s
+                                </button>
+                                <button class="style-btn ${currentProject?.target_duration_seconds === 60 ? 'active' : ''}" data-value="60" style="flex: 1; min-width: 50px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">
+                                    60s
+                                </button>
+                            </div>
+                            <p class="style-hint" id="durationHint" style="font-size: 11px; color: var(--text-muted); margin-top: 6px; font-style: italic;">
+                                Auto selects based on your content
+                            </p>
+                        </div>
                     </div>
 
                     <!-- Preview Card -->
@@ -2475,12 +2499,18 @@
                 generateBtn.disabled = true;
                 generateBtn.classList.remove('liquid-pulse');
 
+                // Phase 2: Use selected duration (null = Auto mode)
+                const regenDurationPayload = currentProject.target_duration_seconds === null ||
+                                              currentProject.target_duration_seconds === undefined
+                    ? {}  // Auto mode: omit target_duration_seconds
+                    : { target_duration_seconds: currentProject.target_duration_seconds };
+
                 const response = await fetch(`${API_BASE}/projects/${currentProject.id}/regenerate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        target_duration_seconds: 30, 
-                        template_key: currentProject.template_key 
+                    body: JSON.stringify({
+                        ...regenDurationPayload,
+                        template_key: currentProject.template_key
                     })
                 });
 
@@ -2682,12 +2712,18 @@
                 generateBtn.disabled = true;
                 generateBtn.classList.remove('liquid-pulse');
 
+                // Phase 2: Use selected duration (null = Auto mode)
+                const durationPayload = currentProject.target_duration_seconds === null ||
+                                        currentProject.target_duration_seconds === undefined
+                    ? {}  // Auto mode: omit target_duration_seconds
+                    : { target_duration_seconds: currentProject.target_duration_seconds };
+
                 const response = await fetch(`${API_BASE}/projects/${currentProject.id}/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        target_duration_seconds: 30, 
-                        template_key: currentProject.template_key 
+                    body: JSON.stringify({
+                        ...durationPayload,
+                        template_key: currentProject.template_key
                     })
                 });
 
@@ -3310,6 +3346,7 @@
         
         let pendingTransitionStyle = null;
         let pendingVisualFilter = null;
+        let pendingDuration = null;  // Phase 2: Duration control (30, 45, 60, or null for Auto)
         
         function initStyleControls() {
             // Transition buttons
@@ -3341,11 +3378,11 @@
                 btn.addEventListener('click', async () => {
                     const value = btn.dataset.value;
                     pendingVisualFilter = value;
-                    
+
                     // Update UI
                     document.querySelectorAll('#filterOptions .style-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
-                    
+
                     // Update hint
                     const hints = {
                         'none': 'No filter applied - original colors',
@@ -3355,7 +3392,32 @@
                         'fresh': 'Bright, vibrant, fresh look'
                     };
                     document.getElementById('filterHint').textContent = hints[value];
-                    
+
+                    // Save to project
+                    await saveStyleSettings();
+                });
+            });
+
+            // Phase 2: Duration buttons
+            document.querySelectorAll('#durationOptions .style-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const value = btn.dataset.value;
+                    // 'auto' = null, otherwise parse as integer
+                    pendingDuration = value === 'auto' ? null : parseInt(value, 10);
+
+                    // Update UI
+                    document.querySelectorAll('#durationOptions .style-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    // Update hint
+                    const hints = {
+                        'auto': 'Auto selects duration based on your content quality (30-60s)',
+                        '30': 'Quick 30-second reel - great for engagement',
+                        '45': 'Medium 45-second reel - balanced storytelling',
+                        '60': 'Full 60-second reel - maximum content depth'
+                    };
+                    document.getElementById('durationHint').textContent = hints[value];
+
                     // Save to project
                     await saveStyleSettings();
                 });
@@ -3364,7 +3426,7 @@
         
         async function saveStyleSettings() {
             if (!currentProject) return;
-            
+
             const settings = {};
             if (pendingTransitionStyle !== null) {
                 settings.transition_style = pendingTransitionStyle;
@@ -3372,7 +3434,11 @@
             if (pendingVisualFilter !== null) {
                 settings.visual_filter = pendingVisualFilter;
             }
-            
+            // Phase 2: Include duration (can be explicit value or null for Auto)
+            if (pendingDuration !== null) {
+                settings.target_duration_seconds = pendingDuration;  // Explicit 30/45/60
+            }
+
             if (Object.keys(settings).length === 0) return;
             
             try {
@@ -3399,22 +3465,31 @@
         
         function updateStyleButtons() {
             if (!currentProject) return;
-            
+
             // Update transition buttons
             const transitionStyle = currentProject.transition_style || 'auto';
             document.querySelectorAll('#transitionOptions .style-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.value === transitionStyle);
             });
-            
+
             // Update filter buttons
             const visualFilter = currentProject.visual_filter || 'none';
             document.querySelectorAll('#filterOptions .style-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.value === visualFilter);
             });
-            
+
+            // Phase 2: Update duration buttons
+            // Auto = null/undefined, otherwise specific seconds value
+            const durationValue = currentProject.target_duration_seconds;
+            const durationBtnValue = durationValue === null || durationValue === undefined ? 'auto' : String(durationValue);
+            document.querySelectorAll('#durationOptions .style-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === durationBtnValue);
+            });
+
             // Reset pending values
             pendingTransitionStyle = null;
             pendingVisualFilter = null;
+            pendingDuration = null;
         }
 
         // Initialize - overlay click listener added after DOM ready

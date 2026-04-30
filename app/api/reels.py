@@ -11,7 +11,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
 # Add project root to path
@@ -163,8 +163,17 @@ class RenderJobInfo(BaseModel):
     created_at: str
 
 class GenerateRequest(BaseModel):
-    target_duration_seconds: int = Field(default=30, ge=30, le=60)
+    target_duration_seconds: Optional[int] = Field(default=None, description="Duration: 30, 45, 60, or null for Auto")
     template_key: Optional[str] = None
+
+    @field_validator('target_duration_seconds')
+    @classmethod
+    def validate_duration(cls, v):
+        if v is None:
+            return v  # Auto mode is valid
+        if v not in (30, 45, 60):
+            raise ValueError('Duration must be 30, 45, 60, or null for Auto')
+        return v
 
 class ProjectFullResponse(BaseModel):
     project: ProjectDetail
@@ -816,6 +825,7 @@ class UpdateProjectRequest(BaseModel):
 class UpdateStyleRequest(BaseModel):
     transition_style: Optional[str] = Field(None, description="Transition style: auto, cut, smooth, fade")
     visual_filter: Optional[str] = Field(None, description="Visual filter: none, natural, warm, rich, fresh")
+    target_duration_seconds: Optional[int] = Field(None, description="Duration: 30, 45, 60, or null for Auto")
 
 
 @router.post("/projects/{project_id}/update")
@@ -890,7 +900,24 @@ async def update_project_style(project_id: str, request: UpdateStyleRequest):
         update_fields.append("visual_filter = ?")
         params.append(request.visual_filter)
         result["visual_filter"] = request.visual_filter
-    
+
+    # Phase 2: Validate and update target_duration_seconds if provided
+    if request.target_duration_seconds is not None:
+        valid_durations = [30, 45, 60]
+        if request.target_duration_seconds not in valid_durations:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid target_duration_seconds. Must be one of: {', '.join(map(str, valid_durations))}"
+            )
+        update_fields.append("target_duration_seconds = ?")
+        params.append(request.target_duration_seconds)
+        result["target_duration_seconds"] = request.target_duration_seconds
+    elif hasattr(request, 'target_duration_seconds') and request.target_duration_seconds is None:
+        # Explicit null = Auto mode
+        update_fields.append("target_duration_seconds = ?")
+        params.append(None)
+        result["target_duration_seconds"] = None
+
     # If no fields to update, return early
     if not update_fields:
         return result
@@ -1056,15 +1083,79 @@ except ImportError as e:
     logger.warning(f"Reel renderer not available: {e}")
     RENDERER_AVAILABLE = False
 
-async def process_reel_generation(project_id: str, job_id: str, template_key: str, target_duration: int):
+
+def _resolve_auto_duration(assets: List[Dict]) -> int:
     """
-    Background task for Phase 2: Analysis & Planning.
+    Phase 2 Work Item 5: Resolve Auto duration based on content quality and available footage.
+
+    Strategy:
+    - 30s: Limited or low-quality clips (< 3 qualified assets, avg score < 0.5)
+    - 45s: Moderate quality sets (3-5 qualified assets, avg score 0.5-0.7)
+    - 60s: Enough strong footage (5+ qualified assets or avg score > 0.7)
+
+    Returns: 30, 45, or 60
+    """
+    if not assets:
+        return 30  # Default for empty projects
+
+    # Count qualified assets (not disqualified, decent orientation fit)
+    qualified_count = 0
+    total_usable_duration = 0.0
+    quality_scores = []
+
+    for asset in assets:
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        advanced = analysis.get("advanced_analysis", {})
+
+        # Skip disqualified assets
+        if suitability.get("disqualified", False):
+            continue
+        if advanced.get("orientation_fit", 0.7) < 0.2:
+            continue
+
+        qualified_count += 1
+
+        # Accumulate usable duration
+        usable_duration = advanced.get("usable_duration_seconds", 3.0)
+        total_usable_duration += max(0, usable_duration)
+
+        # Track quality scores
+        score = suitability.get("score", 0.5)
+        quality_scores.append(score)
+
+    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
+
+    # Decision logic
+    if qualified_count >= 5 and avg_quality > 0.65:
+        # Plenty of good content -> 60s
+        resolved = 60
+    elif qualified_count >= 3 and avg_quality > 0.5:
+        # Moderate content -> 45s
+        resolved = 45
+    elif total_usable_duration >= 20:
+        # Enough raw footage even if lower quality
+        resolved = 45
+    else:
+        # Limited content -> 30s
+        resolved = 30
+
+    logger.info(f"Auto duration resolved: {resolved}s (qualified={qualified_count}, avg_quality={avg_quality:.2f}, usable_duration={total_usable_duration:.1f}s)")
+    return resolved
+
+
+async def process_reel_generation(project_id: str, job_id: str, template_key: str, target_duration: Optional[int]):
+    """
+    Background task for Phase 2: Analysis & Planning with Flexible Duration support.
     Analyzes assets, generates edit plan, and renders the reel.
+
+    Phase 2: target_duration can be None (Auto mode), in which case duration is
+    resolved based on content quality and available footage.
     """
     import time
     render_start_time = time.time()
-    
-    logger.info(f"Starting reel generation for project {project_id}, job {job_id}")
+
+    logger.info(f"Starting reel generation for project {project_id}, job {job_id}, requested_duration={target_duration or 'Auto'}")
     
     try:
         # Step 0: Get project details (includes style settings)
@@ -1108,9 +1199,22 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
             logger.info(f"Marked duplicate groups for project {project_id}")
         except Exception as e:
             logger.warning(f"Failed to mark duplicate groups for project {project_id}: {e}")
-        
+
+        # Phase 2 Work Item 5: Auto duration resolution
+        if target_duration is None:
+            target_duration = _resolve_auto_duration(assets)
+            logger.info(f"Auto duration resolved to {target_duration}s for project {project_id}")
+            # Update project with resolved duration
+            try:
+                execute_insert(
+                    "UPDATE reel_projects SET target_duration_seconds = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (target_duration, project_id)
+                )
+            except DatabaseError as e:
+                logger.warning(f"Failed to update resolved duration for project {project_id}: {e}")
+
         # Step 3: Select and score assets for reel
-        logger.info(f"Selecting assets for reel from project {project_id}")
+        logger.info(f"Selecting assets for reel from project {project_id} with duration={target_duration}s")
         selected_assets = select_assets_for_reel(assets, target_duration)
         if not selected_assets:
             raise ValueError("No suitable assets selected for reel")
