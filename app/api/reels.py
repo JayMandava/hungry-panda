@@ -1115,6 +1115,15 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         if not selected_assets:
             raise ValueError("No suitable assets selected for reel")
         
+        # Step 3b: Update selected status in database for all assets
+        # This marks skipped assets as selected=false with skip rationale
+        try:
+            from workers.reels.analyzer import update_asset_selected_status
+            update_asset_selected_status(project_id, selected_assets, assets)
+            logger.info(f"Updated selected status for {len(assets)} assets in project {project_id}")
+        except Exception as e:
+            logger.warning(f"Failed to update asset selected status: {e}")
+        
         # Step 4: Generate edit plan with transition style
         logger.info(f"Generating edit plan for project {project_id} with transition={transition_style}")
         edit_plan = generate_edit_plan(project_id, selected_assets, template_key, target_duration, transition_style)

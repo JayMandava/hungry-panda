@@ -834,15 +834,166 @@ def _detect_duplicate_assets(assets: List[Dict]) -> Dict[str, str]:
     return duplicates
 
 
+def _call_ai_director_selection(
+    qualified_assets: List[Dict],
+    target_duration: int
+) -> Optional[Dict[str, Any]]:
+    """
+    Phase 2: AI-assisted clip selection.
+    
+    Uses LLM to select and rank clips for intro, body, and outro roles.
+    Returns director decisions with rationale, or None if LLM unavailable/invalid.
+    
+    The LLM works within validated bounds - it can only select from qualified assets
+    and its decisions are validated against deterministic scoring.
+    """
+    if not LLM_AVAILABLE or len(qualified_assets) < 2:
+        return None
+    
+    llm_client = get_llm_client()
+    if not llm_client:
+        return None
+    
+    # Build comprehensive asset descriptions for the LLM
+    asset_descriptions = []
+    for idx, asset in enumerate(qualified_assets):
+        analysis = asset.get("analysis_json", {})
+        advanced = analysis.get("advanced_analysis", {})
+        visual = analysis.get("visual_facts", {})
+        
+        desc = f"\nAsset {idx+1} (ID: {asset['id'][:8]}):\n"
+        desc += f"  Type: {asset['media_type']}\n"
+        desc += f"  Dish: {visual.get('dish_detected', 'Unknown')}\n"
+        desc += f"  Visual: {visual.get('visual_summary', 'N/A')[:80]}\n"
+        desc += f"  Quality Metrics:\n"
+        desc += f"    - Hook strength: {advanced.get('hook_strength', 0):.2f}/1.0\n"
+        desc += f"    - Food clarity: {advanced.get('food_clarity', 0):.2f}/1.0\n"
+        desc += f"    - Motion quality: {advanced.get('motion_quality', 0):.2f}/1.0\n"
+        desc += f"    - Orientation fit: {advanced.get('orientation_fit', 0):.2f}/1.0\n"
+        desc += f"    - Overall score: {analysis.get('reel_suitability', {}).get('score', 0):.2f}/1.0\n"
+        
+        if asset['media_type'] == 'video':
+            desc += f"    - Duration: {visual.get('duration_seconds', 0):.1f}s\n"
+            desc += f"    - Usable duration: {advanced.get('usable_duration_seconds', 0):.1f}s\n"
+        
+        asset_descriptions.append(desc)
+    
+    prompt = f"""You are an expert Instagram Reel editor selecting clips for a {target_duration}s reel.
+
+You must choose the best clips for three roles:
+- INTRO (1 clip): Needs strong hook to grab attention in first 3 seconds. Prioritize hook_strength > 0.7.
+- BODY (1-3 clips): Needs engaging motion and good food clarity. Prioritize motion_quality and food_clarity.
+- OUTRO (1 clip): Needs clear food visibility for CTA/call-to-action. Prioritize food_clarity > 0.7.
+
+AVAILABLE ASSETS:
+{''.join(asset_descriptions)}
+
+SELECTION RULES:
+1. You MUST select 3-5 assets total (1 intro + 1-3 body + 1 outro)
+2. Do NOT select the same asset for multiple roles
+3. Consider asset durations - short clips (<3s) work better for intro, longer for body
+4. If an asset has rejection_reason populated, avoid selecting it
+5. Videos with high motion_quality (>0.7) are preferred for body
+
+Respond in this exact JSON format:
+{{
+  "selections": [
+    {{"asset_index": 1, "role": "intro", "rationale": "Strong hook with close-up of dish"}},
+    {{"asset_index": 3, "role": "body", "rationale": "Good motion showing cooking process"}},
+    {{"asset_index": 5, "role": "outro", "rationale": "Clear plated dish for CTA"}}
+  ],
+  "skipped_indices": [2, 4],
+  "overall_strategy": "Brief explanation of your selection approach"
+}}
+
+Asset indices are 1-based (Asset 1 = index 1)."""
+
+    try:
+        # Call LLM for director decisions
+        system_prompt = "You are an expert video editor. Respond only with valid JSON in the exact format requested."
+        ai_response = llm_client._call_llm(
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            max_tokens=600
+        )
+        
+        # Parse JSON response
+        try:
+            director_decisions = json.loads(ai_response.strip())
+        except json.JSONDecodeError:
+            # Try to extract JSON from response if wrapped in markdown
+            import re
+            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+            if json_match:
+                director_decisions = json.loads(json_match.group(0))
+            else:
+                logger.warning(f"AI director returned invalid JSON: {ai_response[:200]}")
+                return None
+        
+        # Validate the decisions
+        valid_selections = []
+        seen_asset_ids = set()
+        
+        for sel in director_decisions.get("selections", []):
+            idx = sel.get("asset_index", 0) - 1  # Convert to 0-based
+            if 0 <= idx < len(qualified_assets):
+                asset = qualified_assets[idx]
+                asset_id = asset["id"]
+                
+                # Don't select same asset twice
+                if asset_id in seen_asset_ids:
+                    logger.warning(f"AI director tried to select same asset twice: {asset_id}")
+                    continue
+                
+                # Validate role is one we accept
+                role = sel.get("role", "body")
+                if role not in ["intro", "body", "outro"]:
+                    role = "body"
+                
+                seen_asset_ids.add(asset_id)
+                valid_selections.append({
+                    "asset_id": asset_id,
+                    "asset": asset,
+                    "role": role,
+                    "rationale": sel.get("rationale", "Selected by AI director"),
+                    "source": "ai_director"
+                })
+        
+        if len(valid_selections) < 2:
+            logger.warning(f"AI director selected only {len(valid_selections)} assets, need at least 2")
+            return None
+        
+        # Build skipped list
+        selected_indices = {s["asset_id"] for s in valid_selections}
+        skipped = [a["id"] for a in qualified_assets if a["id"] not in selected_indices]
+        
+        logger.info(f"AI director selected {len(valid_selections)} assets with rationale")
+        
+        return {
+            "selections": valid_selections,
+            "skipped_asset_ids": skipped,
+            "overall_strategy": director_decisions.get("overall_strategy", "AI-assisted selection"),
+            "source": "ai_director",
+            "fallback": False
+        }
+        
+    except Exception as e:
+        logger.warning(f"AI director selection failed: {e}")
+        return None
+
+
 def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> List[Dict]:
     """
-    Phase 1 Enhanced: Select and rank assets for reel inclusion.
+    Phase 2: AI-assisted director selection with deterministic fallback.
     
     Key improvements:
+    - First attempts AI director selection (LLM chooses best clips)
+    - Falls back to deterministic scoring if AI unavailable/invalid
     - Uses hook_strength, motion_quality, orientation_fit for ranking
     - Filters out disqualified assets (poor orientation, rejection_reason)
     - Detects and suppresses duplicate uploads
-    - Assigns intro/body/outro based on quality scores, not just position
+    - Assigns intro/body/outro based on quality scores
+    - Stores selection rationale and skipped assets in result
     """
     if not assets:
         return []
@@ -897,6 +1048,28 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
     # Log disqualified assets
     if disqualified:
         logger.info(f"Disqualified {len(disqualified)} assets: {disqualified}")
+    
+    # Phase 2: Try AI director selection first
+    ai_director_result = None
+    if len(qualified) >= 2:
+        try:
+            ai_director_result = _call_ai_director_selection(qualified, target_duration)
+            if ai_director_result:
+                logger.info(f"Using AI director selection: {ai_director_result.get('overall_strategy', 'AI-assisted')}")
+        except Exception as e:
+            logger.warning(f"AI director failed, will use deterministic fallback: {e}")
+    
+    # If AI director gave us valid selections, use them
+    if ai_director_result and ai_director_result.get("selections"):
+        return _build_selection_from_director(
+            ai_director_result, 
+            qualified, 
+            duplicates,
+            disqualified
+        )
+    
+    # Otherwise, fall back to deterministic scoring (Phase 1)
+    logger.info("Using deterministic asset selection (AI director unavailable)")
     
     # Phase 1: Score-based role assignment
     # First, identify the best intro candidate by hook_strength
@@ -1037,58 +1210,130 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
     return selected
 
 
-def mark_duplicate_groups_in_project(project_id: str, assets: List[Dict]):
+def _build_selection_from_director(
+    director_result: Dict[str, Any],
+    qualified_assets: List[Dict],
+    duplicates: Dict[str, str],
+    disqualified_list: List[Dict]
+) -> List[Dict]:
     """
-    Post-analysis pass: Populate duplicate_group field for assets that are duplicates.
-    Should be called after all assets in a project have been analyzed.
+    Build final selection list from AI director decisions.
+    Includes rationale, marks skipped assets, and adds metadata.
     """
-    # Build hash -> list of assets map
-    hash_groups: Dict[str, List[Dict]] = {}
+    selected = []
     
-    for asset in assets:
-        analysis = asset.get("analysis_json", {})
-        advanced = analysis.get("advanced_analysis", {})
-        content_hash = advanced.get("content_hash")
+    # Build lookup from asset_id to full asset data
+    asset_lookup = {a["id"]: a for a in qualified_assets}
+    
+    # Process AI selections
+    for sel in director_result["selections"]:
+        asset_id = sel["asset_id"]
+        asset = asset_lookup.get(asset_id)
+        if not asset:
+            continue
         
-        if content_hash:
-            if content_hash not in hash_groups:
-                hash_groups[content_hash] = []
-            hash_groups[content_hash].append(asset)
+        analysis = asset.get("analysis_json", {})
+        suitability = analysis.get("reel_suitability", {})
+        advanced = analysis.get("advanced_analysis", {})
+        
+        selected.append({
+            "asset_id": asset_id,
+            "source_path": asset["source_path"],
+            "media_type": asset["media_type"],
+            "sort_order": asset.get("sort_order", 0),
+            "role": sel["role"],
+            "score": suitability.get("score", 0.5),
+            "hook_strength": advanced.get("hook_strength", 0),
+            "motion_quality": advanced.get("motion_quality", 0),
+            "food_clarity": advanced.get("food_clarity", 0),
+            "selection_reason": sel.get("rationale", "Selected by AI director"),
+            "selection_source": "ai_director",
+            "selection_strategy": director_result.get("overall_strategy", ""),
+            "analysis": analysis
+        })
     
-    # For each group with duplicates, mark all but first as duplicates
-    for content_hash, group in hash_groups.items():
-        if len(group) > 1:
-            # First asset is the "original", rest are duplicates
-            original_id = group[0]["id"]
-            duplicate_group_id = str(uuid.uuid4())[:8]  # Short group ID
+    # Mark duplicates
+    for dup_id, orig_id in duplicates.items():
+        if orig_id in [s["asset_id"] for s in selected]:
+            for sel in selected:
+                if sel["asset_id"] == orig_id:
+                    sel["has_duplicates"] = sel.get("has_duplicates", []) + [dup_id]
+    
+    # Log skipped assets for debugging
+    skipped_ids = director_result.get("skipped_asset_ids", [])
+    if skipped_ids:
+        logger.info(f"AI director skipped {len(skipped_ids)} assets: {skipped_ids[:5]}")
+    
+    # Log disqualified
+    if disqualified_list:
+        logger.info(f"AI director excluded {len(disqualified_list)} disqualified assets")
+    
+    logger.info(f"AI director final selection: {[(s['asset_id'][:8], s['role']) for s in selected]}")
+    
+    return selected
+
+
+def update_asset_selected_status(project_id: str, selected_assets: List[Dict], all_assets: List[Dict]):
+    """
+    Phase 2: Update the 'selected' field in database for all project assets.
+    - Selected assets: selected = 1
+    - Skipped/Disqualified assets: selected = 0
+    - Stores skip rationale in analysis_json
+    """
+    selected_ids = {s["asset_id"] for s in selected_assets}
+    
+    updates = []
+    for asset in all_assets:
+        asset_id = asset["id"]
+        is_selected = asset_id in selected_ids
+        
+        # Find skip reason if not selected
+        skip_reason = None
+        if not is_selected:
+            # Check if disqualified
+            analysis = asset.get("analysis_json", {})
+            suitability = analysis.get("reel_suitability", {})
+            advanced = analysis.get("advanced_analysis", {})
             
-            for idx, asset in enumerate(group):
-                asset_id = asset["id"]
-                analysis = asset.get("analysis_json", {})
-                advanced = analysis.get("advanced_analysis", {})
+            if suitability.get("disqualified"):
+                skip_reason = advanced.get("rejection_reason") or "Disqualified by quality checks"
+            elif analysis.get("duplicate_of"):
+                skip_reason = f"Duplicate of {analysis['duplicate_of'][:8]}"
+            else:
+                skip_reason = "Not selected by director (better alternatives available)"
+            
+            # Update analysis_json with skip info
+            if advanced:
+                advanced["selected"] = False
+                advanced["skip_reason"] = skip_reason
+                advanced["selected_at"] = datetime.now(timezone.utc).isoformat()
                 
-                if idx == 0:
-                    # Original asset
-                    advanced["duplicate_group"] = None
-                    advanced["is_original"] = True
-                    advanced["duplicate_count"] = len(group) - 1
-                else:
-                    # Duplicate asset
-                    advanced["duplicate_group"] = duplicate_group_id
-                    advanced["is_original"] = False
-                    advanced["duplicate_of"] = original_id
-                
-                # Update database with new duplicate info
                 try:
-                    # Re-serialize the updated analysis_json
                     execute_insert(
-                        "UPDATE reel_assets SET analysis_json = ? WHERE id = ?",
+                        "UPDATE reel_assets SET analysis_json = ?, selected = 0 WHERE id = ?",
                         (json.dumps(analysis), asset_id)
                     )
+                    updates.append((asset_id, False, skip_reason))
                 except DatabaseError as e:
-                    logger.error(f"Failed to update duplicate_group for asset {asset_id}: {e}")
+                    logger.error(f"Failed to update skipped asset {asset_id}: {e}")
+        else:
+            # Mark as selected
+            analysis = asset.get("analysis_json", {})
+            advanced = analysis.get("advanced_analysis", {})
+            if advanced:
+                advanced["selected"] = True
+                advanced["selected_at"] = datetime.now(timezone.utc).isoformat()
             
-            logger.info(f"Marked duplicate group {duplicate_group_id}: {original_id} is original, {len(group)-1} duplicates")
+            try:
+                execute_insert(
+                    "UPDATE reel_assets SET analysis_json = ?, selected = 1 WHERE id = ?",
+                    (json.dumps(analysis), asset_id)
+                )
+                updates.append((asset_id, True, "Selected for reel"))
+            except DatabaseError as e:
+                logger.error(f"Failed to update selected asset {asset_id}: {e}")
+    
+    logger.info(f"Updated selected status for {len(updates)} assets: {sum(1 for _, s, _ in updates if s)} selected, {sum(1 for _, s, _ in updates if not s)} skipped")
 
 
 def _generate_ai_edit_plan_prompt(selected_assets: List[Dict], template_key: str, template: Dict, target_duration: int) -> str:
