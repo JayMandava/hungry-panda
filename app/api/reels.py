@@ -909,22 +909,24 @@ async def update_project_style(project_id: str, request: UpdateStyleRequest):
         params.append(request.visual_filter)
         result["visual_filter"] = request.visual_filter
 
-    # Phase 2: Validate and update target_duration_seconds if provided
-    if request.target_duration_seconds is not None:
-        valid_durations = [30, 45, 60]
-        if request.target_duration_seconds not in valid_durations:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid target_duration_seconds. Must be one of: {', '.join(map(str, valid_durations))}"
-            )
-        update_fields.append("target_duration_seconds = ?")
-        params.append(request.target_duration_seconds)
-        result["target_duration_seconds"] = request.target_duration_seconds
-    elif hasattr(request, 'target_duration_seconds') and request.target_duration_seconds is None:
-        # Explicit null = Auto mode
-        update_fields.append("target_duration_seconds = ?")
-        params.append(None)
-        result["target_duration_seconds"] = None
+    # Finding 1 Fix: Only update duration if explicitly provided in request
+    # Check using model_fields_set to distinguish "not provided" from "set to None"
+    if 'target_duration_seconds' in request.model_fields_set:
+        if request.target_duration_seconds is not None:
+            valid_durations = [30, 45, 60]
+            if request.target_duration_seconds not in valid_durations:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid target_duration_seconds. Must be one of: {', '.join(map(str, valid_durations))}"
+                )
+            update_fields.append("target_duration_seconds = ?")
+            params.append(request.target_duration_seconds)
+            result["target_duration_seconds"] = request.target_duration_seconds
+        else:
+            # Explicit null = Auto mode
+            update_fields.append("target_duration_seconds = ?")
+            params.append(None)
+            result["target_duration_seconds"] = None
 
     # If no fields to update, return early
     if not update_fields:
@@ -1248,81 +1250,15 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         # Store edit plan
         update_job_edit_plan_db(job_id, edit_plan)
         
-        # Step 6: Mark edit plan as ready (Phase 2 complete)
+        # Finding 2 Fix: Step 6 - Mark edit plan as ready and STOP for user review
         update_render_job_status(job_id, "plan_ready")
         update_project_status(project_id, "plan_ready")
-        
-        logger.info(f"Phase 2 complete for project {project_id} - edit plan ready")
-        
-        # Step 7: Phase 3 - Render Video
-        if not RENDERER_AVAILABLE:
-            logger.warning(f"Renderer not available for project {project_id}")
-            update_render_job_status(job_id, "failed", "Video renderer not available")
-            update_project_status(project_id, "failed")
-            return
-        
-        logger.info(f"Starting Phase 3 render for project {project_id}")
-        update_render_job_status(job_id, "running")
-        update_project_status(project_id, "rendering")
-        
-        # Setup output paths
-        dirs = get_project_dirs(project_id)
-        output_filename = f"reel_{job_id[:8]}.mp4"
-        output_path = dirs["output"] / output_filename
-        poster_path = dirs["output"] / f"reel_{job_id[:8]}_poster.jpg"
-        
-        # Render the reel with visual filter
-        renderer = FFmpegRenderer(visual_filter=visual_filter)
-        render_result = renderer.render_reel(edit_plan, str(output_path))
-        
-        if not render_result.success:
-            logger.error(f"Render failed for project {project_id}: {render_result.error_message}")
-            update_render_job_status(job_id, "failed", render_result.error_message)
-            update_project_status(project_id, "failed")
-            return
-        
-        # Generate poster frame
-        poster_success = renderer.generate_poster_frame(str(output_path), str(poster_path))
-        if poster_success:
-            logger.info(f"Poster generated for project {project_id}: {poster_path}")
-        
-        # Update project with output info
-        output_url = f"/uploads/reels/{project_id}/output/{output_filename}"
-        try:
-            execute_insert(
-                """
-                UPDATE reel_projects 
-                SET final_output_path = ?, final_output_url = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                (str(output_path), output_url, project_id)
-            )
-        except DatabaseError as e:
-            logger.error(f"Failed to update project output: {e}")
-        
-        # Validate output contract before marking ready
-        validation_passed = True
-        if render_result.diagnostics and "validation" in render_result.diagnostics:
-            validation = render_result.diagnostics["validation"]
-            if not validation.get("valid", False):
-                logger.warning(f"Output validation failed for project {project_id}: {validation.get('errors', [])}")
-                validation_passed = False
-        
-        # Phase 5: Track render metrics
-        render_duration_ms = (time.time() - render_start_time) * 1000
-        
-        # Only mark ready if validation passed
-        if validation_passed:
-            update_render_job_status(job_id, "completed")
-            update_project_status(project_id, "ready")
-            update_reels_metrics("render", status="completed", duration_ms=render_duration_ms)
-        else:
-            update_render_job_status(job_id, "failed", f"Output validation failed: {validation.get('errors', [])}")
-            update_project_status(project_id, "failed")
-            update_reels_metrics("render", status="failed", duration_ms=render_duration_ms)
-        
-        logger.info(f"Phase 3 complete for project {project_id} - video rendered: {output_path}")
-        
+
+        logger.info(f"Phase 2 complete for project {project_id} - edit plan ready, awaiting user review")
+
+        # Finding 2 Fix: Render is now a separate step after user reviews the plan
+        # The user will call POST /projects/{project_id}/render to proceed
+
     except Exception as e:
         logger.error(f"Reel generation failed for project {project_id}: {e}")
         update_render_job_status(job_id, "failed", str(e))
@@ -1477,6 +1413,149 @@ async def get_metrics():
         "analyzer_available": ANALYZER_AVAILABLE,
         "renderer_available": RENDERER_AVAILABLE,
     }
+
+
+@router.post("/projects/{project_id}/render")
+async def render_project(project_id: str, background_tasks: BackgroundTasks):
+    """
+    Finding 2 Fix: Render the reel from an existing plan_ready state.
+    This allows user to review the plan before rendering.
+    """
+    project = get_project_db(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check project is in plan_ready state
+    if project.get("status") != "plan_ready":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project must be in 'plan_ready' state to render. Current state: {project.get('status')}"
+        )
+
+    # Get the latest render job with edit plan
+    try:
+        rows = execute_query(
+            "SELECT id, edit_plan_json FROM reel_render_jobs WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
+            (project_id,)
+        )
+        if not rows:
+            raise HTTPException(status_code=400, detail="No edit plan found. Generate a plan first.")
+
+        job_id = rows[0]["id"]
+        edit_plan_json = rows[0]["edit_plan_json"]
+        if not edit_plan_json:
+            raise HTTPException(status_code=400, detail="No edit plan found for this job.")
+
+    except DatabaseError as e:
+        logger.error(f"Failed to get render job for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get render job")
+
+    # Queue background render task
+    background_tasks.add_task(
+        process_reel_render_only,
+        project_id,
+        job_id,
+        json.loads(edit_plan_json)
+    )
+
+    logger.info(f"Queued render job {job_id} for project {project_id}")
+
+    return {
+        "job_id": job_id,
+        "status": "rendering",
+        "message": "Rendering video from plan..."
+    }
+
+
+async def process_reel_render_only(project_id: str, job_id: str, edit_plan: Dict):
+    """
+    Finding 2 Fix: Render phase only - assumes plan is already created.
+    Called from the /render endpoint after user reviews the plan.
+    """
+    import time
+    render_start_time = time.time()
+
+    logger.info(f"Starting render-only phase for project {project_id}, job {job_id}")
+
+    try:
+        # Get project details
+        project = get_project_db(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        visual_filter = project.get("visual_filter", "none")
+
+        # Check renderer availability
+        if not RENDERER_AVAILABLE:
+            logger.warning(f"Renderer not available for project {project_id}")
+            update_render_job_status(job_id, "failed", "Video renderer not available")
+            update_project_status(project_id, "failed")
+            return
+
+        logger.info(f"Starting Phase 3 render for project {project_id}")
+        update_render_job_status(job_id, "running")
+        update_project_status(project_id, "rendering")
+
+        # Setup output paths
+        dirs = get_project_dirs(project_id)
+        output_filename = f"reel_{job_id[:8]}.mp4"
+        output_path = dirs["output"] / output_filename
+        poster_path = dirs["output"] / f"reel_{job_id[:8]}_poster.jpg"
+
+        # Render the reel with visual filter
+        renderer = FFmpegRenderer(visual_filter=visual_filter)
+        render_result = renderer.render_reel(edit_plan, str(output_path))
+
+        if not render_result.success:
+            logger.error(f"Render failed for project {project_id}: {render_result.error_message}")
+            update_render_job_status(job_id, "failed", render_result.error_message)
+            update_project_status(project_id, "failed")
+            return
+
+        # Generate poster frame
+        poster_success = renderer.generate_poster_frame(str(output_path), str(poster_path))
+        if poster_success:
+            logger.info(f"Poster generated for project {project_id}: {poster_path}")
+
+        # Update project with output info
+        output_url = f"/uploads/reels/{project_id}/output/{output_filename}"
+        try:
+            execute_insert(
+                """
+                UPDATE reel_projects
+                SET final_output_path = ?, final_output_url = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (str(output_path), output_url, project_id)
+            )
+        except DatabaseError as e:
+            logger.error(f"Failed to update project output: {e}")
+
+        # Validate output contract
+        validation_passed = True
+        if render_result.diagnostics and "validation" in render_result.diagnostics:
+            validation = render_result.diagnostics["validation"]
+            if not validation.get("valid", False):
+                logger.warning(f"Output validation failed for project {project_id}: {validation.get('errors', [])}")
+                validation_passed = False
+
+        # Track metrics
+        render_duration_ms = (time.time() - render_start_time) * 1000
+
+        if validation_passed:
+            update_render_job_status(job_id, "completed")
+            update_project_status(project_id, "ready")
+            update_reels_metrics("render", status="completed", duration_ms=render_duration_ms)
+            logger.info(f"Render complete for project {project_id}: {output_path}")
+        else:
+            update_render_job_status(job_id, "failed", f"Output validation failed: {validation.get('errors', [])}")
+            update_project_status(project_id, "failed")
+            update_reels_metrics("render", status="failed", duration_ms=render_duration_ms)
+
+    except Exception as e:
+        logger.error(f"Render failed for project {project_id}: {e}")
+        update_render_job_status(job_id, "failed", str(e))
+        update_project_status(project_id, "failed")
 
 
 # Phase 4: Publishing endpoints
