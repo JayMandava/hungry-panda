@@ -1100,6 +1100,15 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
                 update_asset_analysis_db(asset["id"], analysis)
                 asset["analysis_json"] = analysis
         
+        # Step 2b: Mark duplicate groups after all assets analyzed
+        # This populates duplicate_group field for assets with matching content_hash
+        try:
+            from workers.reels.analyzer import mark_duplicate_groups_in_project
+            mark_duplicate_groups_in_project(project_id, assets)
+            logger.info(f"Marked duplicate groups for project {project_id}")
+        except Exception as e:
+            logger.warning(f"Failed to mark duplicate groups for project {project_id}: {e}")
+        
         # Step 3: Select and score assets for reel
         logger.info(f"Selecting assets for reel from project {project_id}")
         selected_assets = select_assets_for_reel(assets, target_duration)
