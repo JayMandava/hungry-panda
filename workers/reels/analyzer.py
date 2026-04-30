@@ -1356,15 +1356,189 @@ def update_asset_selected_status(project_id: str, selected_assets: List[Dict], a
     logger.info(f"Updated selected status for {len(updates)} assets: {sum(1 for _, s, _ in updates if s)} selected, {sum(1 for _, s, _ in updates if not s)} skipped")
 
 
+# Phase 1 Work Item 3: Strict JSON schema for AI edit planning
+EDIT_PLAN_JSON_SCHEMA = {
+    "type": "object",
+    "required": ["segments", "total_duration_seconds", "rationale"],
+    "properties": {
+        "segments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["asset_index", "duration_seconds", "transition", "effect_notes"],
+                "properties": {
+                    "asset_index": {"type": "integer", "minimum": 0, "description": "0-based index of the asset"},
+                    "duration_seconds": {"type": "number", "minimum": 1.0, "maximum": 10.0, "description": "Duration for this segment"},
+                    "transition": {"type": "string", "enum": ["hard_cut", "crossfade", "fade", "fade_in"], "description": "Transition type"},
+                    "effect_notes": {"type": "string", "maxLength": 200, "description": "Brief effect description (e.g., 'Ken Burns zoom', 'quick cut')"},
+                    "overlay_text": {"type": "string", "maxLength": 50, "description": "Optional overlay text (keep empty for most segments)"}
+                }
+            }
+        },
+        "total_duration_seconds": {"type": "number", "minimum": 25, "maximum": 65, "description": "Total planned duration"},
+        "rationale": {"type": "string", "maxLength": 500, "description": "Brief explanation of edit decisions"}
+    }
+}
+
+
+def _generate_ai_edit_plan_json_prompt(selected_assets: List[Dict], template_key: str, template: Dict, target_duration: int) -> str:
+    """
+    Phase 1 Work Item 3: Generate strict JSON prompt for AI edit planning.
+    Returns a prompt that enforces structured JSON output via LLM json_mode.
+    """
+    # Build asset descriptions with indices
+    asset_descriptions = []
+    for idx, asset in enumerate(selected_assets):
+        analysis = asset.get("analysis", {})
+        visual = analysis.get("visual_facts", {})
+        advanced = analysis.get("advanced_analysis", {})
+
+        desc_parts = [f"[{idx}] {asset['media_type'].upper()}", f"role={asset['role']}"]
+        if visual.get("dish_detected"):
+            desc_parts.append(f"dish={visual['dish_detected']}")
+        if advanced.get("hook_strength"):
+            desc_parts.append(f"hook={advanced['hook_strength']:.2f}")
+        if advanced.get("food_clarity"):
+            desc_parts.append(f"clarity={advanced['food_clarity']:.2f}")
+        if visual.get("visual_summary"):
+            desc_parts.append(f"summary={visual['visual_summary'][:80]}")
+
+        asset_descriptions.append(" | ".join(desc_parts))
+
+    # Valid transitions for renderer contract
+    valid_transitions = ["hard_cut", "crossfade", "fade", "fade_in"]
+
+    prompt = f"""You are a professional video editor creating an Instagram Reel edit plan.
+
+TEMPLATE: {template_key}
+Style: {template.get('name', 'Custom')}
+Description: {template.get('description', '')}
+Pacing: {template.get('pacing', 'medium')}
+Target duration: {target_duration} seconds (stay within 2s of this target)
+
+ASSETS ({len(selected_assets)} total):
+{chr(10).join(asset_descriptions)}
+
+Create an engaging edit plan following these rules:
+- First segment (intro) needs strong hook - use fade_in or crossfade
+- Body segments maintain energy with hard_cut or crossfade
+- Last segment (outro) should have satisfying conclusion - use crossfade or fade
+- Keep individual segments between 2-6 seconds
+- Total duration must be close to {target_duration}s (within 25-65s range)
+- Only use supported transitions: {', '.join(valid_transitions)}
+- Effect notes should be brief (Ken Burns zoom, quick cut, hold for reveal)
+- Overlay text should be minimal (only for key moments, max 50 chars)
+
+STRICT JSON OUTPUT FORMAT:
+```json
+{{
+  "segments": [
+    {{
+      "asset_index": 0,
+      "duration_seconds": 3.5,
+      "transition": "fade_in",
+      "effect_notes": "Strong hook with Ken Burns",
+      "overlay_text": ""
+    }}
+  ],
+  "total_duration_seconds": {target_duration},
+  "rationale": "Brief explanation of pacing and transition choices"
+}}
+```
+
+Respond with ONLY valid JSON matching the schema above."""
+
+    return prompt
+
+
+def _parse_ai_edit_plan_json(ai_response: str, selected_assets: List[Dict], target_duration: int) -> Optional[List[Dict]]:
+    """
+    Phase 1 Work Item 3: Parse and validate strict JSON edit plan from AI response.
+    Returns list of decisions or None if invalid (triggers deterministic fallback).
+    """
+    import json
+
+    try:
+        # Parse JSON response
+        parsed = json.loads(ai_response.strip())
+
+        # Validate required fields
+        if "segments" not in parsed:
+            logger.warning("AI edit plan missing 'segments' field")
+            return None
+        if "total_duration_seconds" not in parsed:
+            logger.warning("AI edit plan missing 'total_duration_seconds' field")
+            return None
+
+        segments = parsed["segments"]
+        if not isinstance(segments, list) or len(segments) == 0:
+            logger.warning("AI edit plan has empty or invalid segments")
+            return None
+
+        # Validate total duration is within tolerance
+        total = parsed["total_duration_seconds"]
+        if not (25 <= total <= 65):
+            logger.warning(f"AI edit plan total duration {total}s out of valid range (25-65s)")
+            return None
+
+        # Build decisions from validated segments
+        decisions = []
+        valid_transitions = {"hard_cut", "crossfade", "fade", "fade_in"}
+
+        for seg in segments:
+            # Validate asset_index
+            asset_idx = seg.get("asset_index")
+            if not isinstance(asset_idx, int) or asset_idx < 0 or asset_idx >= len(selected_assets):
+                logger.warning(f"AI edit plan invalid asset_index: {asset_idx}")
+                continue
+
+            # Validate duration
+            duration = seg.get("duration_seconds", 3.0)
+            if not isinstance(duration, (int, float)) or not (1.0 <= duration <= 10.0):
+                logger.warning(f"AI edit plan invalid duration for asset {asset_idx}: {duration}")
+                duration = 3.0  # Clamp to safe default
+
+            # Validate transition
+            transition = seg.get("transition", "crossfade")
+            if transition not in valid_transitions:
+                logger.warning(f"AI edit plan unsupported transition '{transition}', defaulting to crossfade")
+                transition = "crossfade"
+
+            decisions.append({
+                "asset_index": asset_idx,
+                "duration": float(duration),
+                "transition": transition,
+                "effect_notes": seg.get("effect_notes", "")[:200],
+                "overlay_text": seg.get("overlay_text", "")[:50],
+                "ai_planned": True
+            })
+
+        # Ensure we have at least one valid decision
+        if not decisions:
+            logger.warning("AI edit plan produced no valid segment decisions")
+            return None
+
+        logger.info(f"Parsed AI edit plan JSON: {len(decisions)} segments, {total}s total duration")
+        return decisions
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"AI edit plan JSON parse failed: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"AI edit plan validation failed: {e}")
+        return None
+
+
+# Legacy prose-based prompt (deprecated, kept for reference)
 def _generate_ai_edit_plan_prompt(selected_assets: List[Dict], template_key: str, template: Dict, target_duration: int) -> str:
     """Generate a prompt for AI to create edit plan decisions"""
-    
+
     # Build asset descriptions
     asset_descriptions = []
     for idx, asset in enumerate(selected_assets):
         analysis = asset.get("analysis", {})
         visual = analysis.get("visual_facts", {})
-        
+
         desc = f"Asset {idx+1}: {asset['media_type']}"
         if visual.get("dish_detected"):
             desc += f" showing {visual['dish_detected']}"
@@ -1372,7 +1546,7 @@ def _generate_ai_edit_plan_prompt(selected_assets: List[Dict], template_key: str
             desc += f" - {visual['visual_summary'][:100]}"
         desc += f" (role: {asset['role']}, confidence: {visual.get('confidence', 0.5):.2f})"
         asset_descriptions.append(desc)
-    
+
     prompt = f"""You are a professional video editor creating an Instagram Reel edit plan.
 
 TEMPLATE: {template_key}
@@ -1402,28 +1576,29 @@ Return your decisions as structured data."""
 
     return prompt
 
+# Legacy regex-based parser (deprecated, replaced by _parse_ai_edit_plan_json)
 def _parse_ai_edit_decisions(ai_response: str, selected_assets: List[Dict], base_durations: List[float]) -> List[Dict]:
-    """Parse AI response into edit decisions, with fallback to base durations"""
+    """Parse AI response into edit decisions, with fallback to base durations. DEPRECATED: Use _parse_ai_edit_plan_json."""
     decisions = []
-    
+
     # Try to extract structured data from AI response
     # Look for patterns like "Asset 1: X seconds", "duration: X", etc.
     import re
-    
+
     for idx, asset in enumerate(selected_assets):
         # Default to base duration
         base_duration = base_durations[idx] if idx < len(base_durations) else 3.0
-        
+
         # Try to find AI-specified duration for this asset
         duration = base_duration
-        
+
         # Look for patterns in the AI response for this asset
         asset_section = re.search(
-            rf'(?i)(asset\s*{idx+1}[^\\n]{{0,100}}|segment\s*{idx+1}[^\\n]{{0,100}})(.*?)(?=asset\s*{idx+2}|segment\s*{idx+2}|$)',
+            rf'(?i)(asset\s*{idx+1}[^\n]{0,100}|segment\s*{idx+1}[^\n]{0,100})(.*?)(?=asset\s*{idx+2}|segment\s*{idx+2}|$)',
             ai_response + " Asset 999",  # Add terminator for last asset
             re.DOTALL
         )
-        
+
         if asset_section:
             section = asset_section.group(2)
             # Look for duration hints
@@ -1435,12 +1610,12 @@ def _parse_ai_edit_decisions(ai_response: str, selected_assets: List[Dict], base
                         duration = parsed_duration
                 except:
                     pass
-        
+
         decisions.append({
             "duration": duration,
             "ai_notes": asset_section.group(2)[:200] if asset_section else ""
         })
-    
+
     return decisions
 
 
@@ -1611,79 +1786,122 @@ def generate_edit_plan(
         "dramatic": 5.0
     }.get(pacing, 3.0)
     
-    # Generate AI prompt for creative decisions
-    ai_prompt = _generate_ai_edit_plan_prompt(selected_assets, template_key, template, target_duration)
-    
-    # Get AI-driven creative decisions (if LLM available)
-    ai_decisions = None
+    # Phase 1 Work Item 3: Generate strict JSON AI prompt for creative decisions
+    ai_prompt_json = _generate_ai_edit_plan_json_prompt(selected_assets, template_key, template, target_duration)
+
+    # Get AI-driven creative decisions (if LLM available) using strict JSON mode
+    ai_segment_decisions = None
     llm_client = get_llm_client()
     if llm_client:
         try:
-            # Call LLM for creative edit planning
+            # Call LLM with json_mode=True for structured output
             ai_response = llm_client._call_llm(
-                system_prompt="You are an expert Instagram Reel editor. Create engaging, punchy edit plans.",
-                user_prompt=ai_prompt,
-                max_tokens=800
+                system_prompt="You are an expert Instagram Reel editor. Create engaging edit plans. Respond ONLY with valid JSON matching the provided schema.",
+                user_prompt=ai_prompt_json,
+                max_tokens=800,
+                json_mode=True  # Phase 1 Work Item 3: Enforce strict JSON output
             )
-            
-            # Parse AI decisions
-            base_durations = [
-                base_segment_duration * (1.2 if a["role"] == "intro" else 1.0 if a["role"] == "outro" else 1.0)
-                for a in selected_assets
-            ]
-            ai_decisions = _parse_ai_edit_decisions(ai_response, selected_assets, base_durations)
-            logger.info(f"AI edit plan generated for project {project_id}")
+
+            # Parse AI decisions using strict JSON parser
+            ai_segment_decisions = _parse_ai_edit_plan_json(ai_response, selected_assets, target_duration)
+            if ai_segment_decisions:
+                logger.info(f"AI edit plan JSON parsed successfully for project {project_id}: {len(ai_segment_decisions)} segments")
+            else:
+                logger.warning(f"AI edit plan JSON invalid or empty, will use deterministic fallback for project {project_id}")
         except Exception as e:
             logger.warning(f"AI edit planning failed, using deterministic fallback: {e}")
-            ai_decisions = None
+            ai_segment_decisions = None
     
-    # Build segments (combining AI decisions with deterministic structure)
+    # Phase 1 Work Item 3: Build segments using strict JSON AI decisions or deterministic fallback
     segments = []
     current_time = 0.0
-    
+
+    # Build lookup from AI decisions by asset_index for efficient access
+    ai_decisions_by_index = {}
+    if ai_segment_decisions:
+        for decision in ai_segment_decisions:
+            asset_idx = decision.get("asset_index")
+            if asset_idx is not None:
+                ai_decisions_by_index[asset_idx] = decision
+
     for idx, asset in enumerate(selected_assets):
         media_type = asset["media_type"]
         role = asset["role"]
-        
-        # Get duration from AI or use deterministic calculation
-        if ai_decisions and idx < len(ai_decisions):
-            duration = ai_decisions[idx]["duration"]
+
+        # Phase 1 Work Item 3: Get duration and creative decisions from AI JSON or use deterministic fallback
+        ai_decision = ai_decisions_by_index.get(idx)
+
+        if ai_decision:
+            # Use AI's strict JSON decisions
+            duration = ai_decision.get("duration", 3.0)
+            ai_transition = ai_decision.get("transition")
+            ai_effect_notes = ai_decision.get("effect_notes", "")
+            ai_overlay_text = ai_decision.get("overlay_text", "")
+            ai_planned = True
         else:
-            # Deterministic fallback
+            # Deterministic fallback based on role
             if role == "intro":
                 duration = base_segment_duration * 1.2
+                ai_transition = None
             elif role == "outro":
                 duration = base_segment_duration * 1.0
+                ai_transition = None
             else:
                 duration = base_segment_duration
-            
+                ai_transition = None
+
             # Videos can be shorter
             if media_type == "video":
                 duration = min(duration, 4.0)
 
+            ai_effect_notes = ""
+            ai_overlay_text = ""
+            ai_planned = False
+
         duration = _clamp_segment_duration(asset, duration, len(selected_assets), target_duration)
-        
+
         # Ensure we don't exceed target duration
         if current_time + duration > target_duration:
             duration = target_duration - current_time
             if duration < 1.0:
                 break
-        
-        # Determine transition based on user-selected transition_style (overrides template)
-        # First segment transition (no transition from previous)
+
+        # Phase 1 Work Item 3: Determine transition (AI decision > user style > template default)
         if idx == 0:
-            if effective_transition == "hard_cut":
-                transition = "hard_cut"  # Clean start for cut style
+            # First segment: use AI transition if valid, otherwise fade_in or hard_cut based on style
+            if ai_transition and ai_transition in ["hard_cut", "fade_in"]:
+                transition = ai_transition
+            elif effective_transition == "hard_cut":
+                transition = "hard_cut"
             else:
-                transition = "fade_in"  # Smooth start for other styles
+                transition = "fade_in"
         else:
-            # Use the effective transition style selected by user
-            transition = effective_transition
+            # Subsequent segments: AI transition if valid, otherwise effective_transition
+            valid_transitions = ["hard_cut", "crossfade", "fade", "fade_in"]
+            if ai_transition and ai_transition in valid_transitions:
+                transition = ai_transition
+            else:
+                transition = effective_transition
         
-        # Build overlay text - FINAL CTA ONLY
+        # Phase 1 Work Item 3: Build overlay text - use AI overlay if provided, otherwise FINAL CTA ONLY
         is_final_segment = (idx == len(selected_assets) - 1)
-        overlay = _generate_segment_overlay(role, asset, template_key, idx, ai_decisions[idx] if ai_decisions else None, is_final_segment)
-        
+
+        # Use AI overlay text if provided and valid, otherwise use standard CTA on final segment
+        if ai_overlay_text and len(ai_overlay_text) <= 50:
+            overlay = {
+                "text": ai_overlay_text,
+                "position": "bottom" if is_final_segment else "center",
+                "style": "cta" if is_final_segment else "hook",
+                "duration": min(2.0, duration * 0.5)
+            }
+        else:
+            overlay = _generate_segment_overlay(role, asset, template_key, idx, None, is_final_segment)
+
+        # Phase 1 Work Item 3: Build effects with AI effect notes if available
+        effects = _get_segment_effects(media_type, role, template_key)
+        if ai_effect_notes:
+            effects["ai_notes"] = ai_effect_notes
+
         segment = {
             "segment_id": f"seg_{idx}_{uuid.uuid4().hex[:8]}",
             "asset_id": asset["asset_id"],
@@ -1694,8 +1912,8 @@ def generate_edit_plan(
             "duration": round(duration, 2),
             "transition": transition,
             "overlay": overlay,
-            "effects": _get_segment_effects(media_type, role, template_key),
-            "ai_planned": ai_decisions is not None
+            "effects": effects,
+            "ai_planned": ai_planned
         }
         
         segments.append(segment)
