@@ -134,7 +134,7 @@ class ProjectDetail(BaseModel):
     template_key: str
     transition_style: str
     visual_filter: str
-    target_duration_seconds: int
+    target_duration_seconds: Optional[int] = None  # Can be NULL for Auto/unset
     caption: Optional[str]
     hashtags: Optional[List[str]]
     final_output_path: Optional[str]
@@ -446,7 +446,8 @@ def get_render_job_by_id_db(job_id: str) -> Optional[Dict]:
                 "created_at": row["created_at"]
             }
             # Phase 4: Include edit_plan if available
-            edit_plan_json = row.get("edit_plan_json")
+            # FIXED: sqlite3.Row doesn't have .get(), use index access
+            edit_plan_json = row["edit_plan_json"] if "edit_plan_json" in row.keys() else None
             if edit_plan_json:
                 try:
                     result["edit_plan"] = json.loads(edit_plan_json)
@@ -1882,15 +1883,16 @@ async def get_feature_flags():
     Get current feature flag status.
     Shows which experimental features are enabled.
     """
-    from infra.config.feature_flags import feature_flags, REMOTION_AVAILABLE, is_remotion_enabled
+    from infra.config.feature_flags import feature_flags, is_remotion_enabled
     
+    # FIXED: REMOTION_AVAILABLE is defined locally in reels.py, not in feature_flags
     flags = feature_flags.get_all_flags()
     
     return {
         "flags": flags,
         "renderer": {
             "ffmpeg_available": RENDERER_AVAILABLE,
-            "remotion_available": REMOTION_AVAILABLE,
+            "remotion_available": REMOTION_AVAILABLE,  # Defined at module level in this file
             "remotion_enabled": is_remotion_enabled(),
             "active_renderer": "remotion" if is_remotion_enabled() else "ffmpeg"
         },
