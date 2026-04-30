@@ -1,13 +1,19 @@
 /**
  * ReelComposition - Main Remotion component for rendering Instagram Reels
  * 
- * Consumes the same edit_plan contract as the FFmpeg renderer:
- * - schema_version: "1.0.0"
- * - target_duration: number (seconds)
- * - segments: Array of segment objects with role, duration, transition, etc.
- * - global_settings: visual_filter, transition_style, output specs
+ * Phase 5: Remotion Spike - FIXED to match actual edit_plan contract
  * 
- * Phase 5: Remotion Spike
+ * Real edit_plan structure (from analyzer.py:generate_edit_plan):
+ * - plan_schema_version: "1.0.0"
+ * - target_duration: number
+ * - segments: Array of {
+ *     segment_id, asset_id, source_path, media_type, role,
+ *     start_time, duration, transition, overlay, effects, ai_planned,
+ *     source_metadata: { file_exists, media_type, role, analysis_summary, selection_reason, selection_source }
+ *   }
+ * - global_settings: { visual_filter, transition_style, output_width, output_height, output_fps, supported_transitions }
+ * 
+ * Transitions in real plan: "hard_cut", "crossfade", "fade", "fade_in"
  */
 import React, { useMemo } from "react";
 import { 
@@ -23,36 +29,53 @@ import {
 } from "remotion";
 import { z } from "zod";
 
-// Edit Plan Schema (matches Phase 3 contract)
+// FIXED: Real edit plan schema matching analyzer.py output
 const SegmentSchema = z.object({
-  asset_index: z.number(),
+  segment_id: z.string(),
+  asset_id: z.string(),
+  source_path: z.string(),  // Actual file path (top-level, not in source_metadata)
+  media_type: z.enum(["video", "image"]),
   role: z.enum(["intro", "body", "outro"]),
+  start_time: z.number().default(0),
   duration: z.number().min(1).max(10),
-  transition: z.enum(["hard_cut", "fade", "dissolve", "slide"]).default("hard_cut"),
+  transition: z.enum(["hard_cut", "crossfade", "fade", "fade_in"]).default("hard_cut"),
+  overlay: z.any().optional(),
+  effects: z.any().optional(),
+  ai_planned: z.boolean().default(false),
   source_metadata: z.object({
-    type: z.enum(["video", "image"]),
-    path: z.string(),
-    original_duration: z.number().optional(),
-    orientation: z.enum(["vertical", "horizontal", "square"]).optional(),
-    content_hash: z.string().optional()
-  })
+    file_exists: z.boolean(),
+    media_type: z.enum(["video", "image"]),
+    role: z.enum(["intro", "body", "outro"]),
+    analysis_summary: z.object({
+      hook_strength: z.number(),
+      food_clarity: z.number(),
+      motion_quality: z.number(),
+      lighting_score: z.number(),
+      orientation_fit: z.number(),
+      overall_score: z.number()
+    }),
+    selection_reason: z.string(),
+    selection_source: z.string()
+  }).optional()
 });
 
+// FIXED: Match global_settings from real edit plan
 const GlobalSettingsSchema = z.object({
   visual_filter: z.enum(["none", "natural", "warm", "rich", "fresh"]).default("none"),
-  transition_style: z.enum(["standard", "minimal", "dynamic"]).default("standard"),
+  transition_style: z.enum(["auto", "cut", "smooth"]).default("auto"),
   output_width: z.number().default(1080),
   output_height: z.number().default(1920),
-  output_fps: z.number().default(30)
+  output_fps: z.number().default(30),
+  supported_transitions: z.array(z.string()).default(["hard_cut", "crossfade", "fade", "fade_in"])
 });
 
 const EditPlanSchema = z.object({
-  schema_version: z.string().default("1.0.0"),
+  plan_schema_version: z.string().default("1.0.0"),
   target_duration: z.number().min(25).max(65),
   segments: z.array(SegmentSchema),
   global_settings: GlobalSettingsSchema.default({
     visual_filter: "none",
-    transition_style: "standard",
+    transition_style: "auto",
     output_width: 1080,
     output_height: 1920,
     output_fps: 30
@@ -82,6 +105,17 @@ const VISUAL_FILTERS: Record<string, React.CSSProperties> = {
   }
 };
 
+// FIXED: Map real plan transitions to Remotion transitions
+const mapTransition = (planTransition: string): "hard_cut" | "fade" | "dissolve" | "slide" => {
+  const transitionMap: Record<string, "hard_cut" | "fade" | "dissolve" | "slide"> = {
+    "hard_cut": "hard_cut",
+    "crossfade": "fade",
+    "fade": "fade",
+    "fade_in": "fade"
+  };
+  return transitionMap[planTransition] || "hard_cut";
+};
+
 // Ken Burns effect for images
 const KenBurnsImage: React.FC<{
   src: string;
@@ -89,7 +123,6 @@ const KenBurnsImage: React.FC<{
   style?: React.CSSProperties;
 }> = ({ src, durationInFrames, style }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   
   // Slow zoom from 1.0 to 1.1 over the duration
   const scale = interpolate(
@@ -145,7 +178,7 @@ const KenBurnsImage: React.FC<{
 // Transition wrapper component
 const TransitionWrapper: React.FC<{
   children: React.ReactNode;
-  transition: string;
+  transition: "hard_cut" | "fade" | "dissolve" | "slide";
   durationInFrames: number;
   isActive: boolean;
 }> = ({ children, transition, durationInFrames, isActive }) => {
@@ -196,29 +229,32 @@ const TransitionWrapper: React.FC<{
   );
 };
 
-// Individual segment component
+// Individual segment component - FIXED: use source_path and media_type
 const Segment: React.FC<{
   segment: z.infer<typeof SegmentSchema>;
   durationInFrames: number;
   isLast: boolean;
 }> = ({ segment, durationInFrames, isLast }) => {
-  const { type, path } = segment.source_metadata;
-  const visualFilter = VISUAL_FILTERS["none"]; // Would come from global_settings
+  // FIXED: Use source_path from top level, not source_metadata
+  const sourcePath = segment.source_path;
+  const mediaType = segment.media_type;
   
-  if (type === "video") {
+  // Map transition from plan to Remotion format
+  const remotionTransition = mapTransition(segment.transition);
+  
+  if (mediaType === "video") {
     return (
       <TransitionWrapper
-        transition={segment.transition}
+        transition={remotionTransition}
         durationInFrames={durationInFrames}
         isActive={!isLast}
       >
         <Video
-          src={staticFile(path)}
+          src={staticFile(sourcePath)}
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
-            ...visualFilter
+            objectFit: "cover"
           }}
         />
       </TransitionWrapper>
@@ -226,25 +262,24 @@ const Segment: React.FC<{
   } else {
     return (
       <TransitionWrapper
-        transition={segment.transition}
+        transition={remotionTransition}
         durationInFrames={durationInFrames}
         isActive={!isLast}
       >
         <KenBurnsImage
-          src={staticFile(path)}
+          src={staticFile(sourcePath)}
           durationInFrames={durationInFrames}
-          style={visualFilter}
         />
       </TransitionWrapper>
     );
   }
 };
 
-// Main composition component
+// Main composition component - FIXED: use plan_schema_version
 export const ReelComposition: React.FC<ReelProps> = ({ editPlan }) => {
   const { fps, durationInFrames } = useVideoConfig();
   
-  // Validate and parse edit plan
+  // FIXED: Validate and parse edit plan with correct schema
   const parsedPlan = useMemo(() => {
     try {
       return EditPlanSchema.parse(editPlan);

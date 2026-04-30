@@ -185,7 +185,18 @@ class RemotionRenderer:
             if str(remotion_output) != output_path:
                 shutil.move(str(remotion_output), output_path)
             
-            # Step 6: Validate output
+            # Step 6: Validate output contract (Finding 2 Fix)
+            logger.info(f"Validating Remotion output contract: {output_path}")
+            is_valid, validation_diagnostics = self.validate_output_contract(output_path, target_duration)
+            diagnostics["validation"] = validation_diagnostics
+            
+            if not is_valid:
+                logger.error(f"Remotion output validation failed: {validation_diagnostics['errors']}")
+                diagnostics["validation_warnings"] = validation_diagnostics['errors']
+            else:
+                logger.info("Remotion output validation passed")
+            
+            # Step 7: Get final duration
             final_duration = self._get_video_duration(output_path)
             
             logger.info(f"Remotion render complete: {output_path} ({final_duration:.2f}s)")
@@ -193,7 +204,7 @@ class RemotionRenderer:
             return RemotionRenderResult(
                 success=True,
                 output_path=output_path,
-                error_message=None,
+                error_message=None if is_valid else f"Validation warnings: {validation_diagnostics['errors']}",
                 duration=final_duration,
                 diagnostics={
                     **diagnostics,
@@ -238,24 +249,23 @@ class RemotionRenderer:
         Transform edit plan for Remotion consumption.
         
         Remotion expects paths relative to public/ directory.
+        FIXED: Uses source_path from top level (not source_metadata.path)
         """
         # Deep copy to avoid modifying original
         import copy
         remotion_plan = copy.deepcopy(edit_plan)
         
-        # Transform segment paths to be relative to public/
-        for segment in remotion_plan.get("segments", []):
-            source = segment.get("source_metadata", {})
-            original_path = source.get("path", "")
+        # FIXED: Transform source_path (top-level) to be relative to public/
+        for idx, segment in enumerate(remotion_plan.get("segments", [])):
+            # Use source_path from top level (real edit plan structure)
+            original_path = segment.get("source_path", "")
             
-            # Convert absolute paths to public-relative paths
-            if original_path.startswith("/"):
+            if original_path and original_path.startswith("/"):
                 # Create a symlink-friendly name
                 basename = os.path.basename(original_path)
-                segment_id = f"segment_{segment.get('asset_index', 0)}_{basename}"
-                source["path"] = segment_id
-            
-            segment["source_metadata"] = source
+                segment_id = f"segment_{idx}_{basename}"
+                # Keep source_path but store the mapping for _prepare_static_assets
+                segment["_remotion_segment_id"] = segment_id
         
         return { "editPlan": remotion_plan }
     
@@ -263,18 +273,19 @@ class RemotionRenderer:
         """
         Prepare static assets for Remotion public/ directory.
         Creates symlinks to avoid copying large video files.
+        FIXED: Uses source_path from top level (real edit plan structure)
         """
-        for segment in edit_plan.get("segments", []):
-            source = segment.get("source_metadata", {})
-            original_path = source.get("path", "")
+        for idx, segment in enumerate(edit_plan.get("segments", [])):
+            # FIXED: Use source_path from top level
+            original_path = segment.get("source_path", "")
             
             if not original_path or not os.path.exists(original_path):
                 logger.warning(f"Asset not found: {original_path}")
                 continue
             
-            # Create symlink-friendly name
+            # Create symlink-friendly name using the segment index
             basename = os.path.basename(original_path)
-            segment_id = f"segment_{segment.get('asset_index', 0)}_{basename}"
+            segment_id = f"segment_{idx}_{basename}"
             link_path = public_dir / segment_id
             
             # Create symlink (or copy if symlinking fails)
@@ -306,6 +317,136 @@ class RemotionRenderer:
         except:
             pass
         return 0.0
+    
+    # Finding 2 Fix: Add output validation matching FFmpeg renderer contract
+    def validate_output_contract(self, output_path: str, target_duration: float = 30.0) -> tuple[bool, Dict[str, Any]]:
+        """
+        Validate final output meets Instagram contract using ffprobe.
+        Matches FFmpegRenderer.validate_output_contract() exactly.
+        
+        Returns: (is_valid, diagnostics_dict)
+        """
+        import json
+        
+        diagnostics = {
+            "file": output_path,
+            "valid": False,
+            "errors": [],
+            "streams": {},
+            "renderer": "remotion"
+        }
+        
+        if not Path(output_path).exists():
+            diagnostics["errors"].append("File does not exist")
+            return False, diagnostics
+        
+        # Run ffprobe (same command as FFmpeg renderer)
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-print_format', 'json',
+            '-show_streams',
+            '-show_format',
+            output_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        
+        if result.returncode != 0:
+            diagnostics["errors"].append(f"ffprobe failed: {result.stderr.decode()[:200]}")
+            return False, diagnostics
+        
+        try:
+            probe_data = json.loads(result.stdout.decode())
+        except json.JSONDecodeError as e:
+            diagnostics["errors"].append(f"Failed to parse ffprobe output: {e}")
+            return False, diagnostics
+        
+        streams = probe_data.get("streams", [])
+        format_info = probe_data.get("format", {})
+        
+        # Analyze streams
+        video_stream = None
+        audio_stream = None
+        
+        for stream in streams:
+            if stream.get("codec_type") == "video":
+                video_stream = stream
+            elif stream.get("codec_type") == "audio":
+                audio_stream = stream
+        
+        # Validate video stream (same checks as FFmpeg renderer)
+        if not video_stream:
+            diagnostics["errors"].append("No video stream found")
+        else:
+            diagnostics["streams"]["video"] = {
+                "codec": video_stream.get("codec_name"),
+                "width": video_stream.get("width"),
+                "height": video_stream.get("height"),
+                "pix_fmt": video_stream.get("pix_fmt"),
+                "fps": eval(video_stream.get("r_frame_rate", "0/1")),  # e.g., "30/1"
+            }
+            
+            # Check video specs
+            if video_stream.get("codec_name") != "h264":
+                diagnostics["errors"].append(f"Video codec is {video_stream.get('codec_name')}, expected h264")
+            
+            if video_stream.get("width") != self.TARGET_WIDTH or video_stream.get("height") != self.TARGET_HEIGHT:
+                diagnostics["errors"].append(
+                    f"Resolution is {video_stream.get('width')}x{video_stream.get('height')}, "
+                    f"expected {self.TARGET_WIDTH}x{self.TARGET_HEIGHT}"
+                )
+            
+            if video_stream.get("pix_fmt") != "yuv420p":
+                diagnostics["errors"].append(
+                    f"Pixel format is {video_stream.get('pix_fmt')}, expected yuv420p"
+                )
+        
+        # Validate audio stream
+        if not audio_stream:
+            diagnostics["errors"].append("No audio stream found (AAC required)")
+        else:
+            diagnostics["streams"]["audio"] = {
+                "codec": audio_stream.get("codec_name"),
+                "sample_rate": audio_stream.get("sample_rate"),
+            }
+            
+            if audio_stream.get("codec_name") != "aac":
+                diagnostics["errors"].append(f"Audio codec is {audio_stream.get('codec_name')}, expected aac")
+        
+        # Validate duration (with 2s tolerance like target_duration contract)
+        duration_str = format_info.get("duration")
+        if duration_str:
+            try:
+                duration = float(duration_str)
+                diagnostics["duration_seconds"] = duration
+                diagnostics["duration_delta"] = abs(duration - target_duration)
+                
+                # Instagram bounds check (30-60s)
+                if duration < 30.0:
+                    diagnostics["errors"].append(f"Duration is {duration:.2f}s, minimum is 30s")
+                elif duration > 60.0:
+                    diagnostics["errors"].append(f"Duration is {duration:.2f}s, maximum is 60s")
+                
+                # Target tolerance check (2s like edit plan contract)
+                if abs(duration - target_duration) > 2.0:
+                    diagnostics["errors"].append(
+                        f"Duration {duration:.2f}s deviates from target {target_duration}s by >2s"
+                    )
+            except ValueError:
+                diagnostics["errors"].append(f"Could not parse duration: {duration_str}")
+        else:
+            diagnostics["errors"].append("Could not determine duration")
+        
+        # Format info
+        diagnostics["format"] = {
+            "format_name": format_info.get("format_name"),
+            "bit_rate": format_info.get("bit_rate"),
+        }
+        
+        is_valid = len(diagnostics["errors"]) == 0
+        diagnostics["valid"] = is_valid
+        
+        return is_valid, diagnostics
     
     def get_studio_command(self) -> List[str]:
         """

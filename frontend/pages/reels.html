@@ -2691,10 +2691,11 @@
             
             if (processingStatuses.includes(status)) {
                 container.style.display = 'block';
+                // Finding 4 Fix: Updated status messages to match review-before-render flow
                 const statusMessages = {
                     'queued': 'Waiting to start...',
                     'analyzing': 'Analyzing your assets...',
-                    'plan_ready': 'Edit plan ready - rendering video...',
+                    'plan_ready': 'Edit plan ready - awaiting your review...',
                     'rendering': 'Rendering video...'
                 };
                 text.textContent = statusMessages[status] || 'Processing...';
