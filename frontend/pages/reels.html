@@ -3593,7 +3593,14 @@
                 display: flex; align-items: center; justify-content: center;
             `;
             
-            const { requested_duration, feasible_duration, max_achievable, qualified_assets, reason, recommendation } = errorDetail;
+            // FIX: Use new backend fields with fallbacks for backward compatibility
+            const { requested_duration, feasible_duration, max_achievable, 
+                    total_uploaded, usable_assets, qualified_assets, 
+                    reason, recommendation } = errorDetail;
+            
+            // Support both old (qualified_assets) and new (total_uploaded/usable_assets) field names
+            const uploadedCount = total_uploaded || (qualified_assets !== undefined ? '?' : 0);
+            const usableCount = usable_assets || qualified_assets || 0;
             
             modal.innerHTML = `
                 <div style="
@@ -3613,16 +3620,20 @@
                     
                     <div style="background: var(--bg-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="color: var(--text-muted); font-size: 13px;">Requested:</span>
+                            <span style="color: var(--text-muted); font-size: 13px;">Requested Duration:</span>
                             <span style="color: var(--text-primary); font-weight: 500;">${requested_duration}s</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                             <span style="color: var(--text-muted); font-size: 13px;">Max Achievable:</span>
                             <span style="color: var(--brand-warning); font-weight: 500;">~${max_achievable}s</span>
                         </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-muted); font-size: 13px;">Assets Uploaded:</span>
+                            <span style="color: var(--text-primary);">${uploadedCount}</span>
+                        </div>
                         <div style="display: flex; justify-content: space-between;">
-                            <span style="color: var(--text-muted); font-size: 13px;">Usable Assets:</span>
-                            <span style="color: var(--text-primary);">${qualified_assets}</span>
+                            <span style="color: var(--text-muted); font-size: 13px;">Usable for Reel:</span>
+                            <span style="color: ${usableCount > 0 ? 'var(--brand-success)' : 'var(--brand-warning)'}; font-weight: 500;">${usableCount}</span>
                         </div>
                     </div>
                     

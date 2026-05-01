@@ -1294,6 +1294,8 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
     if not assets:
         return None  # Will be caught by caller
     
+    total_uploaded = len(assets)
+    
     # FIX: Use same logic as _resolve_auto_duration - calculate actual usable duration
     qualified_count = 0
     total_usable_duration = 0.0
@@ -1347,13 +1349,22 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
         else:
             suggested = 30
         
+        # FIX: Improved messaging distinguishing uploaded vs usable
+        if qualified_count == 0:
+            reason = f"{total_uploaded} assets uploaded but none are suitable for reel creation"
+        elif qualified_count < total_uploaded:
+            reason = f"{total_uploaded} assets uploaded, only {qualified_count} suitable for {target_duration}s reel"
+        else:
+            reason = f"Only {qualified_count} assets available (need {target_duration // 10} for {target_duration}s)"
+        
         return {
             "requested_duration": target_duration,
             "feasible_duration": suggested,
             "max_achievable": int(max_achievable),
-            "qualified_assets": qualified_count,
+            "total_uploaded": total_uploaded,
+            "usable_assets": qualified_count,
             "total_usable_duration": round(total_usable_duration, 1),
-            "reason": f"Only {qualified_count} assets available (need {target_duration // 10} for {target_duration}s)",
+            "reason": reason,
             "recommendation": f"Switch to {suggested}s or use Auto duration"
         }
     
