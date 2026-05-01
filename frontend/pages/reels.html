@@ -2514,7 +2514,13 @@
                 generateBtn.classList.remove('liquid-pulse');
                 // Change click handler to regenerate
                 generateBtn.onclick = () => regenerateReel();
-            } else if (status === 'plan_ready' || status === 'rendering') {
+            } else if (status === 'plan_ready') {
+                // FIX: Plan ready - enable Proceed to Render button
+                // Don't disable here; pollJobStatusWithTicker sets this up
+                generateBtn.disabled = false;
+                generateBtn.classList.add('liquid-pulse');
+                // onclick is set by pollJobStatusWithTicker
+            } else if (status === 'rendering') {
                 // Generation in progress
                 generateBtn.disabled = true;
                 generateBtn.classList.remove('liquid-pulse');

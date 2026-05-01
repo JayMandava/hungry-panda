@@ -1287,22 +1287,43 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
 def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]) -> Optional[Dict]:
     """
     Preflight check: verify assets can support requested duration.
+    FIX: Now uses same usable-duration logic as _resolve_auto_duration for accuracy.
     Returns None if feasible, or structured error dict if not.
     """
     if not assets:
         return None  # Will be caught by caller
     
-    # Count qualified assets (not disqualified)
+    # FIX: Use same logic as _resolve_auto_duration - calculate actual usable duration
     qualified_count = 0
+    total_usable_duration = 0.0
+    quality_scores = []
+    
     for asset in assets:
         analysis = asset.get("analysis_json", {})
         suitability = analysis.get("reel_suitability", {})
-        if not suitability.get("disqualified", False):
-            qualified_count += 1
+        advanced = analysis.get("advanced_analysis", {})
+        
+        # Skip disqualified assets (same check as auto mode)
+        if suitability.get("disqualified", False):
+            continue
+        if advanced.get("orientation_fit", 0.7) < 0.2:
+            continue
+        
+        qualified_count += 1
+        
+        # Accumulate usable duration (same as auto mode)
+        usable_duration = advanced.get("usable_duration_seconds", 3.0)
+        total_usable_duration += max(0, usable_duration)
+        
+        # Track quality scores
+        score = suitability.get("score", 0.5)
+        quality_scores.append(score)
     
-    # Max achievable: ~15s per asset (with stretching for 60s targets)
-    max_per_asset = 15.0
-    max_achievable = qualified_count * max_per_asset
+    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
+    
+    # Max achievable with stretching: usable_duration + 15s stretch per asset
+    # This is more accurate than simple 15s per asset for photo-heavy sets
+    max_with_stretching = total_usable_duration + (qualified_count * 15.0)
     tolerance = 2.0
     
     # Auto mode - will be resolved later, skip check
@@ -1310,11 +1331,14 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
         return None
     
     # Check if target is achievable
-    if target_duration > max_achievable + tolerance:
-        # Suggest feasible duration
-        if max_achievable >= 55:
+    if target_duration > max_with_stretching + tolerance:
+        # Suggest feasible duration (same logic as _resolve_auto_duration)
+        can_do_60 = (qualified_count >= 5 and avg_quality > 0.65 and total_usable_duration >= 55)
+        can_do_45 = ((qualified_count >= 3 and avg_quality > 0.5) or total_usable_duration >= 40)
+        
+        if can_do_60:
             suggested = 60
-        elif max_achievable >= 40:
+        elif can_do_45:
             suggested = 45
         else:
             suggested = 30
@@ -1322,8 +1346,9 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
         return {
             "requested_duration": target_duration,
             "feasible_duration": suggested,
-            "max_achievable": int(max_achievable),
+            "max_achievable": int(max_with_stretching),
             "qualified_assets": qualified_count,
+            "total_usable_duration": round(total_usable_duration, 1),
             "reason": f"Only {qualified_count} usable assets selected (need ~{target_duration // 15} for {target_duration}s)",
             "recommendation": f"Switch to {suggested}s or use Auto duration"
         }
