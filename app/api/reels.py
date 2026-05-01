@@ -1126,7 +1126,8 @@ def _resolve_auto_duration(assets: List[Dict]) -> int:
     quality_scores = []
 
     for asset in assets:
-        analysis = asset.get("analysis_json", {})
+        # FIX: Handle NULL analysis_json (fresh uploads) - use `or {}` to handle None
+        analysis = asset.get("analysis_json") or {}
         suitability = analysis.get("reel_suitability", {})
         advanced = analysis.get("advanced_analysis", {})
 
@@ -1299,7 +1300,8 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
     quality_scores = []
     
     for asset in assets:
-        analysis = asset.get("analysis_json", {})
+        # FIX: Handle NULL analysis_json (fresh uploads) - use `or {}` to handle None
+        analysis = asset.get("analysis_json") or {}
         suitability = analysis.get("reel_suitability", {})
         advanced = analysis.get("advanced_analysis", {})
         
