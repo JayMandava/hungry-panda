@@ -1349,13 +1349,13 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
         else:
             suggested = 30
         
-        # FIX: Improved messaging distinguishing uploaded vs usable
+        # FIX: User-friendly messaging explaining capacity constraints
         if qualified_count == 0:
-            reason = f"{total_uploaded} assets uploaded but none are suitable for reel creation"
+            reason = f"You uploaded {total_uploaded} photos, but we need analyzed content to create a {target_duration}s reel"
         elif qualified_count < total_uploaded:
-            reason = f"{total_uploaded} assets uploaded, only {qualified_count} suitable for {target_duration}s reel"
+            reason = f"{total_uploaded} assets uploaded, {qualified_count} work well for a {target_duration}s reel (need more for this duration)"
         else:
-            reason = f"Only {qualified_count} assets available (need {target_duration // 10} for {target_duration}s)"
+            reason = f"{qualified_count} assets available, but {target_duration}s needs {target_duration // 10}+ assets"
         
         return {
             "requested_duration": target_duration,
