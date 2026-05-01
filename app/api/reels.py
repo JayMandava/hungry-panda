@@ -1323,20 +1323,22 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
     
     avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
     
-    # Max achievable with stretching: usable_duration + 15s stretch per asset
-    # This is more accurate than simple 15s per asset for photo-heavy sets
-    max_with_stretching = total_usable_duration + (qualified_count * 15.0)
+    # FIX: Conservative max calculation - use 10s per asset for preflight (matches planner base)
+    # The planner starts with 3-6s segments and stretches to max 10-20s
+    # For preflight, we need to be conservative: assume 3s base + 7s stretch = 10s max per asset
+    max_per_asset = 10.0
+    max_achievable = qualified_count * max_per_asset
     tolerance = 2.0
     
     # Auto mode - will be resolved later, skip check
     if target_duration is None:
         return None
     
-    # Check if target is achievable
-    if target_duration > max_with_stretching + tolerance:
+    # Check if target is achievable using CONSERVATIVE estimate
+    if target_duration > max_achievable + tolerance:
         # Suggest feasible duration (same logic as _resolve_auto_duration)
-        can_do_60 = (qualified_count >= 5 and avg_quality > 0.65 and total_usable_duration >= 55)
-        can_do_45 = ((qualified_count >= 3 and avg_quality > 0.5) or total_usable_duration >= 40)
+        can_do_60 = (qualified_count >= 6)  # Need 6 assets for 60s at 10s each
+        can_do_45 = (qualified_count >= 5)  # Need 5 assets for 45s at 10s each
         
         if can_do_60:
             suggested = 60
@@ -1348,10 +1350,10 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
         return {
             "requested_duration": target_duration,
             "feasible_duration": suggested,
-            "max_achievable": int(max_with_stretching),
+            "max_achievable": int(max_achievable),
             "qualified_assets": qualified_count,
             "total_usable_duration": round(total_usable_duration, 1),
-            "reason": f"Only {qualified_count} usable assets selected (need ~{target_duration // 15} for {target_duration}s)",
+            "reason": f"Only {qualified_count} assets available (need {target_duration // 10} for {target_duration}s)",
             "recommendation": f"Switch to {suggested}s or use Auto duration"
         }
     
