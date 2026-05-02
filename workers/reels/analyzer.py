@@ -58,6 +58,19 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
     try:
         # For images, run visual analysis
         if media_type == "image":
+            # FIX: Extract image dimensions for proper aspect ratio calculation
+            try:
+                from PIL import Image
+                with Image.open(source_path) as img:
+                    width, height = img.size
+                    aspect_ratio = width / height if height > 0 else 1.0
+                    resolution = f"{width}x{height}"
+            except Exception as e:
+                logger.warning(f"Could not extract image dimensions for {asset_id}: {e}")
+                width, height = 1080, 1080  # Safe defaults
+                aspect_ratio = 1.0
+                resolution = "1080x1080"
+            
             if LLM_AVAILABLE:
                 try:
                     visual_result = analyze_visual_asset(source_path)
@@ -81,7 +94,12 @@ def analyze_reel_asset(asset_id: str, source_path: str, media_type: str) -> Dict
                         "is_food_content": visual_result.get("is_food_content", True),
                         "contradicts_user_text": visual_result.get("contradicts_user_text", False),
                         "lighting_score": lighting_score,
-                        "motion_quality": 0.0  # Images have no motion
+                        "motion_quality": 0.0,  # Images have no motion
+                        # FIX: Include resolution and aspect_ratio for orientation calculations
+                        "resolution": resolution,
+                        "aspect_ratio": aspect_ratio,
+                        "width": width,
+                        "height": height
                     }
                 except Exception as e:
                     logger.warning(f"Visual analysis failed for {asset_id}: {e}")
@@ -607,7 +625,11 @@ def _generate_advanced_analysis(
     rejection_reasons = []
     
     if advanced["orientation_fit"] < 0.3:
-        rejection_reasons.append("Poor orientation for 9:16 reels (landscape video)")
+        # FIX: Distinguish images from videos in rejection message
+        if media_type == "image":
+            rejection_reasons.append("Image orientation not ideal for 9:16 (may need cropping)")
+        else:
+            rejection_reasons.append("Poor orientation for 9:16 reels (landscape video)")
     
     if advanced["food_clarity"] < 0.3 and is_food:
         rejection_reasons.append("Food not clearly visible")
@@ -741,10 +763,14 @@ def _score_reel_suitability(
         # Parse rejection reasons - some are hard blocks, some are warnings
         hard_blocks = [
             "Video too short",
-            "Poor orientation for 9:16 reels",
             "file not found",
             "corrupted"
         ]
+        # FIX: Only treat orientation as hard block for videos, not images
+        # Images can be cropped, so "may need cropping" is a warning, not a hard block
+        if "landscape video" in rejection_reason.lower():
+            hard_blocks.append("Poor orientation for 9:16 reels")
+        
         for block in hard_blocks:
             if block.lower() in rejection_reason.lower():
                 disqualified = True
