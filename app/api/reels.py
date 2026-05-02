@@ -1325,10 +1325,11 @@ def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]
     
     avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
     
-    # FIX: Conservative max calculation - use 10s per asset for preflight (matches planner base)
-    # The planner starts with 3-6s segments and stretches to max 10-20s
-    # For preflight, we need to be conservative: assume 3s base + 7s stretch = 10s max per asset
-    max_per_asset = 10.0
+    # FIX: Images can stretch longer than videos. Use 15s for photos, 10s for videos/mixed
+    # A 2-photo reel can now reach 30s (2 × 15s), 3-photo can reach 45s, etc.
+    # Assume mostly images if qualified_count matches uploaded count (common case)
+    image_heavy_ratio = sum(1 for a in assets if a.get('media_type') == 'image') / len(assets) if assets else 0.5
+    max_per_asset = 15.0 if image_heavy_ratio >= 0.5 else 10.0
     max_achievable = qualified_count * max_per_asset
     tolerance = 2.0
     
