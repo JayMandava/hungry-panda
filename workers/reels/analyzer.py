@@ -581,10 +581,15 @@ def _generate_advanced_analysis(
     
     # 9:16 = 0.5625 aspect ratio. Closer = better fit
     target_aspect = 9 / 16  # 0.5625
-    if aspect_ratio > 0:  # Vertical/portrait
+    
+    # FIX: Better orientation scoring for images
+    # Vertical/portrait: high score near target
+    # Landscape/square: can still be cropped/zoomed for reels
+    if aspect_ratio <= 1.0:  # Portrait or square (height >= width)
         fit = 1.0 - min(1.0, abs(aspect_ratio - target_aspect) / target_aspect)
-    else:  # Landscape - needs cropping
-        fit = max(0, 0.5 - abs(aspect_ratio - target_aspect))
+    else:  # Landscape (width > height) - can be cropped, give moderate score
+        # Landscape 4:3 (1.33) -> 0.4, Landscape 16:9 (1.78) -> 0.2
+        fit = max(0.2, 0.6 - (aspect_ratio - 1.0) * 0.3)
     
     advanced["orientation_fit"] = round(fit, 2)
     
@@ -1064,9 +1069,14 @@ def select_assets_for_reel(assets: List[Dict], target_duration: int = 30) -> Lis
         # Hard disqualifiers
         is_disqualified = suitability.get("disqualified", False)
         orientation_fit = advanced.get("orientation_fit", 0.7)
+        media_type = asset.get("media_type", "unknown")
         rejection_reason = advanced.get("rejection_reason")
         
-        if is_disqualified or orientation_fit < 0.2:
+        # FIX: Relaxed orientation threshold for images (landscape can be cropped)
+        # Videos need good orientation, images can be cropped/panned
+        min_orientation = 0.1 if media_type == "image" else 0.2
+        
+        if is_disqualified or orientation_fit < min_orientation:
             disqualified.append({
                 "asset_id": asset["id"],
                 "reason": rejection_reason or f"orientation_fit={orientation_fit:.2f}"
