@@ -32,6 +32,16 @@ except ImportError:
 # Import shared reel templates (avoids circular imports)
 from shared.reel_templates import REEL_TEMPLATES, PROJECT_STATUSES, RENDER_STATUSES, PUBLISH_STATUSES
 
+# Import shared duration solver for unified preflight/planner logic
+from shared.duration_solver import (
+    solve_duration_target,
+    validate_plan_against_target,
+    clamp_duration_to_target,
+    TARGET_TOLERANCE,
+    PLATFORM_MAX_DURATION,
+    CapacityResult
+)
+
 # Phase 5: Metrics tracking for observability
 # Use a class-based singleton pattern to avoid mutable global state issues
 class ReelsMetricsManager:
@@ -1061,13 +1071,20 @@ def update_render_job_status(job_id: str, status: str, error_message: Optional[s
     except DatabaseError as e:
         logger.error(f"Failed to update job {job_id} status: {e}")
 
-def update_project_status(project_id: str, status: str):
+def update_project_status(project_id: str, status: str, clear_output: bool = False):
     """Update project status and timestamp"""
     try:
-        execute_insert(
-            "UPDATE reel_projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (status, project_id)
-        )
+        if clear_output:
+            # Clear old output URLs when entering plan_ready state to avoid stale preview
+            execute_insert(
+                "UPDATE reel_projects SET status = ?, final_output_path = NULL, final_output_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status, project_id)
+            )
+        else:
+            execute_insert(
+                "UPDATE reel_projects SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (status, project_id)
+            )
     except DatabaseError as e:
         logger.error(f"Failed to update project {project_id} status: {e}")
 
@@ -1139,8 +1156,8 @@ def _resolve_auto_duration(assets: List[Dict]) -> int:
 
         qualified_count += 1
 
-        # Accumulate usable duration
-        usable_duration = advanced.get("usable_duration_seconds", 3.0)
+        # Accumulate usable duration (null-safe: images have null usable_duration_seconds)
+        usable_duration = advanced.get("usable_duration_seconds") or 3.0
         total_usable_duration += max(0, usable_duration)
 
         # Track quality scores
@@ -1270,7 +1287,8 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
         
         # Finding 2 Fix: Step 6 - Mark edit plan as ready and STOP for user review
         update_render_job_status(job_id, "plan_ready")
-        update_project_status(project_id, "plan_ready")
+        # FIX: Clear old output URLs so plan_ready doesn't look like a completed render
+        update_project_status(project_id, "plan_ready", clear_output=True)
 
         logger.info(f"Phase 2 complete for project {project_id} - edit plan ready, awaiting user review")
 
@@ -1288,88 +1306,50 @@ async def process_reel_generation(project_id: str, job_id: str, template_key: st
 def _preflight_capacity_check(assets: List[Dict], target_duration: Optional[int]) -> Optional[Dict]:
     """
     Preflight check: verify assets can support requested duration.
-    FIX: Now uses same usable-duration logic as _resolve_auto_duration for accuracy.
+    
+    FIX: Uses shared duration solver for unified preflight/planner logic.
+    Duration-driven, not asset-count-driven. 30/45/60 are targets with ±5s band.
+    Images are stretchable via crop/zoom/pan effects.
+    
     Returns None if feasible, or structured error dict if not.
     """
     if not assets:
         return None  # Will be caught by caller
     
-    total_uploaded = len(assets)
-    
-    # FIX: Use same logic as _resolve_auto_duration - calculate actual usable duration
-    qualified_count = 0
-    total_usable_duration = 0.0
-    quality_scores = []
-    
-    for asset in assets:
-        # FIX: Handle NULL analysis_json (fresh uploads) - use `or {}` to handle None
-        analysis = asset.get("analysis_json") or {}
-        suitability = analysis.get("reel_suitability", {})
-        advanced = analysis.get("advanced_analysis", {})
-        
-        # Skip disqualified assets (same check as auto mode)
-        if suitability.get("disqualified", False):
-            continue
-        if advanced.get("orientation_fit", 0.7) < 0.2:
-            continue
-        
-        qualified_count += 1
-        
-        # Accumulate usable duration (same as auto mode)
-        usable_duration = advanced.get("usable_duration_seconds", 3.0)
-        total_usable_duration += max(0, usable_duration)
-        
-        # Track quality scores
-        score = suitability.get("score", 0.5)
-        quality_scores.append(score)
-    
-    avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.5
-    
-    # FIX: Images can stretch longer than videos. Use 15s for photos, 10s for videos/mixed
-    # A 2-photo reel can now reach 30s (2 × 15s), 3-photo can reach 45s, etc.
-    # Assume mostly images if qualified_count matches uploaded count (common case)
-    image_heavy_ratio = sum(1 for a in assets if a.get('media_type') == 'image') / len(assets) if assets else 0.5
-    max_per_asset = 15.0 if image_heavy_ratio >= 0.5 else 10.0
-    max_achievable = qualified_count * max_per_asset
-    tolerance = 2.0
+    # Use shared duration solver - single source of truth
+    result = solve_duration_target(assets, target_duration)
     
     # Auto mode - will be resolved later, skip check
     if target_duration is None:
         return None
     
-    # Check if target is achievable using CONSERVATIVE estimate
-    if target_duration > max_achievable + tolerance:
-        # Suggest feasible duration (same logic as _resolve_auto_duration)
-        can_do_60 = (qualified_count >= 6)  # Need 6 assets for 60s at 10s each
-        can_do_45 = (qualified_count >= 5)  # Need 5 assets for 45s at 10s each
-        
-        if can_do_60:
-            suggested = 60
-        elif can_do_45:
-            suggested = 45
-        else:
-            suggested = 30
-        
-        # FIX: User-friendly messaging explaining capacity constraints
-        if qualified_count == 0:
-            reason = f"You uploaded {total_uploaded} photos, but we need analyzed content to create a {target_duration}s reel"
-        elif qualified_count < total_uploaded:
-            reason = f"{total_uploaded} assets uploaded, {qualified_count} work well for a {target_duration}s reel (need more for this duration)"
-        else:
-            reason = f"{qualified_count} assets available, but {target_duration}s needs {target_duration // 10}+ assets"
-        
-        return {
-            "requested_duration": target_duration,
-            "feasible_duration": suggested,
-            "max_achievable": int(max_achievable),
-            "total_uploaded": total_uploaded,
-            "usable_assets": qualified_count,
-            "total_usable_duration": round(total_usable_duration, 1),
-            "reason": reason,
-            "recommendation": f"Switch to {suggested}s or use Auto duration"
-        }
+    # If feasible, return None (no error)
+    if result.feasible:
+        return None
     
-    return None  # Feasible
+    # Not feasible - return structured error for UI modal
+    # User-friendly messaging based on the shared solver output
+    if result.usable_count == 0:
+        reason = f"You uploaded {result.uploaded_count} assets, but we need analyzed content to create a {target_duration}s reel"
+    elif result.usable_count < result.uploaded_count:
+        reason = f"{result.uploaded_count} assets uploaded, {result.usable_count} usable for reels (some need longer holds or different angles)"
+    else:
+        reason = f"{result.usable_count} assets available, but {target_duration}s needs more content or longer image holds"
+    
+    # Add warnings from solver if any
+    if result.warnings:
+        reason += f". Notes: {'; '.join(result.warnings[:2])}"
+    
+    return {
+        "requested_duration": target_duration,
+        "feasible_duration": result.recommended_target,
+        "max_achievable": int(result.max_achievable),
+        "total_uploaded": result.uploaded_count,
+        "usable_assets": result.usable_count,
+        "reason": reason,
+        "recommendation": f"Switch to {result.recommended_target}s or use Auto duration",
+        "strategy": result.strategy  # Include solver strategy for debugging
+    }
 
 @router.post("/projects/{project_id}/generate")
 async def generate_reel(project_id: str, request: GenerateRequest, background_tasks: BackgroundTasks):

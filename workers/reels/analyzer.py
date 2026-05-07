@@ -13,6 +13,20 @@ from infra.config.database import execute_insert, execute_query, DatabaseError
 from infra.config.logging_config import logger
 from infra.config.settings import config
 
+# Import shared duration solver for unified duration logic
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from shared.duration_solver import (
+    solve_duration_target,
+    validate_plan_against_target,
+    clamp_duration_to_target,
+    TARGET_TOLERANCE,
+    PLATFORM_MAX_DURATION,
+    allocate_segment_durations,
+    build_duration_strategy
+)
+
 # Import LLM client for visual analysis and edit planning
 try:
     from infra.integrations.llm_client import analyze_visual_asset, LLMClient
@@ -1404,7 +1418,7 @@ EDIT_PLAN_JSON_SCHEMA = {
                 "required": ["asset_index", "duration_seconds", "transition", "effect_notes"],
                 "properties": {
                     "asset_index": {"type": "integer", "minimum": 0, "description": "0-based index of the asset"},
-                    "duration_seconds": {"type": "number", "minimum": 1.0, "maximum": 10.0, "description": "Duration for this segment"},
+                    "duration_seconds": {"type": "number", "minimum": 1.0, "maximum": 15.0, "description": "Duration for this segment (up to 15s for images with Ken Burns/pan effects)"},
                     "transition": {"type": "string", "enum": ["hard_cut", "crossfade", "fade", "fade_in"], "description": "Transition type"},
                     "effect_notes": {"type": "string", "maxLength": 200, "description": "Brief effect description (e.g., 'Ken Burns zoom', 'quick cut')"},
                     "overlay_text": {"type": "string", "maxLength": 50, "description": "Optional overlay text (keep empty for most segments)"}
@@ -1605,13 +1619,12 @@ ASSETS ({len(selected_assets)} total):
 Create an engaging edit plan. For EACH asset, provide:
 1. Duration (in seconds) - consider pacing and content type
 2. Transition to NEXT segment (fade_in, crossfade, hard_cut, fade, zoom)
-3. Overlay text hook/CTA if appropriate (keep short, punchy)
-4. Effect notes (e.g., "Ken Burns zoom", "quick cut", "hold for reveal")
+3. Effect notes (e.g., "Ken Burns zoom", "quick cut", "hold for reveal")
 
 Think about:
 - First asset needs a strong hook to grab attention
 - Middle assets should maintain energy
-- Last asset should have clear CTA or satisfying conclusion
+- Last asset should provide satisfying conclusion
 - Match transitions to template style ({template.get('transitions', 'smooth')})
 - Total must fit within {target_duration}s
 
@@ -1699,18 +1712,22 @@ def _clamp_segment_duration(
     return min(duration, float(target_duration))
 
 
-def _ensure_minimum_reel_duration(
+def _fit_segments_to_target(
     segments: List[Dict[str, Any]],
     selected_assets: List[Dict[str, Any]],
     target_duration: int,
-    tolerance: float = 2.0,
+    tolerance: float = None,
 ) -> None:
     """
-    Stretch segments to reach target duration within tolerance.
-    Extends segments proportionally - images can extend freely, videos capped reasonably.
+    Fit segment durations to the requested target duration.
+    Duration-driven, not asset-count-driven. 30/45/60 are targets with ±5s band.
     
-    FIX: Now targets the actual requested duration (30/45/60), not just minimum 30s.
+    Extends segments proportionally - images can extend via Ken Burns/pan/zoom,
+    videos can extend via tpad (freeze last frame). Trims if over target.
     """
+    if tolerance is None:
+        tolerance = TARGET_TOLERANCE  # Use shared solver's ±5s band
+    
     current_total = sum(segment["duration"] for segment in segments)
     if not segments:
         return
@@ -1719,24 +1736,37 @@ def _ensure_minimum_reel_duration(
     if abs(current_total - target_duration) <= tolerance:
         return
     
-    # If we're over target, we need to trim (but this shouldn't happen with current logic)
+    # If we're over target, trim from the end
     if current_total >= target_duration:
+        excess = current_total - target_duration
+        # Trim from the last segments first (they're less critical)
+        for seg in reversed(segments):
+            if excess <= 0:
+                break
+            current_dur = seg["duration"]
+            min_dur = 2.0  # Minimum segment duration
+            trim_amount = min(excess, current_dur - min_dur)
+            if trim_amount > 0:
+                seg["duration"] = round(current_dur - trim_amount, 2)
+                excess -= trim_amount
         return
 
     # Calculate how much we need to extend to reach target
     required_extension = target_duration - current_total
     
-    # Maximum extension per segment type - scale with target for longer reels
-    # For 60s targets with few assets, allow segments up to 15s each
+    # Maximum extension per segment type - images can stretch more than videos
+    # Use shared solver constants for consistency
+    from shared.duration_solver import MAX_VIDEO_SEGMENT, MAX_IMAGE_SEGMENT, MIN_SEGMENT_DURATION
+    
     if target_duration >= 60:
-        MAX_VIDEO_EXTENSION = 20.0
-        MAX_IMAGE_EXTENSION = 20.0
+        max_video_extension = MAX_VIDEO_SEGMENT + 5.0  # Allow extra for 60s targets
+        max_image_extension = MAX_IMAGE_SEGMENT + 5.0
     elif target_duration >= 45:
-        MAX_VIDEO_EXTENSION = 15.0
-        MAX_IMAGE_EXTENSION = 15.0
+        max_video_extension = MAX_VIDEO_SEGMENT
+        max_image_extension = MAX_IMAGE_SEGMENT
     else:
-        MAX_VIDEO_EXTENSION = 10.0
-        MAX_IMAGE_EXTENSION = 10.0
+        max_video_extension = MAX_VIDEO_SEGMENT - 2.0  # Conservative for short reels
+        max_image_extension = MAX_IMAGE_SEGMENT - 2.0
     
     # Calculate how much each segment CAN be extended
     extendable_room = []  # (segment_idx, current_duration, max_extendable)
@@ -1750,12 +1780,12 @@ def _ensure_minimum_reel_duration(
         
         if asset.get("media_type") == "video":
             # Allow extending beyond source duration — renderer pads short videos with tpad (freeze last frame)
-            extendable_room.append((i, current_dur, MAX_VIDEO_EXTENSION))
-            total_extendable += MAX_VIDEO_EXTENSION
+            extendable_room.append((i, current_dur, max_video_extension))
+            total_extendable += max_video_extension
         else:
             # Images can extend arbitrarily (Ken Burns can run longer)
-            extendable_room.append((i, current_dur, MAX_IMAGE_EXTENSION))
-            total_extendable += MAX_IMAGE_EXTENSION
+            extendable_room.append((i, current_dur, max_image_extension))
+            total_extendable += max_image_extension
     
     if total_extendable <= 0:
         return  # Nothing can be extended
@@ -1835,21 +1865,22 @@ def generate_edit_plan(
     
     logger.info(f"Edit plan for project {project_id}: transition_style={transition_style}, effective={effective_transition}")
     
-    # FIX: Pre-check if target is achievable with available assets
-    # Calculate maximum achievable duration with current selection
-    max_segment_duration = 10.0  # Max per segment after stretching
-    max_achievable = len(selected_assets) * max_segment_duration
-    tolerance = 2.0
+    # FIX: Use shared duration solver for unified capacity check
+    # Duration-driven, not asset-count-driven. 30/45/60 are targets with ±5s band.
+    capacity_result = solve_duration_target(selected_assets, target_duration)
     
-    if target_duration > max_achievable + tolerance:
-        # Target not achievable - raise clear error
+    if not capacity_result.feasible:
+        # Target not achievable - raise clear error with solver recommendations
         error_msg = (
-            f"Cannot create {target_duration}s reel: only {len(selected_assets)} assets selected, "
-            f"maximum achievable is ~{max_achievable}s (even with stretching). "
-            f"Please add more assets or reduce target duration to {int(max_achievable)}s or less."
+            f"Cannot create {target_duration}s reel: maximum achievable is ~{int(capacity_result.max_achievable)}s. "
+            f"{capacity_result.usable_count} assets usable out of {capacity_result.uploaded_count} uploaded. "
+            f"Recommendation: use {capacity_result.recommended_target}s or add more content."
         )
         logger.error(f"Project {project_id}: {error_msg}")
         raise ValueError(error_msg)
+    
+    # Log the strategy from solver
+    logger.info(f"Duration strategy for {target_duration}s: {capacity_result.strategy}")
     
     # Calculate base segment durations (deterministic foundation)
     # FIX: Adjust base duration based on target to help reach longer targets
@@ -1965,19 +1996,14 @@ def generate_edit_plan(
             else:
                 transition = effective_transition
         
-        # Phase 1 Work Item 3: Build overlay text - use AI overlay if provided, otherwise FINAL CTA ONLY
-        is_final_segment = (idx == len(selected_assets) - 1)
-
-        # Use AI overlay text if provided and valid, otherwise use standard CTA on final segment
-        if ai_overlay_text and len(ai_overlay_text) <= 50:
-            overlay = {
-                "text": ai_overlay_text,
-                "position": "bottom" if is_final_segment else "center",
-                "style": "cta" if is_final_segment else "hook",
-                "duration": min(2.0, duration * 0.5)
-            }
-        else:
-            overlay = _generate_segment_overlay(role, asset, template_key, idx, None, is_final_segment)
+        # Phase 1 Work Item 3: Build overlay text - NO FINAL CTA
+        # Text overlays removed per product decision - no ending CTA/subtext on any segment
+        overlay = {
+            "text": "",
+            "position": "none",
+            "style": "none",
+            "duration": 0
+        }
 
         # Phase 1 Work Item 3: Build effects with AI effect notes if available
         effects = _get_segment_effects(media_type, role, template_key)
@@ -2004,7 +2030,7 @@ def generate_edit_plan(
         if current_time >= target_duration:
             break
 
-    _ensure_minimum_reel_duration(segments, selected_assets, target_duration)
+    _fit_segments_to_target(segments, selected_assets, target_duration)
 
     # Validate total duration
     total_duration = sum(s["duration"] for s in segments)
@@ -2124,24 +2150,15 @@ def generate_edit_plan(
 def _generate_segment_overlay(role: str, asset: Dict, template_key: str, position: int, ai_decision: Optional[Dict] = None, is_final_segment: bool = False) -> Dict[str, Any]:
     """
     Generate overlay text for a segment.
-    RESTRICTED TO FINAL CTA ONLY - no text on intro/body segments.
-    Only the last segment shows 'Follow for more' CTA.
+    DEPRECATED: Text overlays removed - no CTA/subtext on any segment.
+    Returns empty overlay for all segments.
     """
-    # Only show text on the final segment (outro/CTA)
-    if not is_final_segment:
-        return {
-            "text": "",
-            "position": "none",
-            "style": "none",
-            "duration": 0
-        }
-    
-    # Final segment CTA only
+    # No text overlays on any segment per product decision
     return {
-        "text": "Follow for more",
-        "position": "bottom",
-        "style": "cta",
-        "duration": 2.0
+        "text": "",
+        "position": "none",
+        "style": "none",
+        "duration": 0
     }
 
 
@@ -2225,20 +2242,37 @@ def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
             validation_errors.append(f"Segment {idx}: source file not found: {seg.get('source_path', 'unknown')}")
             is_valid = False
 
-    # Check total duration
+    # Check total duration using shared solver as authoritative source
     total = sum(s["duration"] for s in segments)
     target = edit_plan.get("target_duration", 30)
-    tolerance = edit_plan.get("duration_tolerance_seconds", 2.0)
-
-    # FIX: Check both upper and lower bounds against target tolerance
-    if abs(total - target) > tolerance:
-        validation_errors.append(f"Total duration ({total:.1f}s) deviates from target ({target}s) by more than tolerance ({tolerance}s)")
+    
+    # FIX: Use shared duration solver validation with ±5s target band
+    # The solver is the single source of truth - its result is authoritative
+    is_duration_valid, clamped_or_actual_duration, duration_error = validate_plan_against_target(
+        [{"duration_seconds": s["duration"]} for s in segments],
+        target,
+        PLATFORM_MAX_DURATION
+    )
+    
+    if not is_duration_valid:
+        # Hard failure from solver - trust its judgment
+        validation_errors.append(duration_error)
         is_valid = False
-
-    # Hard limits: must be within Instagram bounds (30-60s) after padding
-    if total > 60:
-        validation_errors.append(f"Total duration ({total:.1f}s) exceeds Instagram maximum of 60s")
-        is_valid = False
+    else:
+        # Solver says valid - use its clamped duration if different from actual
+        if abs(clamped_or_actual_duration - total) > 0.01:  # Significant difference
+            logger.warning(f"Applying solver clamp: {total:.1f}s -> {clamped_or_actual_duration:.1f}s")
+            # Apply clamp to segments using the shared solver function
+            segments = clamp_duration_to_target(
+                [{"duration_seconds": s["duration"]} for s in segments],
+                target,
+                PLATFORM_MAX_DURATION
+            )
+            # Convert back to edit plan segment format
+            for i, seg in enumerate(segments):
+                if i < len(edit_plan.get("segments", [])):
+                    edit_plan["segments"][i]["duration"] = seg["duration_seconds"]
+            total = clamped_or_actual_duration
 
     # Short plans (< 30s) are padded to 30s by the renderer via tpad — not a hard failure
     if total < 3:
@@ -2246,12 +2280,14 @@ def validate_edit_plan(edit_plan: Dict) -> tuple[bool, Optional[str]]:
         is_valid = False
 
     # Update validation metadata in edit_plan (Phase 3)
+    # FIX: Use shared solver tolerance for consistency
     validation_meta = edit_plan.get("validation", {})
     validation_meta["validated"] = is_valid
     validation_meta["validation_timestamp"] = datetime.now(timezone.utc).isoformat()
     validation_meta["validation_errors"] = validation_errors
-    validation_meta["duration_within_tolerance"] = abs(total - target) <= tolerance
+    validation_meta["duration_within_tolerance"] = abs(total - target) <= TARGET_TOLERANCE
     validation_meta["total_duration_seconds"] = round(total, 2)
+    validation_meta["solver_authoritative"] = True  # Mark that we used the shared solver
     edit_plan["validation"] = validation_meta
 
     error_msg = "; ".join(validation_errors) if validation_errors else None

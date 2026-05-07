@@ -2429,6 +2429,18 @@
 
                 // Update generate button based on status
                 updateGenerateButton(data.project.status, data.assets.length);
+                
+                // FIX: If plan_ready, restore the job ID and set up render button
+                if (data.project.status === 'plan_ready' && data.latest_render) {
+                    currentJobId = data.latest_render.id;
+                    setupProceedToRenderButton(currentJobId);
+                    // Fetch and show the edit plan if not already shown
+                    if (data.latest_render.edit_plan_json) {
+                        const editPlan = JSON.parse(data.latest_render.edit_plan_json);
+                        showAppliedStyle(editPlan);
+                        showPlanReview(editPlan);
+                    }
+                }
 
                 // Update publish UI (Phase 4) - check Instagram status
                 const instagramStatus = await checkInstagramStatus();
@@ -2515,11 +2527,12 @@
                 // Change click handler to regenerate
                 generateBtn.onclick = () => regenerateReel();
             } else if (status === 'plan_ready') {
-                // FIX: Plan ready - enable Proceed to Render button
-                // Don't disable here; pollJobStatusWithTicker sets this up
+                // FIX: Plan ready - button will be set up by setupProceedToRenderButton()
+                // which is called from openProject() after setting currentJobId
                 generateBtn.disabled = false;
                 generateBtn.classList.add('liquid-pulse');
-                // onclick is set by pollJobStatusWithTicker
+                // CRITICAL FIX: Clear any stale onclick handler to prevent accidental generation
+                generateBtn.onclick = null;
             } else if (status === 'rendering') {
                 // Generation in progress
                 generateBtn.disabled = true;
@@ -2542,12 +2555,44 @@
                     generateBtn.classList.remove('liquid-pulse');
                 }
                 
-                generateBtn.onclick = null; // Use default click handler
+                // Set click handler to generate reel (when assets are uploaded)
+                if (hasAssets) {
+                    generateBtn.onclick = () => generateReel();
+                } else {
+                    generateBtn.onclick = null;
+                }
+            }
+        }
+
+        // FIX: Helper function to set up Proceed to Render button (used by both openProject and pollJobStatusWithTicker)
+        function setupProceedToRenderButton(jobId) {
+            const generateBtn = document.getElementById('generateBtn');
+            const statusText = document.getElementById('statusText');
+            
+            generateBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 3l14 9-14 9V3z"/>
+                </svg>
+                Proceed to Render
+            `;
+            generateBtn.disabled = false;
+            generateBtn.onclick = () => startRenderFromPlan(jobId);
+            generateBtn.classList.add('liquid-pulse');
+            
+            if (statusText) {
+                statusText.textContent = 'Plan ready! Review and click to render.';
+                statusText.style.color = 'var(--brand-success)';
             }
         }
 
         async function regenerateReel() {
             if (!currentProject) return;
+
+            // CRITICAL FIX: Prevent double-generation if already processing
+            if (currentProject.status === 'plan_ready' || currentProject.status === 'rendering' || currentProject.status === 'analyzing') {
+                console.log(`Skipping regenerateReel: project status is ${currentProject.status}`);
+                return;
+            }
 
             const generateBtn = document.getElementById('generateBtn');
 
@@ -2777,6 +2822,12 @@
         async function generateReel() {
             if (!currentProject) return;
 
+            // CRITICAL FIX: Prevent double-generation if already processing
+            if (currentProject.status === 'plan_ready' || currentProject.status === 'rendering' || currentProject.status === 'analyzing') {
+                console.log(`Skipping generateReel: project status is ${currentProject.status}`);
+                return;
+            }
+
             const generateBtn = document.getElementById('generateBtn');
 
             // Show ticker modal immediately
@@ -2912,19 +2963,8 @@
                             showPlanReview(data.edit_plan);
                         }
 
-                        // Change generate button to "Proceed to Render"
-                        generateBtn.disabled = false;
-                        generateBtn.innerHTML = `
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 3l14 9-14 9V3z"/>
-                            </svg>
-                            Proceed to Render
-                        `;
-                        generateBtn.onclick = () => startRenderFromPlan(currentJobId);
-                        generateBtn.classList.add('liquid-pulse');
-
-                        statusText.textContent = 'Plan ready! Review and click to render.';
-                        statusText.style.color = 'var(--brand-success)';
+                        // FIX: Use helper to set up Proceed to Render button
+                        setupProceedToRenderButton(currentJobId);
 
                         showToast('Plan created! Review your reel structure before rendering.', 'success');
 
@@ -2934,20 +2974,24 @@
                         // Close ticker modal with animation
                         await closeTicker({ animate: true });
 
+                        // CRITICAL FIX: Disable button and clear handler BEFORE updating UI
+                        generateBtn.disabled = true;
+                        generateBtn.onclick = null;
+
                         generateBtn.innerHTML = `
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 6L9 17l-5-5"/>
                             </svg>
                             Video Ready
                         `;
-                        generateBtn.onclick = null; // Reset to default
                         statusText.style.color = 'var(--brand-success)';
 
                         // Show success toast
                         showToast('Video rendered successfully!', 'success');
 
-                        // Refresh to show updates
-                        openProject(currentProject.id);
+                        // Refresh to show updates - await it and enable button after
+                        await openProject(currentProject.id);
+                        generateBtn.disabled = false;
                     } else if (data.status === 'failed') {
                         await closeTicker({ animate: true });
                         
@@ -3067,17 +3111,26 @@
                     if (data.status === 'completed') {
                         await closeTicker({ animate: true });
 
+                        // CRITICAL FIX: Disable button and clear handler BEFORE anything else
+                        // to prevent any race condition where user or code could trigger generation
+                        generateBtn.disabled = true;
+                        generateBtn.onclick = null;
+
                         generateBtn.innerHTML = `
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M20 6L9 17l-5-5"/>
                             </svg>
                             Video Ready
                         `;
-                        generateBtn.onclick = null;
                         statusText.style.color = 'var(--brand-success)';
 
                         showToast('Video rendered successfully!', 'success');
-                        openProject(currentProject.id);
+                        
+                        // Refresh project data - this will properly set up the Regenerate button
+                        await openProject(currentProject.id);
+                        
+                        // Enable the button only after openProject completes and sets up proper handler
+                        generateBtn.disabled = false;
                     } else if (data.status === 'failed') {
                         await closeTicker({ animate: true });
 
@@ -3494,8 +3547,11 @@
                 uploadFiles(e.dataTransfer.files);
             });
 
-            // Generate button - Phase 2: Enabled with real async processing
-            document.getElementById('generateBtn').addEventListener('click', generateReel);
+            // Generate button handler is now managed dynamically via onclick in:
+            // - updateGenerateButton() for draft/ready states
+            // - setupProceedToRenderButton() for plan_ready state
+            // - pollJobStatusWithTicker() during generation
+            // NOTE: Do NOT add a global listener here - it conflicts with dynamic handlers
 
             // Delete current project
             document.getElementById('deleteProjectBtn').addEventListener('click', () => {

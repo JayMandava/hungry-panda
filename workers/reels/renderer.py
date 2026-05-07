@@ -129,11 +129,18 @@ class FFmpegRenderer:
         try:
             # Step 1: Render individual segments
             segment_files = []
+            num_segments = len(segments)
             for idx, segment in enumerate(segments):
-                logger.info(f"Rendering segment {idx+1}/{len(segments)}: {segment.get('role', 'body')}")
+                logger.info(f"Rendering segment {idx+1}/{num_segments}: {segment.get('role', 'body')}")
                 
                 temp_segment = self.temp_dir / f"segment_{idx}_{os.urandom(4).hex()}.mp4"
                 temp_files.append(temp_segment)
+                
+                # CRITICAL FIX: No text overlay on final segment (no ending CTA/subtext)
+                if idx == num_segments - 1:
+                    segment = dict(segment)  # Shallow copy to avoid mutating original
+                    segment["overlay"] = {"text": "", "position": "none", "style": "none", "duration": 0}
+                    logger.info("Final segment: clearing overlay (no ending CTA)")
                 
                 success = self._render_segment(segment, str(temp_segment), diagnostics)
                 if success:
