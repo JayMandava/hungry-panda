@@ -1629,6 +1629,9 @@ async def process_reel_render_only(project_id: str, job_id: str, edit_plan: Dict
         output_path = dirs["output"] / output_filename
         poster_path = dirs["output"] / f"reel_{job_id[:8]}_poster.jpg"
 
+        # CRITICAL FIX: Ensure project directories exist before render
+        ensure_project_dirs(project_id)
+
         # Phase 5: Choose renderer based on feature flag
         use_remotion = REMOTION_AVAILABLE and is_remotion_enabled()
         

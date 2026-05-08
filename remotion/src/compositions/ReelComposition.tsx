@@ -37,7 +37,7 @@ const SegmentSchema = z.object({
   media_type: z.enum(["video", "image"]),
   role: z.enum(["intro", "body", "outro"]),
   start_time: z.number().default(0),
-  duration: z.number().min(1).max(10),
+  duration: z.number().min(1).max(15),  // Raised to 15s to match planner (images stretchable to 15s)
   transition: z.enum(["hard_cut", "crossfade", "fade", "fade_in"]).default("hard_cut"),
   overlay: z.any().optional(),
   effects: z.any().optional(),
@@ -321,9 +321,8 @@ export const ReelComposition: React.FC<ReelProps> = ({ editPlan }) => {
     };
   });
   
-  // Ensure we meet minimum duration requirement (Instagram needs 30s minimum)
-  const minFrames = 30 * fps;
-  const actualFrames = Math.max(durationInFrames, minFrames);
+  // Duration is now dynamically set via calculateMetadata in index.tsx
+  // based on editPlan.target_duration, validated to meet Instagram 30s minimum
   
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>

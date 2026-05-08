@@ -143,7 +143,23 @@ class RemotionRenderer:
             # Create symlink or copy for static files if needed
             self._prepare_static_assets(edit_plan, remotion_public)
             
+            # CRITICAL FIX: Verify assets exist on disk before render
+            # Note: Remotion headless render bundles assets, doesn't serve via HTTP
+            asset_files = list(remotion_public.glob("segment_*"))
+            if not asset_files:
+                error_msg = "No asset files found in public directory after preparation"
+                logger.error(error_msg)
+                return RemotionRenderResult(
+                    success=False,
+                    output_path=None,
+                    error_message=error_msg,
+                    duration=0,
+                    diagnostics=diagnostics
+                )
+            logger.info(f"Prepared {len(asset_files)} assets for Remotion bundling")
+            
             # Run Remotion CLI render
+            # CRITICAL FIX: Explicitly set public directory for bundler
             cmd = [
                 'npx', 'remotion', 'render',
                 'ReelComposition',
@@ -153,7 +169,8 @@ class RemotionRenderer:
                 '--fps', str(self.TARGET_FPS),
                 '--duration-in-frames', str(duration_in_frames),
                 '--width', str(self.TARGET_WIDTH),
-                '--height', str(self.TARGET_HEIGHT)
+                '--height', str(self.TARGET_HEIGHT),
+                '--public-dir', str(remotion_public)  # Explicit public dir for static assets
             ]
             
             diagnostics["commands_run"].append(" ".join(cmd))
@@ -183,7 +200,15 @@ class RemotionRenderer:
             
             # Step 5: Move output to final location if different
             if str(remotion_output) != output_path:
+                # CRITICAL FIX: Ensure destination directory exists before move
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(remotion_output), output_path)
+            
+            # Step 5b: Normalize pixel format (yuvj420p -> yuv420p)
+            # Remotion outputs yuvj420p but validation expects yuv420p
+            normalized_path = self._normalize_pixel_format(output_path)
+            if normalized_path != output_path:
+                output_path = normalized_path
             
             # Step 6: Validate output contract (Finding 2 Fix)
             logger.info(f"Validating Remotion output contract: {output_path}")
@@ -264,7 +289,8 @@ class RemotionRenderer:
                 # Create a symlink-friendly name
                 basename = os.path.basename(original_path)
                 segment_id = f"segment_{idx}_{basename}"
-                # Keep source_path but store the mapping for _prepare_static_assets
+                # CRITICAL FIX: Update source_path to relative segment_id for staticFile()
+                segment["source_path"] = segment_id
                 segment["_remotion_segment_id"] = segment_id
         
         return { "editPlan": remotion_plan }
@@ -272,8 +298,8 @@ class RemotionRenderer:
     def _prepare_static_assets(self, edit_plan: Dict[str, Any], public_dir: Path):
         """
         Prepare static assets for Remotion public/ directory.
-        Creates symlinks to avoid copying large video files.
-        FIXED: Uses source_path from top level (real edit plan structure)
+        CRITICAL FIX: Copy files instead of symlinks for headless render compatibility.
+        Remotion's bundler doesn't reliably serve symlinks during npx remotion render.
         """
         for idx, segment in enumerate(edit_plan.get("segments", [])):
             # FIXED: Use source_path from top level
@@ -283,20 +309,56 @@ class RemotionRenderer:
                 logger.warning(f"Asset not found: {original_path}")
                 continue
             
-            # Create symlink-friendly name using the segment index
+            # Create segment ID using the segment index
             basename = os.path.basename(original_path)
             segment_id = f"segment_{idx}_{basename}"
-            link_path = public_dir / segment_id
+            dest_path = public_dir / segment_id
             
-            # Create symlink (or copy if symlinking fails)
-            if not link_path.exists():
-                try:
-                    os.symlink(original_path, link_path)
-                    logger.debug(f"Created symlink: {link_path} -> {original_path}")
-                except OSError:
-                    # Fallback: copy file
-                    shutil.copy2(original_path, link_path)
-                    logger.debug(f"Copied asset: {link_path}")
+            # CRITICAL FIX: Always copy files for reliable headless rendering
+            # Symlinks fail with 404 in Remotion's dev server during render
+            try:
+                shutil.copy2(original_path, dest_path)
+                logger.debug(f"Copied asset: {dest_path}")
+            except Exception as e:
+                logger.error(f"Failed to copy asset {original_path}: {e}")
+                raise
+    
+    def _preflight_asset_check(self, public_dir: Path, port: int = 3001) -> tuple[bool, List[str]]:
+        """
+        Preflight check: verify all assets are accessible via HTTP before render.
+        Returns (all_accessible, list_of_failed_urls)
+        """
+        import urllib.request
+        import time
+        
+        failed_urls = []
+        asset_files = list(public_dir.glob("segment_*"))
+        
+        if not asset_files:
+            logger.warning("No asset files found in public directory for preflight check")
+            return False, ["No assets in public/ directory"]
+        
+        # Give Remotion dev server time to start
+        time.sleep(2)
+        
+        for asset_file in asset_files:
+            url = f"http://localhost:{port}/public/{asset_file.name}"
+            try:
+                req = urllib.request.Request(url, method='HEAD')
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    if response.status != 200:
+                        failed_urls.append(f"{url} (status: {response.status})")
+            except Exception as e:
+                failed_urls.append(f"{url} (error: {e})")
+        
+        if failed_urls:
+            logger.error(f"Preflight check failed for {len(failed_urls)} assets:")
+            for url in failed_urls:
+                logger.error(f"  - {url}")
+            return False, failed_urls
+        
+        logger.info(f"Preflight check passed: {len(asset_files)} assets accessible")
+        return True, []
     
     def _get_video_duration(self, video_path: str) -> float:
         """Get video duration using ffprobe"""
@@ -317,6 +379,52 @@ class RemotionRenderer:
         except:
             pass
         return 0.0
+    
+    def _normalize_pixel_format(self, input_path: str) -> str:
+        """
+        Normalize video pixel format from yuvj420p to yuv420p.
+        Remotion outputs yuvj420p but Instagram/validation expects yuv420p.
+        Re-encodes with ffmpeg to ensure compatibility.
+        
+        Returns: path to normalized file (may be same as input if no change needed)
+        """
+        import tempfile
+        
+        # Create temp output path
+        temp_dir = Path(input_path).parent
+        temp_output = temp_dir / f"normalized_{Path(input_path).name}"
+        
+        try:
+            # Normalize pixel format with ffmpeg
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'copy',
+                str(temp_output)
+            ]
+            
+            logger.info(f"Normalizing pixel format: {input_path} -> {temp_output}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Pixel format normalization failed: {result.stderr}")
+                return input_path  # Return original on failure
+            
+            # Replace original with normalized version
+            shutil.move(str(temp_output), input_path)
+            logger.info(f"Pixel format normalized to yuv420p: {input_path}")
+            return input_path
+            
+        except Exception as e:
+            logger.error(f"Error during pixel format normalization: {e}")
+            return input_path  # Return original on any error
     
     # Finding 2 Fix: Add output validation matching FFmpeg renderer contract
     def validate_output_contract(self, output_path: str, target_duration: float = 30.0) -> tuple[bool, Dict[str, Any]]:
